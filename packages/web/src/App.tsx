@@ -1833,9 +1833,9 @@ Examples:
               <button
                 onClick={() => sendToImageToPrompt(previewImage)}
                 className="bg-purple-600 hover:bg-purple-700 rounded-full p-2 transition-colors"
-                title="Analyze with Image-to-Prompt"
+                title="Extract prompt from image"
               >
-                <ScanSearch className="w-6 h-6" />
+                <FileJson className="w-6 h-6" />
               </button>
               <button
                 onClick={() => setPreviewImage(null)}
