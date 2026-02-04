@@ -60,7 +60,14 @@ const MAX_REFERENCE_IMAGES = 4
 
 router.post('/batch', upload.array('referenceImages', MAX_REFERENCE_IMAGES), async (req, res) => {
   try {
-    const { concept, prompts: promptsJson } = req.body
+    const {
+      concept,
+      prompts: promptsJson,
+      aspectRatio = '9:16',
+      numImagesPerPrompt = '1',
+      resolution = '1080p',
+      outputFormat = 'png'
+    } = req.body
     const files = req.files as Express.Multer.File[]
 
     if (!files || files.length === 0) {
@@ -96,6 +103,9 @@ router.post('/batch', upload.array('referenceImages', MAX_REFERENCE_IMAGES), asy
       return
     }
 
+    const numImages = Math.min(4, Math.max(1, parseInt(numImagesPerPrompt, 10) || 1))
+    const totalImages = prompts.length * numImages
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const safeConcept = sanitizeConcept(concept)
     const outputDir = path.resolve(
@@ -105,16 +115,18 @@ router.post('/batch', upload.array('referenceImages', MAX_REFERENCE_IMAGES), asy
     )
     await fs.mkdir(outputDir, { recursive: true })
 
-    const job = createBatchJob(concept, prompts.length, outputDir)
+    const job = createBatchJob(concept, totalImages, outputDir)
 
     const referenceImageUrls = files.map((file) => `file://${file.path}`)
     const textPrompts = prompts.map((p) => formatPromptForFal(p))
 
-    console.log(`[Batch] Starting with ${files.length} reference image(s)`)
+    console.log(`[Batch] Starting with ${files.length} reference image(s), ${aspectRatio}, ${resolution}, ${numImages} images/prompt`)
 
     generateBatch(job.id, referenceImageUrls, textPrompts, {
-      resolution: '2K',
-      aspectRatio: '9:16',
+      resolution,
+      aspectRatio,
+      numImages,
+      outputFormat,
       concurrency: 4,
     }).catch((err) => {
       console.error('[Batch] Generation failed:', err)

@@ -59,6 +59,7 @@ export interface MakeupConfig {
 export interface EffectsConfig {
   vignette?: string
   color_grade: string
+  lens_flare?: string
   atmosphere?: string
   grain: string
 }
@@ -139,20 +140,39 @@ const EMOTION_KEYWORDS: Record<string, string[]> = {
 export function validatePrompt(prompt: PromptOutput): { valid: boolean; errors: string[] } {
   const errors: string[] = []
 
-  if (!prompt.style || prompt.style.length < 20) {
-    errors.push('Style field must be at least 20 characters')
+  // Style should be rich and detailed (30-50 words = ~150-300 chars)
+  if (!prompt.style || prompt.style.length < 100) {
+    errors.push('Style field must be at least 100 characters (aim for 30-50 words)')
   }
 
-  if (!prompt.pose?.framing) errors.push('Missing pose.framing')
-  if (!prompt.lighting?.setup) errors.push('Missing lighting.setup')
-  if (!prompt.set_design?.backdrop) errors.push('Missing set_design.backdrop')
-  if (!prompt.outfit?.main) errors.push('Missing outfit.main')
-  if (!prompt.camera?.lens) errors.push('Missing camera.lens')
+  // Core required fields with minimum detail
+  if (!prompt.pose?.framing || prompt.pose.framing.length < 30) {
+    errors.push('pose.framing needs more detail (min 30 chars)')
+  }
+  if (!prompt.lighting?.setup || prompt.lighting.setup.length < 40) {
+    errors.push('lighting.setup needs more detail (min 40 chars)')
+  }
+  if (!prompt.set_design?.backdrop || prompt.set_design.backdrop.length < 50) {
+    errors.push('set_design.backdrop needs more detail (min 50 chars)')
+  }
+  if (!prompt.outfit?.main || prompt.outfit.main.length < 30) {
+    errors.push('outfit.main needs more detail (min 30 chars)')
+  }
+  if (!prompt.camera?.lens || prompt.camera.lens.length < 20) {
+    errors.push('camera.lens needs more detail (min 20 chars)')
+  }
 
-  const lockedTerms = ['blonde', 'brunette', 'asian', 'caucasian', 'young', 'old', 'beautiful', 'pretty', 'gorgeous', 'blue eyes', 'brown eyes', 'tan skin']
-  const promptStr = JSON.stringify(prompt).toLowerCase()
+  // Check for CRITICAL tag (should have at least one hero element)
+  const promptStr = JSON.stringify(prompt)
+  if (!promptStr.includes('CRITICAL:')) {
+    errors.push('Missing CRITICAL: tag for hero element')
+  }
+
+  // Locked terms - identity descriptors that must never appear
+  const lockedTerms = ['blonde', 'brunette', 'redhead', 'asian', 'caucasian', 'african', 'hispanic', 'young', 'old', 'beautiful', 'pretty', 'gorgeous', 'handsome', 'blue eyes', 'brown eyes', 'green eyes', 'tan skin', 'fair skin', 'dark skin', 'pale skin']
+  const promptStrLower = promptStr.toLowerCase()
   for (const term of lockedTerms) {
-    if (promptStr.includes(term)) {
+    if (promptStrLower.includes(term)) {
       errors.push(`Contains locked parameter: "${term}"`)
     }
   }

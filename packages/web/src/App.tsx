@@ -26,6 +26,7 @@ import {
   ImagePlus,
   FileJson,
   List,
+  Download,
 } from 'lucide-react'
 
 interface ErrorInfo {
@@ -80,14 +81,62 @@ function parseError(err: unknown, response?: Response): ErrorInfo {
 
 interface GeneratedPrompt {
   style: string
-  pose: { framing?: string }
-  lighting: { mood?: string; setup?: string }
-  set_design: { atmosphere?: string }
-  outfit: { styling?: string }
-  camera: object
-  hairstyle: object
-  makeup: object
-  effects: object
+  pose: {
+    framing?: string
+    body_position?: string
+    arms?: string
+    posture?: string
+    expression?: {
+      facial?: string
+      eyes?: string
+      mouth?: string
+    }
+  }
+  lighting: {
+    setup?: string
+    key_light?: string
+    fill_light?: string
+    shadows?: string
+    mood?: string
+  }
+  set_design: {
+    backdrop?: string
+    surface?: string
+    props?: string[]
+    atmosphere?: string
+  }
+  outfit: {
+    main?: string
+    underneath?: string
+    accessories?: string
+    styling?: string
+  }
+  camera: {
+    lens?: string
+    aperture?: string
+    angle?: string
+    focus?: string
+    distortion?: string
+  }
+  hairstyle?: {
+    style?: string
+    parting?: string
+    details?: string
+    finish?: string
+  }
+  makeup?: {
+    style?: string
+    skin?: string
+    eyes?: string
+    lips?: string
+  }
+  effects: {
+    vignette?: string
+    color_grade?: string
+    lens_flare?: string
+    atmosphere?: string
+    grain?: string
+  }
 }
 
 interface ResearchData {
@@ -160,7 +209,7 @@ function App() {
   const [research, setResearch] = useState<ResearchData | null>(null)
   const [varietyScore, setVarietyScore] = useState<VarietyScore | null>(null)
 
-  // Batch Generate State
+  // Asset Monster State
   const [selectedPrompts, setSelectedPrompts] = useState<Set<number>>(new Set())
   const [referenceImages, setReferenceImages] = useState<File[]>([])
   const [referencePreviews, setReferencePreviews] = useState<string[]>([])
@@ -171,10 +220,20 @@ function App() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
+  // Generation Settings
+  const [aspectRatio, setAspectRatio] = useState('9:16')
+  const [numImagesPerPrompt, setNumImagesPerPrompt] = useState(1)
+  const [outputFormat, setOutputFormat] = useState('jpeg')
+  const [resolution, setResolution] = useState('2K')
+
+  const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:3', '3:4', '4:5', '5:4', '3:2', '2:3', '21:9']
+  const RESOLUTIONS = ['1K', '2K', '4K']
+  const OUTPUT_FORMATS = ['png', 'jpeg', 'webp']
+
   // Avatar Gallery State
   const [avatars, setAvatars] = useState<Avatar[]>([])
   const [avatarsLoading, setAvatarsLoading] = useState(false)
-  const [imageSource, setImageSource] = useState<'upload' | 'gallery'>('gallery')
+  const [imageSource, setImageSource] = useState<'upload' | 'gallery'>('upload')
 
   // Custom Prompt State
   const [promptSource, setPromptSource] = useState<'generated' | 'custom'>('generated')
@@ -420,11 +479,13 @@ function App() {
     [referenceImages]
   )
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open: openFilePicker } = useDropzone({
     onDrop,
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
     maxFiles: MAX_REFERENCE_IMAGES,
     maxSize: 10 * 1024 * 1024,
+    noClick: false,
+    noKeyboard: false,
   })
 
   const togglePromptSelection = (index: number) => {
@@ -619,6 +680,10 @@ function App() {
       })
       formData.append('concept', promptSource === 'custom' ? 'custom' : (concept || 'untitled'))
       formData.append('prompts', JSON.stringify(promptsToGenerate))
+      formData.append('aspectRatio', aspectRatio)
+      formData.append('numImagesPerPrompt', String(numImagesPerPrompt))
+      formData.append('resolution', resolution)
+      formData.append('outputFormat', outputFormat)
 
       response = await fetch('/api/generate/batch', {
         method: 'POST',
@@ -784,7 +849,7 @@ function App() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Batch Generate
+              Asset Monster
               {prompts.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 bg-gray-800 rounded text-xs">
                   {prompts.length}
@@ -982,7 +1047,7 @@ function App() {
                       onClick={() => setActiveTab('generate')}
                       className="text-sm text-purple-400 hover:text-purple-300"
                     >
-                      Send to Batch →
+                      Send to Monster →
                     </button>
                   </div>
                   <div className="space-y-2 max-h-[600px] overflow-auto">
@@ -1233,17 +1298,6 @@ Examples:
                   {/* Source Toggle */}
                   <div className="flex bg-gray-800 rounded-lg p-1">
                     <button
-                      onClick={() => setImageSource('gallery')}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-                        imageSource === 'gallery'
-                          ? 'bg-purple-600 text-white'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <Users className="w-4 h-4" />
-                      Gallery {avatars.length > 0 && `(${avatars.length})`}
-                    </button>
-                    <button
                       onClick={() => setImageSource('upload')}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
                         imageSource === 'upload'
@@ -1253,6 +1307,17 @@ Examples:
                     >
                       <ImagePlus className="w-4 h-4" />
                       Upload
+                    </button>
+                    <button
+                      onClick={() => setImageSource('gallery')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+                        imageSource === 'gallery'
+                          ? 'bg-purple-600 text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Users className="w-4 h-4" />
+                      Gallery {avatars.length > 0 && `(${avatars.length})`}
                     </button>
                   </div>
                 </div>
@@ -1299,11 +1364,33 @@ Examples:
                         </div>
                       ))}
                       {referencePreviews.length < MAX_REFERENCE_IMAGES && (
-                        <div className="w-16 h-16 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 text-xs">
-                          +{MAX_REFERENCE_IMAGES - referencePreviews.length}
-                        </div>
+                        <button
+                          onClick={openFilePicker}
+                          className="w-16 h-16 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-400 hover:border-purple-500 hover:text-purple-400 transition-colors"
+                        >
+                          <ImagePlus className="w-6 h-6" />
+                        </button>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Upload Area */}
+                {imageSource === 'upload' && (
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                      isDragActive
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : 'border-gray-700 hover:border-gray-600'
+                    }`}
+                  >
+                    <input {...getInputProps()} />
+                    <Upload className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+                    <p className="text-gray-400">
+                      {isDragActive ? 'Drop image here' : 'Drag & drop or click to upload'}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">JPEG, PNG, WebP up to 10MB</p>
                   </div>
                 )}
 
@@ -1351,25 +1438,68 @@ Examples:
                     )}
                   </div>
                 )}
+              </div>
 
-                {/* Upload Area */}
-                {imageSource === 'upload' && (
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                      isDragActive
-                        ? 'border-purple-500 bg-purple-500/10'
-                        : 'border-gray-700 hover:border-gray-600'
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    <Upload className="w-10 h-10 mx-auto mb-3 text-gray-500" />
-                    <p className="text-gray-400">
-                      {isDragActive ? 'Drop image here' : 'Drag & drop or click to upload'}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">JPEG, PNG, WebP up to 10MB</p>
+              {/* Generation Settings */}
+              <div className="bg-gray-900 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-400 mb-3">Generation Settings</h3>
+                <div className="grid grid-cols-4 gap-4">
+                  {/* Aspect Ratio */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Aspect Ratio</label>
+                    <select
+                      value={aspectRatio}
+                      onChange={(e) => setAspectRatio(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-purple-500"
+                    >
+                      {ASPECT_RATIOS.map((ratio) => (
+                        <option key={ratio} value={ratio}>{ratio}</option>
+                      ))}
+                    </select>
                   </div>
-                )}
+
+                  {/* Images per Prompt */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Images per Prompt</label>
+                    <select
+                      value={numImagesPerPrompt}
+                      onChange={(e) => setNumImagesPerPrompt(Number(e.target.value))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-purple-500"
+                    >
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Resolution */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Resolution</label>
+                    <select
+                      value={resolution}
+                      onChange={(e) => setResolution(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-purple-500"
+                    >
+                      {RESOLUTIONS.map((res) => (
+                        <option key={res} value={res}>{res}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Output Format */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Format</label>
+                    <select
+                      value={outputFormat}
+                      onChange={(e) => setOutputFormat(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-purple-500"
+                    >
+                      {OUTPUT_FORMATS.map((fmt) => (
+                        <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Generate Button */}
@@ -1495,10 +1625,7 @@ Examples:
                   </div>
 
                   {batchProgress.status === 'completed' && (
-                    <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between">
-                      <span className="text-sm text-gray-400">
-                        Saved to: {batchProgress.outputDir}
-                      </span>
+                    <div className="mt-4 pt-4 border-t border-gray-800 flex justify-end">
                       <button
                         onClick={async () => {
                           try {
@@ -1877,6 +2004,15 @@ Examples:
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
             <div className="absolute top-4 right-4 flex items-center gap-2">
+              <a
+                href={previewImage}
+                download
+                className="bg-green-600 hover:bg-green-700 rounded-full p-2 transition-colors"
+                title="Download image"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="w-6 h-6" />
+              </a>
               <button
                 onClick={() => sendToImageToPrompt(previewImage)}
                 className="bg-purple-600 hover:bg-purple-700 rounded-full p-2 transition-colors"

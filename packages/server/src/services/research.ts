@@ -91,7 +91,11 @@ async function researchTrends(client: OpenAI, concept: string): Promise<TrendFin
         },
         {
           role: 'user',
-          content: `Research current visual trends for "${concept}" photoshoots. Consider:
+          content: `Research current visual trends for a photoshoot combining these elements: ${concept}
+
+IMPORTANT: If multiple keywords/elements are provided (comma-separated), ensure EACH element is represented in your research. Cover trends specific to each keyword.
+
+Consider:
 - Pinterest aesthetic trends
 - Editorial photography styles
 - Fashion and outfit trends
@@ -134,7 +138,11 @@ async function researchCompetitors(client: OpenAI, concept: string): Promise<Com
         },
         {
           role: 'user',
-          content: `Analyze how AI photo app competitors are marketing "${concept}" themed content. Consider:
+          content: `Analyze how AI photo app competitors are marketing content themed around: ${concept}
+
+IMPORTANT: If multiple keywords/elements are provided (comma-separated), analyze competitor activity for EACH element and find patterns across all of them.
+
+Consider:
 - Which competitors are actively promoting this concept
 - Common visual patterns in their ads
 - What hooks/elements grab attention
@@ -175,7 +183,11 @@ async function researchTechnical(client: OpenAI, concept: string): Promise<Techn
         },
         {
           role: 'user',
-          content: `Recommend technical photography choices for "${concept}" themed photoshoots. Consider:
+          content: `Recommend technical photography choices for photoshoots themed around: ${concept}
+
+IMPORTANT: If multiple keywords/elements are provided (comma-separated), recommend techniques that work across all elements or specify which technique suits which element.
+
+Consider:
 - Lens choices and WHY (not just "85mm for portraits")
 - Lighting setups that enhance the concept's mood
 - Color grading styles that work
@@ -231,7 +243,7 @@ async function generateSubThemes(
         },
         {
           role: 'user',
-          content: `Based on research for "${concept}":
+          content: `Based on research for: ${concept}
 
 TRENDING AESTHETICS: ${trends.trending_aesthetics.join(', ')}
 OUTFIT TRENDS: ${trends.outfit_trends.join(', ')}
@@ -240,6 +252,8 @@ COMPETITOR PATTERNS: ${competitors.common_patterns.join(', ')}
 DIFFERENTIATION OPPORTUNITIES: ${competitors.differentiation_opportunities.join(', ')}
 
 Generate 6-8 distinct sub-themes for this concept. Each should be visually unique and cover different aesthetics/moods.
+
+CRITICAL: If multiple keywords/elements are provided (e.g., "summer, beach, cocktails"), EVERY keyword must be represented in at least 1-2 sub-themes. Distribute coverage across all keywords evenly.
 
 Return a JSON object with this exact structure:
 {
@@ -298,6 +312,22 @@ export function analyzeResearchResults(brief: ResearchBrief): {
   const aestheticSet = new Set(brief.sub_themes.map((s) => s.aesthetic))
   if (aestheticSet.size < 3) {
     warnings.push('Sub-themes lack aesthetic variety')
+  }
+
+  // Check keyword coverage in sub-themes
+  const keywords = brief.concept.split(/[,،;]+/).map((k) => k.trim().toLowerCase()).filter(Boolean)
+  if (keywords.length > 1) {
+    const subThemeText = brief.sub_themes
+      .map((s) => `${s.name} ${s.key_elements.join(' ')}`)
+      .join(' ')
+      .toLowerCase()
+
+    const missingKeywords = keywords.filter((kw) => !subThemeText.includes(kw))
+    if (missingKeywords.length > 0) {
+      warnings.push(`Keywords not well represented in sub-themes: ${missingKeywords.join(', ')}`)
+    } else {
+      keyInsights.push(`All ${keywords.length} keywords represented in sub-themes`)
+    }
   }
 
   return {

@@ -60,8 +60,8 @@ async function fileToDataUrl(filePath: string): Promise<string> {
 export async function generateImage(
   referenceImagePaths: string | string[],
   prompt: string,
-  options: { resolution?: string; aspectRatio?: string } = {}
-): Promise<{ url: string; requestId: string }> {
+  options: { resolution?: string; aspectRatio?: string; numImages?: number; outputFormat?: string } = {}
+): Promise<{ urls: string[]; requestId: string }> {
   ensureFalConfig()
 
   const paths = Array.isArray(referenceImagePaths) ? referenceImagePaths : [referenceImagePaths]
@@ -76,13 +76,16 @@ export async function generateImage(
     })
   )
 
+  const numImages = options.numImages || 1
+
   const result = await fal.subscribe(MODEL_ID, {
     input: {
       prompt,
       image_urls: imageUrls,
-      resolution: options.resolution || '2K',
-      aspect_ratio: options.aspectRatio || '9:16',
-      num_images: 1,
+      resolution: (options.resolution || '2K') as '1K' | '2K' | '4K',
+      aspect_ratio: (options.aspectRatio || '9:16') as '9:16' | '16:9' | '1:1' | '4:3' | '3:4' | '4:5' | '5:4' | '3:2' | '2:3' | '21:9',
+      num_images: numImages,
+      output_format: (options.outputFormat || 'png') as 'png' | 'jpeg' | 'webp',
     },
     logs: true,
     onQueueUpdate: (update) => {
@@ -92,12 +95,12 @@ export async function generateImage(
     },
   })
 
-  const generatedUrl = result.data?.images?.[0]?.url
-  if (!generatedUrl) {
-    throw new Error('No image generated')
+  const generatedUrls = result.data?.images?.map((img: { url: string }) => img.url) || []
+  if (generatedUrls.length === 0) {
+    throw new Error('No images generated')
   }
 
-  return { url: generatedUrl, requestId: result.requestId }
+  return { urls: generatedUrls, requestId: result.requestId }
 }
 
 export async function downloadImage(url: string, outputPath: string): Promise<string> {
@@ -143,31 +146,41 @@ export async function generateBatch(
   jobId: string,
   referenceImageUrls: string | string[],
   prompts: string[],
-  options: { resolution?: string; aspectRatio?: string; concurrency?: number } = {}
+  options: { resolution?: string; aspectRatio?: string; numImages?: number; outputFormat?: string; concurrency?: number } = {}
 ): Promise<void> {
   const job = activeJobs.get(jobId)
   if (!job) throw new Error('Job not found')
 
   job.status = 'in_progress'
   const concurrency = options.concurrency || 2
+  const numImagesPerPrompt = options.numImages || 1
+  const outputFormat = options.outputFormat || 'png'
 
-  const generateOne = async (index: number): Promise<void> => {
-    const image = job.images[index]
+  const generateOne = async (imageIndex: number): Promise<void> => {
+    const image = job.images[imageIndex]
     if (!image) return
+
+    const promptIndex = Math.floor(imageIndex / numImagesPerPrompt)
+    const variantIndex = imageIndex % numImagesPerPrompt
 
     image.status = 'generating'
 
     try {
-      const { url } = await generateImage(referenceImageUrls, prompts[index], {
+      const { urls } = await generateImage(referenceImageUrls, prompts[promptIndex], {
         resolution: options.resolution,
         aspectRatio: options.aspectRatio,
+        numImages: 1,
+        outputFormat,
       })
 
+      const url = urls[0]
       image.url = url
       image.status = 'completed'
 
       const safeConcept = job.concept.toLowerCase().replace(/\.\./g, '').replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').slice(0, 50)
-      const fileName = `${safeConcept}_${String(index + 1).padStart(2, '0')}.png`
+      const fileName = numImagesPerPrompt > 1
+        ? `${safeConcept}_${String(promptIndex + 1).padStart(2, '0')}_v${variantIndex + 1}.${outputFormat}`
+        : `${safeConcept}_${String(imageIndex + 1).padStart(2, '0')}.${outputFormat}`
       const localPath = path.join(job.outputDir, fileName)
 
       try {
@@ -182,12 +195,12 @@ export async function generateBatch(
     } catch (err) {
       image.status = 'failed'
       image.error = err instanceof Error ? err.message : 'Unknown error'
-      console.error(`[Batch] Failed prompt ${index + 1}:`, err)
+      console.error(`[Batch] Failed image ${imageIndex + 1}:`, err)
     }
   }
 
-  const queue = [...Array(prompts.length).keys()]
-  const workers = Array.from({ length: Math.min(concurrency, prompts.length) }, async () => {
+  const queue = [...Array(job.totalImages).keys()]
+  const workers = Array.from({ length: Math.min(concurrency, job.totalImages) }, async () => {
     while (queue.length > 0) {
       const index = queue.shift()
       if (index !== undefined) {

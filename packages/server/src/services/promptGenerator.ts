@@ -30,110 +30,242 @@ function safeJsonParse<T>(content: string, fallback: T): T {
   }
 }
 
+const CREATIVE_DIRECTOR_KNOWLEDGE = `
+## VISUAL VOCABULARY - Use specific terms, not generic descriptions
+
+### MATERIALS & TEXTURES
+Fabrics: silk charmeuse, crushed velvet, raw linen, organza, tulle, leather, denim, cashmere, mohair, sequins, lace, satin, tweed, boucle, mesh
+Surfaces: brushed chrome, patina brass, terrazzo, marble veining, raw concrete, reclaimed wood, smoked glass, mirror, acrylic, rattan, wicker
+Elements: condensation droplets, soap bubbles, flower petals, confetti, glitter particles, rain streaks, dust motes in light, rising steam
+
+### LIGHTING TECHNIQUES
+Classic: Rembrandt (triangle shadow), butterfly/paramount, split light, loop lighting, broad/short lighting
+Cinematic: chiaroscuro, film noir venetian blinds, neon glow, golden hour backlight, blue hour ambient
+Practical: fairy lights bokeh, candle flicker, TV screen glow, window light with curtain diffusion, ring light catch
+Qualities: specular highlights, crushed blacks, lifted shadows, lens flare, light leak, haze/atmosphere
+
+### LENS FLARE AESTHETIC (USE WHEN APPROPRIATE - NOT A MUST)
+When to use: Golden hour/backlight scenarios, romantic/dreamy moods, summer/warm concepts, nostalgic aesthetics, aspirational lifestyle shots
+Types of flare:
+- Anamorphic flare: Horizontal streaks across frame, cinematic and dramatic, blue or orange tint
+- Circular flare: Soft hexagonal or circular orbs floating in frame, dreamier and more organic
+- Veiling flare: Overall haze/glow reducing contrast, creates ethereal washed-out look
+- Sun star: Sharp pointed rays from bright point source, works with small apertures
+Placement and intensity:
+- Subtle: Gentle warmth and glow at frame edges, barely noticeable lift in highlights
+- Medium: Visible flare elements adding atmosphere without overwhelming subject
+- Dramatic: Bold flare streaks or orbs as intentional compositional element
+Best scenarios: Backlit portraits at golden hour, beach/pool scenes, summer romance, festival/celebration, warm nostalgia
+Avoid when: Studio clean shots, corporate/professional, dark moody noir, high contrast editorial, winter/cool concepts
+
+### PROPS & SET ELEMENTS
+Vintage: rotary phone, vinyl records, polaroid camera, typewriter, film projector, vintage suitcase, antique mirror
+Modern: geometric sculptures, monstera leaves, pampas grass, ceramic vases, coffee table books, designer objects
+Atmospheric: disco ball reflections, prism rainbow, smoke machine haze, bubble machine, projection mapping
+Seasonal: string lights, candles, dried flowers, fresh citrus, ice cubes, tropical fruits, autumn leaves
+
+### FASHION & COSTUME
+Eras: 60s mod, 70s bohemian, 80s power shoulder, 90s minimalism, Y2K cyber, 2020s quiet luxury
+Aesthetics: old money prep, mob wife glam, clean girl minimal, cottagecore romantic, dark academia, coastal grandmother
+Silhouettes: oversized blazer, slip dress, wide-leg trouser, cropped cardigan, maxi skirt, bodycon, A-line
+Details: pearl buttons, gold hardware, tortoise shell, chain details, feather trim, ruching, cutouts
+
+### JEWELRY & ACCESSORIES
+Jewelry: layered gold chains, chunky hoops, tennis bracelet, signet ring, baroque pearls, statement ear cuff, delicate studs
+Eyewear: cat-eye sunglasses, aviators, round wire frames, shield sunglasses, tortoise readers
+Bags: quilted leather, basket weave, structured top-handle, slouchy hobo, micro bag, transparent PVC
+Hair accessories: silk scarf, claw clip, headband, barrettes, scrunchie, hair pins, ribbon
+Other: leather gloves, silk scarf at neck, belt as statement, watch as jewelry, hat/beret
+
+### POSES & BODY LANGUAGE
+CRITICAL POSE RULE: All poses must look NATURAL, STABLE, and EFFORTLESS. Never describe poses that look off-balance, strained, or like the model is about to fall. The model should appear comfortable and grounded.
+
+Natural Standing: weight settled into hips, one leg slightly relaxed, spine naturally aligned, shoulders level and relaxed, arms hanging naturally or resting on something stable
+Seated Relaxed: weight fully supported by seat, back comfortably against support or naturally upright, legs crossed or feet flat, hands resting naturally in lap or on armrests
+Leaning Stable: body weight fully supported by surface (wall, doorframe, furniture), relaxed into the lean rather than pushing against it, comfortable and sustainable position
+Editorial Grounded: elongated neck with chin level (not strained up), shoulders back but relaxed (not tensed), weight evenly distributed or clearly settled on one hip
+Candid Natural: caught in a comfortable moment, body language that suggests ease and familiarity with the environment, nothing forced or held
+
+AVOID: twisted torsos without support, weight on toes, arms held in mid-air without purpose, head tilted at extreme angles, poses that require muscle tension to maintain, anything that looks like the model is fighting gravity
+
+### EXPRESSIONS
+Eyes: smizing (smile with eyes), soft gaze, intense stare, dreamy unfocused, knowing glance, side-eye
+Mouth: barely-there smile, soft part lips, full genuine smile, pout, relaxed neutral, biting lip
+Mood: serene contemplation, joyful abandon, sultry confidence, vulnerable softness, mysterious allure
+
+### COLOR PALETTES & GRADING
+Warm: burnt sienna, terracotta, honey gold, dusty rose, cream, caramel, cognac
+Cool: slate blue, sage green, lavender, silver, ice white, navy, eucalyptus
+Film looks: Kodachrome saturation, Portra skin tones, Fuji Pro greens, Cinestill neon halation
+Grades: lifted blacks for matte, crushed shadows for drama, cross-processed, bleach bypass, orange-teal split
+
+### COMPOSITION TECHNIQUES
+Framing: rule of thirds, golden ratio, center symmetry, frame-within-frame, negative space
+Angles: dutch tilt for tension, low angle for power, high angle for vulnerability, eye-level for connection
+Depth: shallow DOF subject isolation, layered foreground/midground/background, leading lines
+Movement: motion blur intentional, frozen action, flowing fabric, hair movement
+
+### CINEMATIC & CULTURAL REFERENCES
+Directors: Wes Anderson symmetry/pastels, Wong Kar-wai neon/longing, Sofia Coppola dreamy/feminine, Kubrick one-point perspective
+Eras: Old Hollywood glamour, French New Wave casual, 80s Miami Vice, 90s grunge, Y2K cyber
+Genres: film noir shadows, sci-fi chrome/neon, romantic comedy warmth, horror dramatic lighting
+Art movements: Art Deco geometric, Bauhaus minimal, Baroque dramatic, Pop Art bold
+Photographers: Slim Aarons poolside luxury, Helmut Newton power, Richard Avedon movement, Annie Leibovitz narrative
+
+## PROMPT CRAFT PRINCIPLES
+1. MAXIMUM DETAIL - Describe every element as if briefing a photographer and stylist
+2. SPECIFIC VOCABULARY - Use exact terms from the knowledge base
+3. LAYERED DESCRIPTIONS - Multiple adjectives and qualifiers for richness
+4. SENSORY LANGUAGE - Textures, temperatures, weights, movements you can feel
+5. TECHNICAL PRECISION - Real photography/styling terms, not vague descriptions
+6. NATURAL POSES - Every pose must be stable, grounded, and effortless. No awkward balance, no muscle strain, no "about to fall" positions
+7. IDENTITY NEUTRAL - Never dictate body characteristics that come from the person (posture quirks, natural stance). Describe the IDEAL pose direction, the AI model will adapt to the person's body
+
+## LIGHTING SETUP PRINCIPLES
+Always describe lighting as a complete setup:
+- KEY LIGHT: Primary source, direction, quality (hard/soft), color temperature
+- FILL: Secondary source or reflector, ratio to key (e.g., 2:1, 3:1)
+- ACCENT/RIM: Separation light if needed, direction and intensity
+- AMBIENT: Environmental light contribution
+- MOOD: Emotional quality the lighting creates
+Example: "Soft key from large window camera-left creating gentle Rembrandt pattern, white reflector fill on shadow side at 2:1 ratio, warm afternoon sun providing subtle rim light on hair, overall mood intimate and inviting"
+`
+
 const PROMPT_SCHEMA_EXAMPLE = `{
-  "style": "15-30 word single sentence summary that captures the entire mood and look",
+  "style": "30-50 word vivid sentence capturing the entire vision: aesthetic reference, mood, color story, key visual hook, and aspirational quality. Example: 'Slim Aarons-inspired poolside glamour meets modern editorial — honey-gold late afternoon light streaming through palm fronds, vintage Riviera color palette of terracotta and cream, effortless old-money elegance with a knowing, sun-warmed confidence'",
+
   "pose": {
-    "framing": "e.g., Three-quarter portrait, seated",
-    "body_position": "specific position description",
-    "arms": "arm positioning",
-    "posture": "overall posture",
+    "framing": "Precise framing with composition reasoning — e.g., 'Three-quarter portrait from chest up, subject positioned in right third of frame using rule of thirds, generous negative space on left creating visual balance and breathing room, slight headroom above'",
+    "body_position": "MUST BE STABLE AND NATURAL — e.g., 'Comfortably seated in rattan chair with weight fully supported, body angled 30 degrees from camera, hips settled into seat, one leg crossed over the other in relaxed position — pose feels effortless and could be held indefinitely'",
+    "arms": "Natural arm placement with support — e.g., 'Left arm resting naturally on chair arm with elbow supported, fingers loosely curled in relaxed position, right hand resting lightly in lap or gently touching collarbone — no arms held in mid-air without purpose'",
+    "posture": "Relaxed yet elegant posture — e.g., 'Spine comfortably upright with natural curve, shoulders level and relaxed (not raised or tensed), chin level with ground projecting quiet ease, neck naturally lengthened — posture looks sustainable and comfortable, not held or forced'",
     "expression": {
-      "facial": "emotional description, NO identity terms",
-      "eyes": "eye expression",
-      "mouth": "mouth expression"
+      "facial": "Nuanced emotional state — e.g., 'Serene self-assurance with hint of private amusement, as if recalling a pleasant memory, brow relaxed and smooth, jaw unclenched and soft'",
+      "eyes": "Precise eye direction and quality — e.g., 'Soft gaze into lens with gentle smize (smile reaching the eyes), warmth and presence without intensity, natural catch lights suggesting the lighting setup'",
+      "mouth": "Detailed mouth position — e.g., 'Lips naturally together or softly parted, corners gently lifted in genuine micro-smile, no tension in jaw or around mouth — expression feels real, not performed'"
     }
   },
+
   "lighting": {
-    "setup": "overall lighting description",
-    "key_light": "main light source and direction",
-    "fill_light": "secondary light",
-    "shadows": "shadow quality",
-    "mood": "emotional quality of light"
+    "setup": "Complete lighting scenario with all sources — e.g., 'Natural window light setup: large north-facing window as soft key from camera-left, white foam board reflector on shadow side for 2:1 fill ratio, sheer linen curtains diffusing light to reduce contrast, warm practical lamp in background adding depth and color accent at 2800K'",
+    "key_light": "Primary source with direction, quality, and color — e.g., 'Soft diffused window light from camera-left at 45-degree angle to subject, quality is broad and wrapping due to large source size, color temperature approximately 5500K daylight, creating gentle Rembrandt pattern with soft triangle of light on shadow cheek'",
+    "fill_light": "Secondary sources with ratio — e.g., 'Large white v-flat reflector positioned camera-right bouncing key light back into shadows, maintaining 2:1 lighting ratio (key is one stop brighter than fill), preserving detail in shadows while keeping dimensional modeling on face'",
+    "shadows": "Shadow quality, placement, and density — e.g., 'Soft-edged shadows with gradual 6-inch falloff zone, gentle shadow under chin defining jawline without harshness, subtle nose shadow pointing toward corner of mouth, shadow side of face approximately 1 stop darker than highlight side, lifted shadows with visible detail'",
+    "mood": "Emotional quality and atmosphere — e.g., 'Warm, intimate, and inviting — the quality of light on a lazy Sunday morning, soft and forgiving, wrapping around the subject like a gentle embrace, creating a sense of comfort and approachability'"
   },
+
   "set_design": {
-    "backdrop": "CRITICAL: detailed background description",
-    "surface": "what subject is on/in",
-    "props": ["prop1", "prop2"],
-    "atmosphere": "overall vibe"
+    "backdrop": "CRITICAL: Layered background description — e.g., 'CRITICAL: Infinity pool edge in soft focus foreground, azure water catching sky reflections, whitewashed Mediterranean villa wall in middle distance with weathered terracotta roof tiles, swaying palm fronds creating dappled shadows, endless cerulean sky with wispy cirrus clouds at horizon'",
+    "surface": "What subject interacts with — e.g., 'Vintage rattan peacock chair with cream linen cushion, textured woven pattern visible, aged honey-toned wood frame with natural patina'",
+    "props": ["Sweating crystal tumbler with amber liquid and large ice sphere", "Vintage Gucci sunglasses casually placed on chair arm", "Open hardcover book face-down on side table", "Ceramic bowl of ripe figs and citrus"],
+    "atmosphere": "Environmental mood — e.g., 'Unhurried Mediterranean summer afternoon, gentle breeze suggested by fabric movement, warmth radiating from sun-baked stone, cicada-quiet luxury'"
   },
+
   "outfit": {
-    "main": "primary clothing",
-    "accessories": "jewelry, hats, etc",
-    "styling": "overall style description"
+    "main": "Detailed garment description — e.g., 'Flowing silk charmeuse maxi dress in warm ivory, bias-cut draping liquid over body, thin spaghetti straps, deep V-neckline to sternum, fabric catching light with subtle luster'",
+    "underneath": "Visible undergarments if applicable — e.g., 'Delicate gold body chain glimpsed at neckline, thin straps visible at shoulders'",
+    "accessories": "Complete accessory inventory — e.g., 'Layered 14k gold necklaces: delicate chain with small medallion, longer chain with vintage coin pendant; chunky gold ear cuffs; stack of thin hammered bangles on right wrist; vintage signet ring on pinky'",
+    "styling": "Overall fashion direction — e.g., 'Effortless Riviera elegance meets quiet luxury — clothes that look casually thrown on but are impeccably considered, relaxed but never sloppy, suggesting old money ease'"
   },
+
   "camera": {
-    "lens": "lens choice with reasoning",
-    "aperture": "f-stop",
-    "angle": "camera angle",
-    "focus": "focus point"
+    "lens": "Specific lens with creative reasoning — e.g., '85mm f/1.4 prime for classic portrait compression, flattering facial features while providing creamy background separation, slight telephoto compression adding intimacy'",
+    "aperture": "F-stop with depth reasoning — e.g., 'f/2.0 for shallow depth of field isolating subject from background, smooth bokeh rendering out-of-focus highlights as soft circles, subject sharp from eyes to ears'",
+    "angle": "Precise camera position — e.g., 'Camera at subject's eye level, positioned 15 degrees right of center, creating slight asymmetry, shooting slightly across body toward the turned shoulder'",
+    "focus": "Focus technique and point — e.g., 'Single-point autofocus locked on nearest eye with eye-detect, critical sharpness on iris and lashes, gradual falloff across face, tip of nose slightly soft'"
   },
+
   "hairstyle": {
-    "style": "NO COLOR - shape and texture only",
-    "parting": "parting style",
-    "details": "additional details",
-    "finish": "overall look"
+    "style": "Shape and texture without color — e.g., 'Long loose waves with natural movement and body, effortless beach texture as if air-dried after ocean swim, face-framing layers starting at chin'",
+    "parting": "Parting detail — e.g., 'Deep side part on left, hair sweeping across forehead with natural swoop, exposing right ear and elegant earring'",
+    "details": "Specific styling elements — e.g., 'Subtle natural-looking highlights catching the sunlight, lived-in texture with slight frizz suggesting humidity, a few strands catching breeze across face'",
+    "finish": "Overall hair quality — e.g., 'Healthy shine without looking overdone, touchable texture, natural movement, no stiffness or product buildup visible'"
   },
+
   "makeup": {
-    "style": "overall makeup approach",
-    "skin": "skin finish",
-    "eyes": "eye makeup",
-    "lips": "lip color/finish"
+    "style": "Overall makeup approach — e.g., 'Sun-kissed natural glam — skin-focused with strategic enhancement, editorial polish meets vacation ease, makeup that looks like better skin rather than obvious product'",
+    "skin": "Detailed skin finish — e.g., 'Dewy, luminous finish with lit-from-within glow, subtle sun-kissed warmth across nose and cheeks, natural freckles visible through light coverage, hydrated and healthy texture'",
+    "eyes": "Complete eye makeup — e.g., 'Warm bronze wash across lids blended into crease, subtle champagne shimmer on inner corners, soft brown definition in outer V, clean lash line, fluffy natural-looking lashes with individual clusters at outer corners, groomed feathered brows'",
+    "lips": "Detailed lip description — e.g., 'Juicy nude-rose lip with slight glossy finish, natural lip color enhanced, defined cupid's bow, slightly fuller appearance from gloss, hydrated and plush'"
   },
+
   "effects": {
-    "color_grade": "color treatment",
-    "grain": "film grain or clean"
+    "vignette": "Edge treatment — e.g., 'Subtle natural vignette from lens, slight warmth and exposure falloff in corners drawing eye to center'",
+    "color_grade": "Complete color treatment — e.g., 'Warm Kodachrome-inspired palette: lifted shadows with golden undertone, rich skin tones leaning peachy-coral, desaturated greens pushed toward teal, highlight rolloff creamy rather than clinical'",
+    "lens_flare": "(OPTIONAL - only for appropriate scenarios) — e.g., 'Subtle golden hour flare entering from top-right corner, soft circular orbs floating in upper third of frame, gentle veiling warmth reducing contrast in highlights, adding dreamy romantic quality' OR 'None - clean studio look maintained'",
+    "atmosphere": "Post-production atmosphere — e.g., 'Subtle haze suggesting humid summer air, dreamy quality without losing clarity, halation around bright highlights'",
+    "grain": "Film grain treatment — e.g., 'Fine organic film grain at ISO 200 level, adding texture and analog warmth, more visible in shadows and midtones, not distracting but present'"
   }
 }`
 
 function createFallbackPrompt(theme: SubTheme, concept: string): PromptOutput {
+  const moodToLighting: Record<string, { setup: string; key: string; shadows: string }> = {
+    Romantic: { setup: 'Golden hour backlight with lens flare', key: 'Warm sun from behind, soft fill from front', shadows: 'Soft, lifted, dreamy' },
+    Playful: { setup: 'Bright natural daylight, airy and fresh', key: 'Soft diffused overhead', shadows: 'Minimal, open shadows' },
+    Confident: { setup: 'Editorial butterfly lighting', key: 'Beauty dish from above', shadows: 'Defined but flattering' },
+    Intimate: { setup: 'Window light with sheer curtain diffusion', key: 'Soft side light creating gentle modeling', shadows: 'Soft gradient, one side falling to shadow' },
+    Mysterious: { setup: 'Chiaroscuro with single source', key: 'Hard light from dramatic angle', shadows: 'Deep, crushed blacks' },
+  }
+
+  const moodToColor: Record<string, string> = {
+    Romantic: 'Warm honey tones, soft peachy highlights, Portra-inspired skin',
+    Playful: 'Bright and saturated, lifted shadows, clean whites',
+    Confident: 'Rich contrast, warm midtones, editorial polish',
+    Intimate: 'Muted palette, creamy highlights, subtle warmth',
+    Mysterious: 'Desaturated with selective color, deep shadows, cinematic',
+  }
+
+  const lighting = moodToLighting[theme.mood] || moodToLighting.Confident
+  const colorGrade = moodToColor[theme.mood] || moodToColor.Confident
+
   return {
-    style: `${theme.aesthetic} ${concept} portrait with ${theme.mood.toLowerCase()} mood featuring ${theme.key_elements.slice(0, 2).join(' and ')}`,
+    style: `${theme.aesthetic} ${concept} portrait — ${theme.mood.toLowerCase()} atmosphere with ${theme.key_elements.slice(0, 2).join(', ')}, scroll-stopping visual hook`,
     pose: {
-      framing: 'Three-quarter portrait',
-      body_position: 'Standing naturally',
-      arms: 'Relaxed at sides',
-      posture: 'Confident and relaxed',
-      expression: { facial: 'Warm genuine expression', eyes: 'Engaged and present', mouth: 'Natural soft smile' },
+      framing: 'Three-quarter portrait with negative space',
+      body_position: 'Weight shifted, natural asymmetry',
+      arms: 'One hand near face or relaxed gesture',
+      posture: 'Elongated neck, shoulders back',
+      expression: { facial: 'Soft confidence, caught mid-moment', eyes: 'Engaged with gentle smize', mouth: 'Relaxed, barely-there smile' },
     },
     lighting: {
-      setup: 'Soft natural lighting',
-      key_light: 'Main light from front-left',
-      fill_light: 'Ambient fill',
-      shadows: 'Soft and flattering',
-      mood: theme.mood,
+      setup: lighting.setup,
+      key_light: lighting.key,
+      fill_light: 'Subtle ambient fill',
+      shadows: lighting.shadows,
+      mood: `${theme.mood} and inviting`,
     },
     set_design: {
-      backdrop: `CRITICAL: ${theme.key_elements[0] || 'Clean backdrop'} environment`,
-      surface: 'Natural surface',
-      props: theme.key_elements.slice(1),
-      atmosphere: `${theme.aesthetic} atmosphere`,
+      backdrop: `CRITICAL: ${theme.key_elements[0] || 'Textured backdrop'} with depth and atmosphere`,
+      surface: 'Contextual to scene',
+      props: theme.key_elements.slice(1, 3),
+      atmosphere: `${theme.aesthetic} with tactile, aspirational quality`,
     },
     outfit: {
-      main: 'Stylish attire matching the concept',
-      accessories: 'Minimal elegant accessories',
-      styling: theme.aesthetic,
+      main: 'Elevated, concept-appropriate attire',
+      accessories: 'Layered gold jewelry, intentional details',
+      styling: `${theme.aesthetic} with fashion-forward edge`,
     },
     camera: {
-      lens: '85mm portrait lens',
-      aperture: 'f/2.8',
-      angle: 'Eye level',
-      focus: 'Sharp on eyes',
+      lens: '85mm f/1.4 for creamy bokeh',
+      aperture: 'f/2 for subject isolation',
+      angle: 'Slightly above eye level',
+      focus: 'Tack sharp on nearest eye',
     },
     hairstyle: {
-      style: 'Styled appropriately for the concept',
-      parting: 'Natural parting',
-      details: 'Well-groomed',
-      finish: 'Polished',
+      style: 'Effortlessly styled with movement',
+      parting: 'Soft, natural parting',
+      details: 'Texture and dimension',
+      finish: 'Healthy shine, lived-in',
     },
     makeup: {
-      style: 'Enhancing natural features',
-      skin: 'Natural healthy glow',
-      eyes: 'Subtle enhancement',
-      lips: 'Natural tone',
+      style: 'Elevated natural, skin-focused',
+      skin: 'Dewy, lit-from-within glow',
+      eyes: 'Soft definition, groomed brows',
+      lips: 'Your-lips-but-better nude',
     },
     effects: {
-      color_grade: 'Balanced and natural',
-      grain: 'Clean digital',
+      color_grade: colorGrade,
+      grain: 'Fine film grain for texture',
     },
   }
 }
@@ -147,7 +279,7 @@ export async function generatePrompts(
   const prompts: PromptOutput[] = []
   const subThemesToUse = distributeSubThemes(researchBrief.sub_themes, count)
 
-  const batchSize = 3
+  const batchSize = 2 // Reduced for detailed prompts
   for (let i = 0; i < count; i += batchSize) {
     const batchThemes = subThemesToUse.slice(i, Math.min(i + batchSize, count))
     const batchPrompts = await generatePromptBatch(client, concept, batchThemes, researchBrief, i)
@@ -188,46 +320,61 @@ async function generatePromptBatch(
       messages: [
         {
           role: 'developer',
-          content: `You are an expert prompt engineer for AI image generation, specifically for Clone AI's image-to-image model. You create detailed JSON prompts that preserve user identity while transforming their photos into themed concepts.
+          content: `You are a Creative Director and prompt engineer for Clone AI's image-to-image model. You have deep knowledge of photography, fashion, film, and visual culture. You create prompts that are scroll-stopping, Instagram/Pinterest-worthy, and visually sophisticated.
 
-CRITICAL RULES:
+${CREATIVE_DIRECTOR_KNOWLEDGE}
+
+## CRITICAL RULES
 1. NEVER mention hair color, skin tone, ethnicity, age, or identity descriptors
 2. NEVER use words like "beautiful", "pretty", "gorgeous", "young", "old"
-3. Use "CRITICAL:" prefix for must-have elements (backdrop, key props)
-4. Technical choices (lens, lighting) must be justified by the concept
-5. Each prompt must be visually distinct`,
+3. Use "CRITICAL:" prefix for the ONE hero element that makes each prompt unique
+4. BE SPECIFIC - Use vocabulary from the knowledge base above, not generic terms
+5. EACH PROMPT NEEDS A HOOK - What makes someone stop scrolling?
+6. POSES MUST BE NATURAL - Stable, grounded, effortless. No awkward balance, no muscle strain, no "about to fall" positions. Weight should be clearly supported. The pose should look comfortable and sustainable.
+7. LIGHTING MUST BE COMPLETE - Describe key, fill, and mood. Include direction, quality, ratio, and emotional effect.
+8. Write the "style" field like prompt poetry - evocative, specific, visual`,
         },
         {
           role: 'user',
-          content: `Generate ${themes.length} prompts for "${concept}" based on this research:
+          content: `Generate ${themes.length} scroll-stopping prompts for "${concept}".
 
-TECHNICAL RECOMMENDATIONS:
-- Lens options: ${research.technical_recommendations.lens_options.join('; ')}
-- Lighting styles: ${research.technical_recommendations.lighting_styles.join('; ')}
-- Color grades: ${research.technical_recommendations.color_grades.join('; ')}
-- Notes: ${research.technical_recommendations.notes}
+RESEARCH CONTEXT:
+- Technical: ${research.technical_recommendations.lens_options.slice(0, 2).join('; ')} | ${research.technical_recommendations.lighting_styles.slice(0, 2).join('; ')}
+- Colors: ${research.trend_findings.color_palettes.join(', ')}
+- Outfits: ${research.trend_findings.outfit_trends.slice(0, 3).join(', ')}
+- Sets: ${research.trend_findings.set_design_trends.slice(0, 3).join(', ')}
 
-TREND INSIGHTS:
-- Aesthetics: ${research.trend_findings.trending_aesthetics.join(', ')}
-- Color palettes: ${research.trend_findings.color_palettes.join(', ')}
-- Outfits: ${research.trend_findings.outfit_trends.join(', ')}
-- Set designs: ${research.trend_findings.set_design_trends.join(', ')}
-
-SUB-THEMES TO GENERATE:
+SUB-THEMES:
 ${themeDescriptions}
 
-Return a JSON object with this exact structure:
+FOR EACH PROMPT:
+FOR EACH PROMPT, WRITE WITH MAXIMUM DETAIL:
+1. IDENTIFY THE HOOK - The ONE scroll-stopping element (mark with "CRITICAL:")
+2. STYLE FIELD (30-50 words) - Rich, evocative, visual poetry capturing the entire vision
+3. EVERY FIELD NEEDS DETAIL - Each field should be a complete sentence or more, not brief phrases
+4. USE SPECIFIC VOCABULARY - Exact terms from knowledge base (materials, techniques, references)
+5. DESCRIBE LIKE A BRIEF - As if instructing a photographer, stylist, and set designer
+
+DETAIL REQUIREMENTS:
+- pose.framing: Include composition reasoning (30+ words)
+- pose.body_position: Exact mechanics, weight distribution, angles (30+ words)
+- lighting.setup: Full scenario with light sources, ratios, color temps (40+ words)
+- set_design.backdrop: Layered description with foreground/midground/background (50+ words)
+- outfit.main: Fabric type, cut, drape, color, fit details (30+ words)
+- All expression fields: Nuanced emotional states, specific muscle positions
+
+Return JSON:
 {
   "prompts": [
     ${PROMPT_SCHEMA_EXAMPLE}
   ]
 }
 
-Generate exactly ${themes.length} complete prompts. Each must follow the schema exactly. Use CRITICAL: for backdrop and 1-2 other essential elements per prompt.`,
+Generate exactly ${themes.length} visually distinct, richly detailed prompts.`,
         },
       ],
-      temperature: 0.8,
-      max_tokens: 4000,
+      temperature: 0.85,
+      max_tokens: 8000,
       response_format: { type: 'json_object' },
     })
 
@@ -271,28 +418,38 @@ export async function textToPrompt(textDescription: string): Promise<PromptOutpu
     messages: [
       {
         role: 'system',
-        content: `You are an expert at converting natural language descriptions into structured image generation prompts.
+        content: `You are a Creative Director converting descriptions into scroll-stopping image prompts.
 
-IMPORTANT RULES:
+${CREATIVE_DIRECTOR_KNOWLEDGE}
+
+RULES:
 - NEVER mention age, ethnicity, skin color, or identity features
-- Hair COLOR comes from the reference image - only describe style/texture
-- Focus on: mood, lighting, environment, outfit, pose, camera settings
-- Use "CRITICAL:" prefix for the most important elements
+- Hair COLOR comes from reference image - describe style/texture only
+- BE SPECIFIC - Use vocabulary from knowledge base (materials, lighting techniques, cultural refs)
+- Write "style" field like prompt poetry - evocative and visual
+- Mark ONE hero element with "CRITICAL:" prefix
 
-Output a single JSON prompt object with this exact structure:
+Output JSON with this structure:
 ${PROMPT_SCHEMA_EXAMPLE}`,
       },
       {
         role: 'user',
-        content: `Convert this description into a detailed JSON prompt:
+        content: `Convert this description into a RICHLY DETAILED JSON prompt:
 
 "${textDescription}"
 
-Return only the JSON object, no markdown or explanation.`,
+REQUIREMENTS:
+- style: 30-50 words capturing the full vision
+- Every field should be a complete, detailed description (not brief phrases)
+- Include specific vocabulary: materials, techniques, cultural references
+- Mark the ONE most important visual element with "CRITICAL:"
+- Describe as if briefing a photographer, stylist, and set designer
+
+Return only the JSON object.`,
       },
     ],
-    temperature: 0.7,
-    max_tokens: 2000,
+    temperature: 0.75,
+    max_tokens: 4000,
     response_format: { type: 'json_object' },
   })
 
