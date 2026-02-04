@@ -1,0 +1,32 @@
+{
+  "name": "borgflow",
+  "version": "0.1.0",
+  "description": "AI-powered prompt generation and image creation for Clone AI",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "npm run dev --workspace=@borgflow/server",
+    "dev:web": "npm run dev --workspace=@borgflow/web",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ai",
+    "prompt-generation",
+    "fal-ai",
+    "image-generation",
+    "marketing"
+  ],
+  "author": "Clone AI",
+  "license": "UNLICENSED"
+}
