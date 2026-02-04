@@ -27,11 +27,14 @@
 ### Phase 02: Batch Generation
 | Feature | Input | Output |
 |---------|-------|--------|
-| A: Generate Images | Reference photo + n prompts | n generated images |
+| A: Generate Images | Reference photo(s) + n prompts | n generated images |
 | B: Save to Local | Generated images | Named files in local folder |
 | C: Custom Prompts | JSON or plain text | Converted & used for generation |
 | D: Image Preview | Click on generated image | Full-size overlay with actions |
 | E: Send to Analyze | Generated image | Loaded into Image-to-Prompt tab |
+| F: Multi-Image | 2-4 reference images | Couple/family generation |
+
+**Multi-Image Support**: Select up to 4 reference images from the gallery for couple and family concepts. The fal.ai API receives all images in the `image_urls` array.
 
 ### Phase 03: Image to Prompt
 | Feature | Input | Output |
@@ -330,7 +333,12 @@ For a set of n prompts, verify:
 │ │ Custom prompt input (JSON or plain text)                    │ │
 │ │ Plain text is auto-converted to JSON via GPT-4o             │ │
 │ └─────────────────────────────────────────────────────────────┘ │
-│ Reference Image: [Gallery] [Upload]                             │
+│                                                                 │
+│ Reference Images: [Gallery] [Upload]  (select up to 4)         │
+│ ┌──────────────────────────────────────────────────────────┐   │
+│ │ ✓ 2 Images Selected (for couple/family)    [Clear All]   │   │
+│ │ [img1 ×] [img2 ×] [+2]                                    │   │
+│ └──────────────────────────────────────────────────────────┘   │
 │ [🚀 Generate N Images]                                          │
 ├─────────────────────────────────────────────────────────────────┤
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐                        │
