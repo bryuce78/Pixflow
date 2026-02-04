@@ -6,7 +6,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import rateLimit from 'express-rate-limit'
 import { performResearch, analyzeResearchResults } from './services/research.js'
-import { generatePrompts, validateAllPrompts } from './services/promptGenerator.js'
+import { generatePrompts, validateAllPrompts, textToPrompt } from './services/promptGenerator.js'
 import { addToHistory } from './services/history.js'
 import generateRouter from './routes/generate.js'
 import historyRouter from './routes/history.js'
@@ -163,6 +163,32 @@ app.get('/api/prompts/research/:concept', apiLimiter, async (req, res) => {
     console.error('[Error]', error)
     res.status(500).json({
       error: 'Failed to perform research',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+})
+
+app.post('/api/prompts/text-to-json', apiLimiter, async (req, res) => {
+  const text = req.body.text
+
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    res.status(400).json({ error: 'Text description is required' })
+    return
+  }
+
+  if (text.length > 1000) {
+    res.status(400).json({ error: 'Text too long (max 1000 characters)' })
+    return
+  }
+
+  try {
+    console.log(`[TextToPrompt] Converting text prompt...`)
+    const prompt = await textToPrompt(text.trim())
+    res.json({ prompt })
+  } catch (error) {
+    console.error('[Error] Text to prompt conversion failed:', error)
+    res.status(500).json({
+      error: 'Failed to convert text to prompt',
       details: error instanceof Error ? error.message : 'Unknown error',
     })
   }

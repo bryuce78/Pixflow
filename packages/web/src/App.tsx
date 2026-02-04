@@ -491,19 +491,60 @@ function App() {
     return adapted
   }
 
-  const parseCustomPrompt = (): GeneratedPrompt[] | null => {
+  const isJsonString = (str: string): boolean => {
+    const trimmed = str.trim()
+    return trimmed.startsWith('{') && trimmed.endsWith('}')
+  }
+
+  const convertTextToPrompt = async (text: string): Promise<GeneratedPrompt | null> => {
     try {
-      const parsed = JSON.parse(customPromptJson)
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setCustomPromptError('Invalid prompt: must be a JSON object')
+      const response = await fetch('/api/prompts/text-to-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        setCustomPromptError(data.error || 'Failed to convert text')
         return null
       }
-      const adapted = adaptPromptFormat(parsed as Record<string, unknown>)
-      setCustomPromptError(null)
-      return Array(customPromptCount).fill(adapted)
+      const data = await response.json()
+      return data.prompt as GeneratedPrompt
     } catch {
-      setCustomPromptError('Invalid JSON format')
+      setCustomPromptError('Failed to convert text to prompt')
       return null
+    }
+  }
+
+  const parseCustomPrompt = async (): Promise<GeneratedPrompt[] | null> => {
+    const input = customPromptJson.trim()
+    if (!input) {
+      setCustomPromptError('Please enter a prompt')
+      return null
+    }
+
+    // Check if it's JSON or plain text
+    if (isJsonString(input)) {
+      // Parse as JSON
+      try {
+        const parsed = JSON.parse(input)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          setCustomPromptError('Invalid prompt: must be a JSON object')
+          return null
+        }
+        const adapted = adaptPromptFormat(parsed as Record<string, unknown>)
+        setCustomPromptError(null)
+        return Array(customPromptCount).fill(adapted)
+      } catch {
+        setCustomPromptError('Invalid JSON format')
+        return null
+      }
+    } else {
+      // Plain text - convert via API
+      setCustomPromptError(null)
+      const converted = await convertTextToPrompt(input)
+      if (!converted) return null
+      return Array(customPromptCount).fill(converted)
     }
   }
 
@@ -516,9 +557,12 @@ function App() {
     let promptsToGenerate: GeneratedPrompt[]
 
     if (promptSource === 'custom') {
-      const customPrompts = parseCustomPrompt()
+      setBatchLoading(true)
+      setBatchError(null)
+      const customPrompts = await parseCustomPrompt()
       if (!customPrompts) {
-        setBatchError({ message: 'Please fix the JSON errors first.', type: 'warning' })
+        setBatchLoading(false)
+        setBatchError({ message: 'Please fix the prompt errors first.', type: 'warning' })
         return
       }
       promptsToGenerate = customPrompts
@@ -1098,7 +1142,8 @@ function App() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-gray-400 mb-2">
-                      Paste JSON Prompt
+                      Custom Prompt
+                      <span className="text-gray-500 ml-2 font-normal">(JSON or plain text)</span>
                     </label>
                     <textarea
                       value={customPromptJson}
@@ -1106,8 +1151,12 @@ function App() {
                         setCustomPromptJson(e.target.value)
                         setCustomPromptError(null)
                       }}
-                      placeholder='{"style": "...", "pose": {...}, ...}'
-                      className={`w-full h-64 bg-gray-800 rounded-lg p-3 font-mono text-sm resize-none border ${
+                      placeholder={`Describe the scene or paste JSON...
+
+Examples:
+• Black & white editorial photoshoot with dramatic lighting
+• {"style": "Romantic portrait...", "lighting": {...}}`}
+                      className={`w-full h-64 bg-gray-800 rounded-lg p-3 text-sm resize-none border ${
                         customPromptError
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-transparent focus:border-purple-500'

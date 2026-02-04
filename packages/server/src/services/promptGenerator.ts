@@ -260,3 +260,60 @@ export function validateAllPrompts(prompts: PromptOutput[]): {
     results,
   }
 }
+
+export async function textToPrompt(textDescription: string): Promise<PromptOutput> {
+  const openai = await getOpenAI()
+
+  console.log(`[TextToPrompt] Converting: "${textDescription.substring(0, 50)}..."`)
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are an expert at converting natural language descriptions into structured image generation prompts.
+
+IMPORTANT RULES:
+- NEVER mention age, ethnicity, skin color, or identity features
+- Hair COLOR comes from the reference image - only describe style/texture
+- Focus on: mood, lighting, environment, outfit, pose, camera settings
+- Use "CRITICAL:" prefix for the most important elements
+
+Output a single JSON prompt object with this exact structure:
+${PROMPT_SCHEMA_EXAMPLE}`,
+      },
+      {
+        role: 'user',
+        content: `Convert this description into a detailed JSON prompt:
+
+"${textDescription}"
+
+Return only the JSON object, no markdown or explanation.`,
+      },
+    ],
+    temperature: 0.7,
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
+  })
+
+  const content = response.choices[0]?.message?.content
+  if (!content) {
+    throw new Error('No response from OpenAI')
+  }
+
+  const parsed = safeJsonParse<PromptOutput>(content, {
+    style: textDescription,
+    pose: { framing: '', body_position: '', arms: '', posture: '', expression: { facial: '', eyes: '', mouth: '' } },
+    lighting: { setup: '', key_light: '', fill_light: '', shadows: '', mood: '' },
+    set_design: { backdrop: '', surface: '', props: [], atmosphere: '' },
+    outfit: { main: '', accessories: '', styling: '' },
+    camera: { lens: '', aperture: '', angle: '', focus: '' },
+    hairstyle: { style: '', parting: '', details: '', finish: '' },
+    makeup: { style: '', skin: '', eyes: '', lips: '' },
+    effects: { color_grade: '', grain: '' },
+  })
+
+  console.log(`[TextToPrompt] Generated style: "${parsed.style?.substring(0, 50)}..."`)
+
+  return parsed
+}
