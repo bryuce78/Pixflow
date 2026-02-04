@@ -417,8 +417,8 @@ function App() {
   const parseCustomPrompt = (): GeneratedPrompt[] | null => {
     try {
       const parsed = JSON.parse(customPromptJson)
-      if (!parsed || typeof parsed !== 'object' || !parsed.style) {
-        setCustomPromptError('Invalid prompt: missing "style" field')
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setCustomPromptError('Invalid prompt: must be a JSON object')
         return null
       }
       setCustomPromptError(null)
