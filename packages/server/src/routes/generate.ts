@@ -56,13 +56,20 @@ const upload = multer({
   },
 })
 
-router.post('/batch', upload.single('referenceImage'), async (req, res) => {
+const MAX_REFERENCE_IMAGES = 4
+
+router.post('/batch', upload.array('referenceImages', MAX_REFERENCE_IMAGES), async (req, res) => {
   try {
     const { concept, prompts: promptsJson } = req.body
-    const file = req.file
+    const files = req.files as Express.Multer.File[]
 
-    if (!file) {
-      res.status(400).json({ error: 'Reference image is required' })
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: 'At least one reference image is required' })
+      return
+    }
+
+    if (files.length > MAX_REFERENCE_IMAGES) {
+      res.status(400).json({ error: `Maximum ${MAX_REFERENCE_IMAGES} reference images allowed` })
       return
     }
 
@@ -100,10 +107,12 @@ router.post('/batch', upload.single('referenceImage'), async (req, res) => {
 
     const job = createBatchJob(concept, prompts.length, outputDir)
 
-    const referenceImageUrl = `file://${file.path}`
+    const referenceImageUrls = files.map((file) => `file://${file.path}`)
     const textPrompts = prompts.map((p) => formatPromptForFal(p))
 
-    generateBatch(job.id, referenceImageUrl, textPrompts, {
+    console.log(`[Batch] Starting with ${files.length} reference image(s)`)
+
+    generateBatch(job.id, referenceImageUrls, textPrompts, {
       resolution: '2K',
       aspectRatio: '9:16',
       concurrency: 4,
@@ -116,6 +125,7 @@ router.post('/batch', upload.single('referenceImage'), async (req, res) => {
       status: job.status,
       totalImages: job.totalImages,
       outputDir: job.outputDir,
+      referenceImageCount: files.length,
       message: 'Batch generation started',
     })
   } catch (error) {

@@ -58,22 +58,28 @@ async function fileToDataUrl(filePath: string): Promise<string> {
 }
 
 export async function generateImage(
-  referenceImagePath: string,
+  referenceImagePaths: string | string[],
   prompt: string,
   options: { resolution?: string; aspectRatio?: string } = {}
 ): Promise<{ url: string; requestId: string }> {
   ensureFalConfig()
 
-  let imageUrl = referenceImagePath
-  if (referenceImagePath.startsWith('file://') || referenceImagePath.startsWith('/')) {
-    const filePath = referenceImagePath.replace('file://', '')
-    imageUrl = await fileToDataUrl(filePath)
-  }
+  const paths = Array.isArray(referenceImagePaths) ? referenceImagePaths : [referenceImagePaths]
+
+  const imageUrls = await Promise.all(
+    paths.map(async (p) => {
+      if (p.startsWith('file://') || p.startsWith('/')) {
+        const filePath = p.replace('file://', '')
+        return fileToDataUrl(filePath)
+      }
+      return p
+    })
+  )
 
   const result = await fal.subscribe(MODEL_ID, {
     input: {
       prompt,
-      image_urls: [imageUrl],
+      image_urls: imageUrls,
       resolution: options.resolution || '2K',
       aspect_ratio: options.aspectRatio || '9:16',
       num_images: 1,
@@ -135,7 +141,7 @@ export function getJob(jobId: string): BatchJob | undefined {
 
 export async function generateBatch(
   jobId: string,
-  referenceImageUrl: string,
+  referenceImageUrls: string | string[],
   prompts: string[],
   options: { resolution?: string; aspectRatio?: string; concurrency?: number } = {}
 ): Promise<void> {
@@ -152,7 +158,7 @@ export async function generateBatch(
     image.status = 'generating'
 
     try {
-      const { url } = await generateImage(referenceImageUrl, prompts[index], {
+      const { url } = await generateImage(referenceImageUrls, prompts[index], {
         resolution: options.resolution,
         aspectRatio: options.aspectRatio,
       })

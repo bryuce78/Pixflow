@@ -162,9 +162,10 @@ function App() {
 
   // Batch Generate State
   const [selectedPrompts, setSelectedPrompts] = useState<Set<number>>(new Set())
-  const [referenceImage, setReferenceImage] = useState<File | null>(null)
-  const [referencePreview, setReferencePreview] = useState<string | null>(null)
+  const [referenceImages, setReferenceImages] = useState<File[]>([])
+  const [referencePreviews, setReferencePreviews] = useState<string[]>([])
   const [batchLoading, setBatchLoading] = useState(false)
+  const MAX_REFERENCE_IMAGES = 4
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null)
   const [batchError, setBatchError] = useState<ErrorInfo | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -174,7 +175,6 @@ function App() {
   const [avatars, setAvatars] = useState<Avatar[]>([])
   const [avatarsLoading, setAvatarsLoading] = useState(false)
   const [imageSource, setImageSource] = useState<'upload' | 'gallery'>('gallery')
-  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState<string | null>(null)
 
   // Custom Prompt State
   const [promptSource, setPromptSource] = useState<'generated' | 'custom'>('generated')
@@ -258,20 +258,32 @@ function App() {
 
   const selectAvatar = async (avatar: Avatar) => {
     try {
-      setSelectedAvatarUrl(avatar.url)
-      setReferencePreview(avatar.url)
+      // Check if already selected (toggle off)
+      const existingIndex = referenceImages.findIndex((f) => f.name === avatar.filename)
+      if (existingIndex >= 0) {
+        const newFiles = referenceImages.filter((_, i) => i !== existingIndex)
+        setReferenceImages(newFiles)
+        setReferencePreviews(newFiles.map((f) => URL.createObjectURL(f)))
+                return
+      }
 
-      // Fetch the image and convert to File
+      // Check max limit
+      if (referenceImages.length >= MAX_REFERENCE_IMAGES) {
+        setBatchError({ message: `Maximum ${MAX_REFERENCE_IMAGES} images allowed`, type: 'warning' })
+        return
+      }
+
+      // Fetch and add to selection
       const response = await fetch(avatar.url)
       if (!response.ok) throw new Error('Failed to fetch avatar')
       const blob = await response.blob()
       const file = new File([blob], avatar.filename, { type: blob.type })
-      setReferenceImage(file)
-    } catch (err) {
+
+      const newFiles = [...referenceImages, file]
+      setReferenceImages(newFiles)
+      setReferencePreviews(newFiles.map((f) => URL.createObjectURL(f)))
+          } catch (err) {
       console.error('Failed to select avatar:', err)
-      setSelectedAvatarUrl(null)
-      setReferencePreview(null)
-      setReferenceImage(null)
       setBatchError({ message: 'Failed to load avatar image', type: 'error' })
     }
   }
@@ -381,34 +393,37 @@ function App() {
     }
   }
 
-  const onDrop = useCallback((acceptedFiles: File[], rejections: FileRejection[]) => {
-    setUploadError(null)
+  const onDrop = useCallback(
+    (acceptedFiles: File[], rejections: FileRejection[]) => {
+      setUploadError(null)
 
-    if (rejections.length > 0) {
-      const rejection = rejections[0]
-      const errorCode = rejection.errors[0]?.code
-      if (errorCode === 'file-too-large') {
-        setUploadError('File is too large. Maximum size is 10MB.')
-      } else if (errorCode === 'file-invalid-type') {
-        setUploadError('Invalid file type. Please use JPEG, PNG, or WebP.')
-      } else {
-        setUploadError('Failed to upload file. Please try again.')
+      if (rejections.length > 0) {
+        const rejection = rejections[0]
+        const errorCode = rejection.errors[0]?.code
+        if (errorCode === 'file-too-large') {
+          setUploadError('One or more files are too large. Maximum size is 10MB each.')
+        } else if (errorCode === 'file-invalid-type') {
+          setUploadError('Invalid file type. Please use JPEG, PNG, or WebP.')
+        } else if (errorCode === 'too-many-files') {
+          setUploadError(`Maximum ${MAX_REFERENCE_IMAGES} images allowed.`)
+        } else {
+          setUploadError('Failed to upload files. Please try again.')
+        }
+        return
       }
-      return
-    }
 
-    const file = acceptedFiles[0]
-    if (file) {
-      setReferenceImage(file)
-      setReferencePreview(URL.createObjectURL(file))
-      setSelectedAvatarUrl(null) // Clear avatar selection when uploading
-    }
-  }, [])
+      // Append new files up to max limit
+      const newFiles = [...referenceImages, ...acceptedFiles].slice(0, MAX_REFERENCE_IMAGES)
+      setReferenceImages(newFiles)
+      setReferencePreviews(newFiles.map((f) => URL.createObjectURL(f)))
+          },
+    [referenceImages]
+  )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
-    maxFiles: 1,
+    maxFiles: MAX_REFERENCE_IMAGES,
     maxSize: 10 * 1024 * 1024,
   })
 
@@ -567,8 +582,8 @@ function App() {
   }
 
   const handleBatchGenerate = async () => {
-    if (!referenceImage) {
-      setBatchError({ message: 'Please upload a reference image first.', type: 'warning' })
+    if (referenceImages.length === 0) {
+      setBatchError({ message: 'Please upload at least one reference image.', type: 'warning' })
       return
     }
 
@@ -599,7 +614,9 @@ function App() {
     let response: Response | undefined
     try {
       const formData = new FormData()
-      formData.append('referenceImage', referenceImage)
+      referenceImages.forEach((file) => {
+        formData.append('referenceImages', file)
+      })
       formData.append('concept', promptSource === 'custom' ? 'custom' : (concept || 'untitled'))
       formData.append('prompts', JSON.stringify(promptsToGenerate))
 
@@ -1240,31 +1257,53 @@ Examples:
                   </div>
                 </div>
 
-                {/* Selected Preview */}
-                {referencePreview && (
-                  <div className="mb-4 p-3 bg-gray-800 rounded-lg flex items-center gap-4">
-                    <img
-                      src={referencePreview}
-                      alt="Selected"
-                      className="w-20 h-20 object-cover rounded-lg"
-                    />
-                    <div className="flex-1">
+                {/* Selected Images Preview */}
+                {referencePreviews.length > 0 && (
+                  <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
                       <p className="font-medium text-green-400 flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
-                        Image Selected
+                        {referencePreviews.length} Image{referencePreviews.length > 1 ? 's' : ''} Selected
+                        {referencePreviews.length > 1 && (
+                          <span className="text-xs text-gray-400 font-normal">(for couple/family)</span>
+                        )}
                       </p>
-                      <p className="text-sm text-gray-400">{referenceImage?.name}</p>
+                      <button
+                        onClick={() => {
+                          setReferenceImages([])
+                          setReferencePreviews([])
+                                                  }}
+                        className="text-gray-400 hover:text-red-400 text-sm"
+                      >
+                        Clear All
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        setReferenceImage(null)
-                        setReferencePreview(null)
-                        setSelectedAvatarUrl(null)
-                      }}
-                      className="text-gray-400 hover:text-red-400"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2 flex-wrap">
+                      {referencePreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Reference ${index + 1}`}
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                          <button
+                            onClick={() => {
+                              const newFiles = referenceImages.filter((_, i) => i !== index)
+                              setReferenceImages(newFiles)
+                              setReferencePreviews(newFiles.map((f) => URL.createObjectURL(f)))
+                            }}
+                            className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {referencePreviews.length < MAX_REFERENCE_IMAGES && (
+                        <div className="w-16 h-16 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 text-xs">
+                          +{MAX_REFERENCE_IMAGES - referencePreviews.length}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1283,23 +1322,31 @@ Examples:
                       </div>
                     ) : (
                       <div className="grid grid-cols-8 gap-2 max-h-[400px] overflow-auto">
-                        {avatars.map((avatar) => (
-                          <button
-                            key={avatar.filename}
-                            onClick={() => selectAvatar(avatar)}
-                            className={`aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
-                              selectedAvatarUrl === avatar.url
-                                ? 'border-purple-500 ring-2 ring-purple-500/50'
-                                : 'border-transparent hover:border-gray-600'
-                            }`}
-                          >
-                            <img
-                              src={avatar.url}
-                              alt={avatar.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ))}
+                        {avatars.map((avatar) => {
+                          const isSelected = referenceImages.some((f) => f.name === avatar.filename)
+                          return (
+                            <button
+                              key={avatar.filename}
+                              onClick={() => selectAvatar(avatar)}
+                              className={`aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                                isSelected
+                                  ? 'border-purple-500 ring-2 ring-purple-500/50'
+                                  : 'border-transparent hover:border-gray-600'
+                              }`}
+                            >
+                              <img
+                                src={avatar.url}
+                                alt={avatar.name}
+                                className="w-full h-full object-cover"
+                              />
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 bg-purple-500 rounded-full p-0.5">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -1330,7 +1377,7 @@ Examples:
                 onClick={handleBatchGenerate}
                 disabled={
                   batchLoading ||
-                  !referenceImage ||
+                  referenceImages.length === 0 ||
                   (promptSource === 'generated' ? selectedPrompts.size === 0 : !customPromptJson.trim())
                 }
                 className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg px-6 py-4 font-medium transition-colors flex items-center justify-center gap-2"
