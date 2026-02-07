@@ -1,10 +1,11 @@
 node_modules/
 dist/
+out/
 .env
 .DS_Store
 *.log
 outputs/
 uploads/
 avatars/
-packages/server/data/
-packages/server/uploads/
+data/
+packages/
