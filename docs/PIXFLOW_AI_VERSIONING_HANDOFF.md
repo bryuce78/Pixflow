@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-08 (Phase D visual polish + backlog completion + quality foundation handoff to Codex)
+Last updated: 2026-02-08 (Session 3: status color token migration, native module fix, full E2E verification)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -523,6 +523,55 @@ System model:
 - Preflight decision history: `scripts/build-preflight-history.js`, command `npm run preflight:history`.
 - All three integrated into `gate:release`, CI workflow, and nightly workflow.
 
+27. Phase D status color token migration (Session 3):
+- Extended semantic CSS tokens in `src/renderer/index.css`:
+  - `--color-danger-hover: #dc2626`
+  - `--color-danger-muted: #7f1d1d`
+  - `--color-warning-hover: #d97706`
+  - `--color-warning-muted: #78350f`
+  - `--color-success-hover: #16a34a`
+  - `--color-success-muted: #14532d`
+  - `--color-accent: #06b6d4`
+  - `--color-accent-hover: #0891b2`
+- Migrated all remaining hardcoded status colors (`emerald-*`, `amber-*`, `red-*`, `cyan-*`) to semantic tokens across 9 files:
+  - `src/renderer/components/ui/Badge.tsx` — success/warning/danger variants
+  - `src/renderer/components/ui/Button.tsx` — danger variant
+  - `src/renderer/components/prompt-factory/PromptFactoryPage.tsx` — 6 color edits (error blocks, cancel, success buttons)
+  - `src/renderer/components/asset-monster/AssetMonsterPage.tsx` — extensive migration (remove buttons, generate button, error/warning blocks, status badges, image borders, custom prompt errors)
+  - `src/renderer/components/avatar-studio/AvatarStudioPage.tsx` — 22 color changes (warning/danger/success blocks, amber hints, emerald buttons, cyan I2V section → accent)
+  - `src/renderer/components/machine/MachinePage.tsx` — 8 edits (error/warning blocks, Run/Cancel buttons, progress bar, download button)
+  - `src/renderer/components/library/LibraryPage.tsx` — favorites toast
+  - `src/renderer/components/layout/ImagePreviewOverlay.tsx` — download button hover
+  - `src/renderer/components/layout/AvatarPreviewOverlay.tsx` — download button hover
+- Post-migration audit: 0 hardcoded status color classes remaining (verified via comprehensive regex).
+- Commit: `f9ea5d8`
+
+28. Electron native module fix (Session 3):
+- `better-sqlite3` was compiled for Node.js v25 (NODE_MODULE_VERSION 141) but Electron v33 requires NODE_MODULE_VERSION 130.
+- Fix: rebuilt `better-sqlite3` using `node-gyp rebuild --target=33.4.11 --dist-url=https://electronjs.org/headers` from within `node_modules/better-sqlite3/`.
+- Note: `npx electron-rebuild` and `npx @electron/rebuild` both silently skipped the rebuild. Manual `node-gyp` was required.
+- After rebuild, Electron embedded server starts successfully.
+- Important: this rebuild is local only (not committed). After `npm install`, the rebuild must be repeated. Consider adding a `postinstall` script: `electron-rebuild -f -w better-sqlite3` or using `electron-builder` rebuild hooks.
+
+29. Full E2E verification pass (Session 3):
+- Test environment: Electron dev mode (`npm run dev`), Playwright browser automation on `http://localhost:5173`.
+- Admin password reset via `sqlite3` CLI (bcrypt hash updated directly in `data/pixflow.db`).
+- Test credentials: `admin@pixery.com` / `pixflowtest1234`
+- All tests passed:
+  - Login page renders, auth flow works (JWT returned, session persists)
+  - All 5 tabs render correctly: Prompt Factory, Asset Monster, Avatar Studio, The Machine, Library
+  - Product color switching: Clone AI (purple) → Fyro (orange) → Zurna (cyan) — all brand-colored elements update dynamically
+  - Dark/light mode toggle: surface tokens flip correctly
+  - User menu dropdown: name, email, Change Password, Sign Out (danger-colored)
+  - Notification bell dropdown: renders with "No notifications"
+  - Feedback widget: expand, category select, text input, submit → toast → backend persists (verified via API)
+  - API health endpoint: responds with `{ success: true }`
+  - Feedback API: end-to-end with correct user_id, product_id, category
+  - Console errors: 0
+  - Avatar gallery: 122 images load in both Asset Monster and Avatar Studio
+  - Generation settings: all dropdowns render (aspect ratio, images per prompt, resolution, format)
+  - The Machine: full settings panel with concept input, prompt slider, avatar grid, voiceover controls
+
 ---
 
 ## 6) Remaining Risks / Gaps
@@ -535,28 +584,49 @@ System model:
 - Telemetry now has report + trend snapshots + markdown dashboard snapshot + baseline history/suggestions.
 - Next depth step: publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
 
+3. Native module rebuild not automated:
+- `better-sqlite3` requires manual `node-gyp rebuild --target=<electron-version> --dist-url=https://electronjs.org/headers` after every `npm install`.
+- Risk: fresh installs or CI environments will fail at runtime with `NODE_MODULE_VERSION` mismatch.
+- Fix: add `postinstall` script or use `electron-builder` rebuild hooks.
+
+4. UI component library adoption gap:
+- 11 UI components exist in `src/renderer/components/ui/` (Button, Input, Select, Slider, Card, Modal, Badge, Skeleton, EmptyState, DropZone, ProgressBar).
+- None are imported or used in the 5 page components — pages still use inline `<button>`, `<input>`, `<select>` with Tailwind classes.
+- This is a consistency/maintainability gap, not a functional one. All pages work and use semantic tokens correctly.
+- Risk: low (cosmetic). Component adoption carries regression risk and should be done incrementally with visual diff testing.
+
 ---
 
 ## 7) Recommended Next Steps (updated backlog summary)
 
-All three backlog items from the previous iteration have been completed:
+**Completed backlog items:**
+1. ~~Automate threshold tuning handoff~~ → **DONE** (Session 2)
+2. ~~Add alert de-duplication window~~ → **DONE** (Session 2)
+3. ~~Expose preflight decision history~~ → **DONE** (Session 2)
+4. ~~Status color token migration~~ → **DONE** (Session 3): all hardcoded `emerald/amber/red/cyan` → semantic `success/warning/danger/accent` tokens.
+5. ~~E2E verification~~ → **DONE** (Session 3): all tabs, auth, product switching, theme toggle, feedback widget verified.
 
-1. ~~Automate threshold tuning handoff~~ → **DONE**: `scripts/propose-threshold-update.js`, command `npm run threshold:propose`. Integrated into `gate:release` and both CI/nightly workflows.
-2. ~~Add alert de-duplication window~~ → **DONE**: `scripts/build-nightly-alert-dedup.js`, command `npm run alert:dedup`. Integrated into nightly workflow between alert build and webhook POST. Configurable via `PIXFLOW_ALERT_DEDUP_WINDOW_HOURS` (default: 6).
-3. ~~Expose preflight decision history~~ → **DONE**: `scripts/build-preflight-history.js`, command `npm run preflight:history`. Outputs JSONL history + markdown with ASCII confidence chart. Integrated into `gate:release` and both workflows.
+**Immediate priorities:**
 
-Remaining next steps:
+1. Automate native module rebuild:
+- Add `postinstall` script to `package.json`: `"postinstall": "electron-rebuild -f -w better-sqlite3"` or equivalent.
+- Verify it works on clean `npm install`.
+
+2. UI component library adoption (Phase D+):
+- Incrementally replace inline `<button>`/`<input>`/`<select>` in page components with `<Button>`/`<Input>`/`<Select>` from component library.
+- Start with lowest-risk pages: LibraryPage → PromptFactoryPage → AssetMonsterPage → AvatarStudioPage → MachinePage.
+- Test each page visually after migration.
 
 **Codex handoff (quality foundation):**
-1. Add Vitest test runner + unit tests for core backend services (history, telemetry, providerRuntime).
-2. Add Biome or ESLint for static analysis beyond `tsc --noEmit`.
-3. Add React ErrorBoundary wrappers around lazy-loaded page components.
-4. Improve mock smoke tests to cover provider failure scenarios (timeout, rate limit, partial failure).
+3. Add Vitest test runner + unit tests for core backend services (history, telemetry, providerRuntime).
+4. Add Biome or ESLint for static analysis beyond `tsc --noEmit`.
+5. Add React ErrorBoundary wrappers around lazy-loaded page components.
+6. Improve mock smoke tests to cover provider failure scenarios (timeout, rate limit, partial failure).
 
 **Feature backlog:**
-5. Publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
-6. Add provider-level SLA tracking with per-provider uptime windows.
-7. Integrate threshold proposals into automated PR creation via GitHub Actions.
+7. Publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
+8. Add provider-level SLA tracking with per-provider uptime windows.
+9. Integrate threshold proposals into automated PR creation via GitHub Actions.
 
 ---
 
