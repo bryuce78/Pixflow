@@ -1,0 +1,432 @@
+import {
+  Sparkles, Copy, Check, CheckCircle, Lightbulb, Tags, Upload,
+  Loader2, AlertCircle, X, WifiOff, Clock, ScanSearch, ArrowRight,
+  Star, Layers,
+} from 'lucide-react'
+import { assetUrl } from '../../lib/api'
+import { usePromptStore } from '../../stores/promptStore'
+import { useGenerationStore } from '../../stores/generationStore'
+import { useHistoryStore } from '../../stores/historyStore'
+import { useNavigationStore } from '../../stores/navigationStore'
+import type { GeneratedPrompt } from '../../types'
+
+function extractMood(prompt: GeneratedPrompt): string {
+  return prompt.lighting?.mood || prompt.effects?.atmosphere || 'N/A'
+}
+
+function generateFavoriteName(prompt: GeneratedPrompt, index: number): string {
+  const concept = usePromptStore.getState().concept
+  const styleWords = prompt.style?.split(' ').slice(0, 4).join(' ')
+  if (concept) return `${concept} #${index + 1}`
+  if (styleWords) return styleWords.length > 35 ? styleWords.slice(0, 35) + '...' : styleWords
+  return `Prompt ${index + 1} (${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })})`
+}
+
+export default function PromptFactoryPage() {
+  const promptStore = usePromptStore()
+  const generationStore = useGenerationStore()
+  const { addToFavorites } = useHistoryStore()
+  const { navigate } = useNavigationStore()
+
+  const {
+    concept, count, loading, prompts, selectedIndex, editingPromptText,
+    promptSaving, error, copied, research, varietyScore,
+    promptMode, analyzePreview, analyzeLoading,
+    analyzedPrompt, analyzeError, analyzeCopied,
+    setConcept, setCount, setPromptMode, setSelectedIndex, setEditingPromptText,
+    generate, cancelGenerate, copyPrompt, saveEdit, setAnalyzeImage,
+    analyzeCurrentImage, copyAnalyzed, setPrompts,
+  } = promptStore
+
+  const handleSendToMonster = () => {
+    generationStore.selectAllPrompts(prompts.length)
+    generationStore.setImageSource('upload')
+    navigate('generate')
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAnalyzeImage(file, URL.createObjectURL(file))
+  }
+
+  if (promptMode === 'image') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setPromptMode('concept')}
+            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+          >
+            Concept to Prompts
+          </button>
+          <button
+            onClick={() => setPromptMode('image')}
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg"
+          >
+            Image to Prompt
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* Left: Upload */}
+          <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <ScanSearch className="w-5 h-5 text-purple-400" />
+              <h3 className="text-lg font-semibold text-white">Analyze Image</h3>
+            </div>
+
+            <div className="relative">
+              {analyzePreview ? (
+                <div className="relative">
+                  <img
+                    src={analyzePreview.startsWith('blob:') ? analyzePreview : assetUrl(analyzePreview)}
+                    alt="Preview"
+                    className="w-full aspect-[9/16] object-cover rounded-lg"
+                  />
+                  <button
+                    onClick={() => setAnalyzeImage(null, null)}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full aspect-[9/16] border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors">
+                  <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                  <span className="text-sm text-gray-400">Drop image or click to upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </label>
+              )}
+            </div>
+
+            <button
+              onClick={analyzeCurrentImage}
+              disabled={!analyzePreview || analyzeLoading}
+              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {analyzeLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <ScanSearch className="w-5 h-5" />
+                  Analyze Image
+                </>
+              )}
+            </button>
+
+            {analyzeError && (
+              <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-red-300 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {analyzeError.message}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Result */}
+          <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Generated Prompt</h3>
+              {analyzedPrompt && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={copyAnalyzed}
+                    className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                  >
+                    {analyzeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {analyzedPrompt ? (
+              <>
+                <pre className="flex-1 overflow-y-auto text-xs text-gray-300 bg-gray-900/50 rounded-lg p-4 whitespace-pre-wrap break-words mb-4">
+                  {JSON.stringify(analyzedPrompt, null, 2)}
+                </pre>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setPrompts([analyzedPrompt])
+                      setPromptMode('concept')
+                    }}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-gray-700 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-500 transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Layers className="w-4 h-4" />
+                    Use in Factory
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPrompts([analyzedPrompt])
+                      navigate('generate')
+                    }}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-lg hover:from-green-500 hover:to-emerald-500 transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    Asset Monster
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                Upload and analyze an image to generate a prompt
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={() => setPromptMode('concept')}
+          className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg"
+        >
+          Concept to Prompts
+        </button>
+        <button
+          onClick={() => setPromptMode('image')}
+          className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+        >
+          Image to Prompt
+        </button>
+      </div>
+
+      {/* Input Area */}
+      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+        <div className="flex items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Concept</label>
+            <input
+              type="text"
+              value={concept}
+              onChange={(e) => setConcept(e.target.value)}
+              placeholder="e.g., Christmas, Halloween, Summer Beach..."
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Prompts: {count}
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="w-full accent-purple-500"
+            />
+          </div>
+          <div>
+            {loading ? (
+              <button
+                onClick={cancelGenerate}
+                className="px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white font-medium rounded-lg hover:from-red-500 hover:to-orange-500 transition-all flex items-center gap-2"
+              >
+                <X className="w-5 h-5" />
+                Cancel
+              </button>
+            ) : (
+              <button
+                onClick={generate}
+                disabled={!concept.trim()}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                <Sparkles className="w-5 h-5" />
+                Generate
+              </button>
+            )}
+          </div>
+        </div>
+
+        {loading && (
+          <div className="mt-4 flex items-center gap-3 text-purple-300 text-sm">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Researching &amp; generating prompts...
+          </div>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-3 p-4 bg-red-900/30 border border-red-700/50 rounded-xl text-red-300">
+          {error.message.includes('network') || error.message.includes('fetch') ? (
+            <WifiOff className="w-5 h-5 flex-shrink-0" />
+          ) : error.message.includes('timeout') || error.message.includes('Timeout') ? (
+            <Clock className="w-5 h-5 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          )}
+          <span className="text-sm">{error.message}</span>
+          {error.action && (
+            <button
+              onClick={error.action.onClick}
+              className="ml-auto px-3 py-1 bg-red-600/30 text-red-200 rounded hover:bg-red-600/50 transition-colors text-sm"
+            >
+              {error.action.label}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Research Insights */}
+      {research && (
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Lightbulb className="w-5 h-5 text-yellow-400" />
+                <h3 className="text-sm font-semibold text-white">Key Insights</h3>
+              </div>
+              <ul className="space-y-1.5">
+                {research.insights?.map((insight, i) => (
+                  <li key={i} className="text-xs text-gray-300 flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-400 mt-0.5 flex-shrink-0" />
+                    {insight}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Tags className="w-5 h-5 text-purple-400" />
+                <h3 className="text-sm font-semibold text-white">Sub-themes</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {research.subThemes?.map((theme, i) => (
+                  <span key={i} className="px-2.5 py-1 bg-purple-600/20 text-purple-300 rounded-full text-xs">
+                    {theme}
+                  </span>
+                ))}
+              </div>
+              {varietyScore && (
+                <div className="mt-4 p-3 bg-gray-900/50 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-400">Variety Score</span>
+                    <span className={`text-xs font-medium ${varietyScore.passed ? 'text-green-400' : 'text-red-400'}`}>
+                      {varietyScore.passed ? 'Passed' : 'Low Variety'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <div>{varietyScore.aesthetics_used.length} aesthetics</div>
+                    <div>{varietyScore.emotions_used.length} emotions</div>
+                    <div>{varietyScore.lighting_setups_used.length} lighting setups</div>
+                    {varietyScore.has_duplicates && (
+                      <div className="text-red-400">Duplicate combinations detected</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prompts Grid */}
+      {prompts.length > 0 && (
+        <div className="grid grid-cols-3 gap-6">
+          {/* Prompt List */}
+          <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Prompts ({prompts.length})</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+              {prompts.map((prompt, i) => (
+                <div
+                  key={i}
+                  className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center justify-between ${
+                    selectedIndex === i
+                      ? 'bg-purple-600/30 border border-purple-500/50'
+                      : 'bg-gray-700/30 hover:bg-gray-700/50'
+                  }`}
+                  onClick={() => setSelectedIndex(i)}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-white truncate">
+                      #{i + 1} — {prompt.style?.split(' ').slice(0, 5).join(' ') || 'Untitled'}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {extractMood(prompt)}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      addToFavorites(prompt, generateFavoriteName(prompt, i))
+                    }}
+                    className="p-1 text-gray-500 hover:text-yellow-400 transition-colors flex-shrink-0"
+                  >
+                    <Star className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleSendToMonster}
+              className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-lg hover:from-green-500 hover:to-emerald-500 transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Send to Monster
+            </button>
+          </div>
+
+          {/* Preview + Edit */}
+          <div className="col-span-2 bg-gray-800/50 rounded-xl border border-gray-700/50 p-4 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">
+                Prompt #{(selectedIndex ?? 0) + 1}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={copyPrompt}
+                  className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => {
+                    const prompt = prompts[selectedIndex ?? 0]
+                    if (prompt) addToFavorites(prompt, generateFavoriteName(prompt, selectedIndex ?? 0))
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-yellow-400 transition-colors"
+                >
+                  <Star className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => saveEdit(editingPromptText)}
+                  disabled={promptSaving}
+                  className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium rounded-lg hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                >
+                  {promptSaving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Save
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={editingPromptText ?? (selectedIndex != null ? JSON.stringify(prompts[selectedIndex], null, 2) : '')}
+              onChange={(e) => setEditingPromptText(e.target.value)}
+              className="flex-1 w-full bg-gray-900/50 border border-gray-600 rounded-lg p-4 text-xs text-gray-300 font-mono resize-none focus:outline-none focus:border-purple-500 transition-colors whitespace-pre-wrap"
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

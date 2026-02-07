@@ -15,6 +15,7 @@ import { ensureAdminExists } from './services/auth.js'
 import { requireAuth } from './middleware/auth.js'
 import { createAuthRouter } from './routes/auth.js'
 import { createProductsRouter } from './routes/products.js'
+import { createPresetsRouter } from './routes/presets.js'
 
 export interface ServerConfig {
   projectRoot: string
@@ -208,6 +209,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/api/generate', requireAuth, createGenerateRouter({ projectRoot, openFolder: config.openFolder }))
   app.use('/api/history', requireAuth, createHistoryRouter())
   app.use('/api/avatars', requireAuth, createAvatarsRouter({ projectRoot }))
+  app.use('/api/presets', requireAuth, createPresetsRouter())
 
   return app
 }

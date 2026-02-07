@@ -58,6 +58,7 @@ interface GenerationState {
   removeReferenceImage: (index: number) => void
   clearReferenceImages: () => void
   setUploadError: (error: string | null) => void
+  setBatchError: (error: ErrorInfo | null) => void
 
   loadAvatars: () => Promise<void>
   selectAvatar: (avatar: Avatar) => Promise<void>
@@ -140,6 +141,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   }),
 
   setUploadError: (uploadError) => set({ uploadError }),
+  setBatchError: (batchError) => set({ batchError }),
 
   loadAvatars: async () => {
     set({ avatarsLoading: true })

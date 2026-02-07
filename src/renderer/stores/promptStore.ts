@@ -39,6 +39,7 @@ interface PromptState {
   analyzeCurrentImage: () => Promise<void>
   copyAnalyzed: () => Promise<void>
 
+  setPrompts: (prompts: GeneratedPrompt[], selectedIndex?: number) => void
   reset: () => void
 }
 
@@ -222,6 +223,15 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
     await navigator.clipboard.writeText(JSON.stringify(analyzedPrompt, null, 2))
     set({ analyzeCopied: true })
     setTimeout(() => set({ analyzeCopied: false }), 2000)
+  },
+
+  setPrompts: (prompts, selectedIndex = 0) => {
+    set({
+      prompts,
+      selectedIndex: prompts.length > 0 ? selectedIndex : null,
+      editingPromptText: prompts[selectedIndex] ? JSON.stringify(prompts[selectedIndex], null, 2) : '',
+      error: null,
+    })
   },
 
   reset: () => {
