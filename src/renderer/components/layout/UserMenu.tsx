@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { User, LogOut, KeyRound } from 'lucide-react'
+import { KeyRound, LogOut, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { Button } from '../ui/Button'
 
@@ -40,6 +40,7 @@ export function UserMenu() {
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1.5 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100"
       >
@@ -73,18 +74,18 @@ export function UserMenu() {
               {pwError && <p className="text-xs text-danger">{pwError}</p>}
               {pwSuccess && <p className="text-xs text-success">Password changed!</p>}
               <div className="flex gap-2">
-                <Button
-                  onClick={handleChangePassword}
-                  disabled={!currentPw || !newPw}
-                  size="sm"
-                  className="flex-1"
-                >
+                <Button onClick={handleChangePassword} disabled={!currentPw || !newPw} size="sm" className="flex-1">
                   Save
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => { setChangingPassword(false); setPwError(null); setCurrentPw(''); setNewPw('') }}
+                  onClick={() => {
+                    setChangingPassword(false)
+                    setPwError(null)
+                    setCurrentPw('')
+                    setNewPw('')
+                  }}
                   className="flex-1"
                 >
                   Cancel
@@ -94,6 +95,7 @@ export function UserMenu() {
           ) : (
             <>
               <button
+                type="button"
                 onClick={() => setChangingPassword(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 transition-colors"
               >
@@ -101,7 +103,11 @@ export function UserMenu() {
                 Change Password
               </button>
               <button
-                onClick={() => { setOpen(false); logout() }}
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  logout()
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-surface-100 transition-colors"
               >
                 <LogOut className="w-4 h-4" />

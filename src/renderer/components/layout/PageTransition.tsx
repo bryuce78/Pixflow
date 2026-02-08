@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
+import type { ReactNode } from 'react'
 
 interface PageTransitionProps {
   pageKey: string

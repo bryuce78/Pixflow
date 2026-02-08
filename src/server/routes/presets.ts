@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
-import { getPresets, getPreset, createPreset, updatePreset, deletePreset } from '../services/presets.js'
 import type { AuthRequest } from '../middleware/auth.js'
+import { createPreset, deletePreset, getPreset, getPresets, updatePreset } from '../services/presets.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 const MAX_NAME_LENGTH = 200
@@ -17,7 +17,9 @@ export function createPresetsRouter(): Router {
 
     if (req.query.product) {
       const db = getDb()
-      const row = db.prepare('SELECT id FROM products WHERE slug = ?').get(req.query.product) as { id: number } | undefined
+      const row = db.prepare('SELECT id FROM products WHERE slug = ?').get(req.query.product) as
+        | { id: number }
+        | undefined
       productId = row?.id
     }
 

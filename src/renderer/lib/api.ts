@@ -25,7 +25,13 @@ export function apiUrl(path: string): string {
 }
 
 export function assetUrl(path: string): string {
-  if (!path || path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
+  if (
+    !path ||
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('data:') ||
+    path.startsWith('blob:')
+  ) {
     return path
   }
   return `${_baseUrl}${path}`

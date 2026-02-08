@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Rebuild native modules for Electron
+        run: npm run native:rebuild
+
       - name: Validate required secrets
         run: |
           test -n "$OPENAI_API_KEY"
@@ -48,7 +51,10 @@ jobs:
       - name: Validate playbook registry
         run: npm run validate:playbooks
 
-      - name: Lint
+      - name: Lint (Biome)
+        run: npm run lint:biome
+
+      - name: Lint (TypeScript)
         run: npm run lint
 
       - name: Real External Smoke

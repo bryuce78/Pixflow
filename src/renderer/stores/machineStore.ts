@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
-import type { GeneratedPrompt, BatchProgress, Avatar, Voice, ErrorInfo, MachineStep } from '../types'
+import type { Avatar, BatchProgress, ErrorInfo, GeneratedPrompt, MachineStep, Voice } from '../types'
 import { parseError } from '../types'
 
 type ScriptTone = 'casual' | 'professional' | 'energetic' | 'friendly' | 'dramatic'
@@ -46,7 +46,11 @@ interface MachineState {
 
 let abortController: AbortController | null = null
 
-async function pollBatch(jobId: string, signal: AbortSignal, onProgress: (p: BatchProgress) => void): Promise<BatchProgress> {
+async function pollBatch(
+  jobId: string,
+  signal: AbortSignal,
+  onProgress: (p: BatchProgress) => void,
+): Promise<BatchProgress> {
   let failedPolls = 0
   while (!signal.aborted) {
     try {
@@ -94,28 +98,31 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
   setSelectedAvatar: (selectedAvatar) => set({ selectedAvatar }),
 
-  addRefImages: (files) => set((state) => {
-    revokePreviews(state.refPreviews)
-    const newFiles = [...state.refImages, ...files].slice(0, 3)
-    return {
-      refImages: newFiles,
-      refPreviews: newFiles.map((f) => URL.createObjectURL(f)),
-    }
-  }),
+  addRefImages: (files) =>
+    set((state) => {
+      revokePreviews(state.refPreviews)
+      const newFiles = [...state.refImages, ...files].slice(0, 3)
+      return {
+        refImages: newFiles,
+        refPreviews: newFiles.map((f) => URL.createObjectURL(f)),
+      }
+    }),
 
-  removeRefImage: (index) => set((state) => {
-    revokePreviews(state.refPreviews)
-    const newFiles = state.refImages.filter((_, i) => i !== index)
-    return {
-      refImages: newFiles,
-      refPreviews: newFiles.map((f) => URL.createObjectURL(f)),
-    }
-  }),
+  removeRefImage: (index) =>
+    set((state) => {
+      revokePreviews(state.refPreviews)
+      const newFiles = state.refImages.filter((_, i) => i !== index)
+      return {
+        refImages: newFiles,
+        refPreviews: newFiles.map((f) => URL.createObjectURL(f)),
+      }
+    }),
 
-  clearRefImages: () => set((state) => {
-    revokePreviews(state.refPreviews)
-    return { refImages: [], refPreviews: [] }
-  }),
+  clearRefImages: () =>
+    set((state) => {
+      revokePreviews(state.refPreviews)
+      return { refImages: [], refPreviews: [] }
+    }),
 
   run: async (resumeFrom) => {
     const { concept, selectedAvatar, selectedVoice, promptCount, scriptDuration, scriptTone, refImages } = get()
@@ -181,6 +188,7 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
 
         const formData = new FormData()
         formData.append('referenceImages', avatarFile)
+        // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect FormData append
         refImages.forEach((f) => formData.append('referenceImages', f))
         formData.append('concept', concept)
         formData.append('prompts', JSON.stringify(localPrompts))
@@ -198,8 +206,13 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
         const data = unwrapApiData<{ jobId: string; status: string; totalImages: number; outputDir: string }>(raw)
         set({
           batchProgress: {
-            jobId: data.jobId, status: data.status, progress: 0,
-            totalImages: data.totalImages, completedImages: 0, outputDir: data.outputDir, images: [],
+            jobId: data.jobId,
+            status: data.status,
+            progress: 0,
+            totalImages: data.totalImages,
+            completedImages: 0,
+            outputDir: data.outputDir,
+            images: [],
           },
         })
         const result = await pollBatch(data.jobId, signal, (p) => set({ batchProgress: p }))

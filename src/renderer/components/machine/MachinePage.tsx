@@ -1,11 +1,24 @@
-import { useEffect, useRef } from 'react'
 import {
-  Check, CheckCircle, XCircle, Loader2, AlertCircle, X, Users, ImagePlus,
-  Zap, RefreshCw, Download,
+  AlertCircle,
+  Check,
+  CheckCircle,
+  Download,
+  ImagePlus,
+  Loader2,
+  RefreshCw,
+  Users,
+  X,
+  XCircle,
+  Zap,
 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { assetUrl } from '../../lib/api'
-import { useMachineStore } from '../../stores/machineStore'
 import { useAvatarStore } from '../../stores/avatarStore'
+import { useMachineStore } from '../../stores/machineStore'
+import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
+import { Slider } from '../ui/Slider'
 
 const STEP_LABELS = {
   prompts: 'Generate Prompts',
@@ -21,16 +34,50 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+const DURATION_OPTIONS = [
+  { value: '15', label: '15s' },
+  { value: '30', label: '30s' },
+  { value: '45', label: '45s' },
+  { value: '60', label: '60s' },
+]
+
+const TONE_OPTIONS = [
+  { value: 'casual', label: 'Casual' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'energetic', label: 'Energetic' },
+  { value: 'friendly', label: 'Friendly' },
+  { value: 'dramatic', label: 'Dramatic' },
+]
+
 export default function MachinePage() {
   const machineRefInputRef = useRef<HTMLInputElement>(null)
 
   const {
-    step, failedStep, error, concept, promptCount, refPreviews,
-    scriptDuration, scriptTone, selectedVoice, selectedAvatar,
-    prompts, batchProgress, script, audioUrl, videoUrl,
-    setConcept, setPromptCount, setScriptDuration, setScriptTone,
-    setSelectedVoice, setSelectedAvatar, addRefImages, removeRefImage,
-    run, cancel,
+    step,
+    failedStep,
+    error,
+    concept,
+    promptCount,
+    refPreviews,
+    scriptDuration,
+    scriptTone,
+    selectedVoice,
+    selectedAvatar,
+    prompts,
+    batchProgress,
+    script,
+    audioUrl,
+    videoUrl,
+    setConcept,
+    setPromptCount,
+    setScriptDuration,
+    setScriptTone,
+    setSelectedVoice,
+    setSelectedAvatar,
+    addRefImages,
+    removeRefImage,
+    run,
+    cancel,
   } = useMachineStore()
 
   const { avatars, avatarsLoading, voices, voicesLoading } = useAvatarStore()
@@ -44,12 +91,25 @@ export default function MachinePage() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className={`rounded-lg p-4 flex items-start gap-3 ${
-          error.type === 'warning' ? 'bg-warning-muted/50 border border-warning/40' : 'bg-danger-muted/50 border border-danger/40'
-        }`}>
-          <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${error.type === 'warning' ? 'text-warning' : 'text-danger'}`} />
+        <div
+          className={`rounded-lg p-4 flex items-start gap-3 ${
+            error.type === 'warning'
+              ? 'bg-warning-muted/50 border border-warning/40'
+              : 'bg-danger-muted/50 border border-danger/40'
+          }`}
+        >
+          <AlertCircle
+            className={`w-5 h-5 shrink-0 mt-0.5 ${error.type === 'warning' ? 'text-warning' : 'text-danger'}`}
+          />
           <p className={`flex-1 ${error.type === 'warning' ? 'text-warning' : 'text-danger'}`}>{error.message}</p>
-          <button onClick={() => useMachineStore.setState({ error: null })} className="text-surface-400 hover:text-surface-900"><X className="w-4 h-4" /></button>
+          <Button
+            variant="ghost-muted"
+            size="xs"
+            aria-label="Dismiss"
+            onClick={() => useMachineStore.setState({ error: null })}
+          >
+            <X className="w-4 h-4" />
+          </Button>
         </div>
       )}
 
@@ -60,25 +120,20 @@ export default function MachinePage() {
               <XCircle className="w-5 h-5" />
               Pipeline Failed at {capitalize(failedStep)}
             </h2>
-            {error && (
-              <p className="text-sm text-danger/80 mb-4 break-words">{error.message}</p>
-            )}
+            {error && <p className="text-sm text-danger/80 mb-4 break-words">{error.message}</p>}
             <div className="flex gap-3">
               {failedStep !== 'idle' && (
-                <button
+                <Button
                   onClick={() => run(failedStep)}
-                  className="flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 transition-all"
+                  icon={<RefreshCw className="w-5 h-5" />}
+                  className="flex-1 py-3"
                 >
-                  <RefreshCw className="w-5 h-5" />
                   Retry from {capitalize(failedStep)}
-                </button>
+                </Button>
               )}
-              <button
-                onClick={cancel}
-                className="flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-surface-200 hover:bg-surface-100 transition-all"
-              >
+              <Button variant="secondary" onClick={cancel} className="flex-1 py-3">
                 Start Over
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -105,13 +160,11 @@ export default function MachinePage() {
               <Zap className="w-5 h-5 text-warning" />
               The Machine
             </h2>
-            <label className="block text-sm text-surface-400 mb-2">Concept</label>
-            <input
-              type="text"
+            <Input
+              label="Concept"
               value={concept}
               onChange={(e) => setConcept(e.target.value)}
               placeholder="e.g. Christmas, Halloween, Summer Beach..."
-              className="w-full bg-surface-100 border border-surface-200 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -122,24 +175,32 @@ export default function MachinePage() {
                   <span className="bg-brand-600 rounded-full w-5 h-5 flex items-center justify-center text-xs">1</span>
                   Prompt Generation
                 </h3>
-                <label className="block text-sm text-surface-400 mb-2">Number of Prompts: {promptCount}</label>
-                <input
-                  type="range" min="2" max="12" value={promptCount}
-                  onChange={(e) => setPromptCount(Number(e.target.value))}
-                  className="w-full accent-brand-500"
+                <Slider
+                  label="Number of Prompts"
+                  displayValue={promptCount}
+                  min={2}
+                  max={12}
+                  value={promptCount}
+                  onChange={(e) => setPromptCount(Number(e.currentTarget.value))}
                 />
                 <div className="flex justify-between text-xs text-surface-400 mt-1">
-                  <span>2</span><span>6</span><span>12</span>
+                  <span>2</span>
+                  <span>6</span>
+                  <span>12</span>
                 </div>
               </div>
 
               <div className="bg-surface-50 rounded-lg p-4">
                 <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <span className="bg-surface-200 rounded-full w-5 h-5 flex items-center justify-center text-xs">+</span>
+                  <span className="bg-surface-200 rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                    +
+                  </span>
                   Additional People
                   <span className="text-xs text-surface-400 font-normal">(Optional)</span>
                 </h3>
-                <p className="text-xs text-surface-400 mb-3">Selected avatar is used as the main reference. Add extra people for couple/family concepts.</p>
+                <p className="text-xs text-surface-400 mb-3">
+                  Selected avatar is used as the main reference. Add extra people for couple/family concepts.
+                </p>
                 <input
                   ref={machineRefInputRef}
                   type="file"
@@ -154,9 +215,14 @@ export default function MachinePage() {
                 {refPreviews.length > 0 ? (
                   <div className="flex gap-2 flex-wrap">
                     {refPreviews.map((src, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded overflow-hidden">
-                        <img src={src} className="w-full h-full object-cover" />
+                      <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                        key={i}
+                        className="relative w-16 h-16 rounded overflow-hidden"
+                      >
+                        <img src={src} alt={`Reference person ${i + 1}`} className="w-full h-full object-cover" />
                         <button
+                          type="button"
                           onClick={() => removeRefImage(i)}
                           className="absolute top-0 right-0 bg-black/60 rounded-bl p-0.5"
                         >
@@ -166,6 +232,7 @@ export default function MachinePage() {
                     ))}
                     {refPreviews.length < 3 && (
                       <button
+                        type="button"
                         onClick={() => machineRefInputRef.current?.click()}
                         className="w-16 h-16 border-2 border-dashed border-surface-200 rounded flex items-center justify-center text-surface-400 hover:text-surface-900 hover:border-surface-200"
                       >
@@ -175,6 +242,7 @@ export default function MachinePage() {
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => machineRefInputRef.current?.click()}
                     className="w-full py-4 border-2 border-dashed border-surface-200 rounded-lg text-surface-400 hover:text-surface-900 hover:border-surface-200 flex flex-col items-center gap-1"
                   >
@@ -196,11 +264,14 @@ export default function MachinePage() {
                     <Loader2 className="w-5 h-5 animate-spin text-surface-400" />
                   </div>
                 ) : avatars.length === 0 ? (
-                  <p className="text-sm text-surface-400 py-4 text-center">No avatars. Go to the Avatars tab to generate or upload some.</p>
+                  <p className="text-sm text-surface-400 py-4 text-center">
+                    No avatars. Go to the Avatars tab to generate or upload some.
+                  </p>
                 ) : (
                   <div className="grid grid-cols-5 gap-2 max-h-[200px] overflow-auto">
                     {avatars.map((avatar) => (
                       <button
+                        type="button"
                         key={avatar.filename}
                         onClick={() => setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)}
                         className={`aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
@@ -227,65 +298,53 @@ export default function MachinePage() {
                   Voiceover
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-surface-400 mb-1">Duration</label>
-                    <select
-                      value={scriptDuration}
-                      onChange={(e) => setScriptDuration(Number(e.target.value))}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
-                    >
-                      <option value={15}>15s</option>
-                      <option value={30}>30s</option>
-                      <option value={45}>45s</option>
-                      <option value={60}>60s</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-surface-400 mb-1">Tone</label>
-                    <select
-                      value={scriptTone}
-                      onChange={(e) => setScriptTone(e.target.value as typeof scriptTone)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
-                    >
-                      <option value="casual">Casual</option>
-                      <option value="professional">Professional</option>
-                      <option value="energetic">Energetic</option>
-                      <option value="friendly">Friendly</option>
-                      <option value="dramatic">Dramatic</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Duration"
+                    value={String(scriptDuration)}
+                    onChange={(e) => setScriptDuration(Number(e.target.value))}
+                    options={DURATION_OPTIONS}
+                  />
+                  <Select
+                    label="Tone"
+                    value={scriptTone}
+                    onChange={(e) => setScriptTone(e.target.value as typeof scriptTone)}
+                    options={TONE_OPTIONS}
+                  />
                 </div>
                 <div className="mt-3">
-                  <label className="block text-xs text-surface-400 mb-1">Voice</label>
                   {voicesLoading ? (
                     <div className="flex items-center gap-2 text-sm text-surface-400">
                       <Loader2 className="w-4 h-4 animate-spin" /> Loading voices...
                     </div>
                   ) : (
-                    <select
+                    <Select
+                      label="Voice"
                       value={selectedVoice?.id || ''}
                       onChange={(e) => setSelectedVoice(voices.find((v) => v.id === e.target.value) || null)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
-                    >
-                      <option value="">Select a voice...</option>
-                      {voices.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name}{v.labels?.accent ? ` (${v.labels.accent})` : ''}</option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: 'Select a voice...' },
+                        ...voices.map((v) => ({
+                          value: v.id,
+                          label: `${v.name}${v.labels?.accent ? ` (${v.labels.accent})` : ''}`,
+                        })),
+                      ]}
+                    />
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          <button
+          <Button
+            variant="warning"
+            size="lg"
             onClick={() => run()}
             disabled={!concept.trim() || !selectedAvatar || !selectedVoice}
-            className="w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-3 bg-gradient-to-r from-warning to-warning-hover hover:from-warning-hover hover:to-warning text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            icon={<Zap className="w-6 h-6" />}
+            className="w-full py-4 text-lg font-semibold"
           >
-            <Zap className="w-6 h-6" />
             Run The Machine
-          </button>
+          </Button>
         </div>
       )}
 
@@ -300,7 +359,7 @@ export default function MachinePage() {
 
             <div className="space-y-4">
               {STEP_ORDER.map((s, i) => {
-                const currentIdx = STEP_ORDER.indexOf(step as typeof STEP_ORDER[number])
+                const currentIdx = STEP_ORDER.indexOf(step as (typeof STEP_ORDER)[number])
                 const isActive = step === s
                 const isDone = i < currentIdx
                 const isPending = i > currentIdx
@@ -317,7 +376,9 @@ export default function MachinePage() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className={`font-medium ${isDone ? 'text-success' : isActive ? 'text-warning' : 'text-surface-400'}`}>
+                      <p
+                        className={`font-medium ${isDone ? 'text-success' : isActive ? 'text-warning' : 'text-surface-400'}`}
+                      >
                         {STEP_LABELS[s]}
                       </p>
                       {s === 'prompts' && isDone && prompts.length > 0 && (
@@ -328,10 +389,14 @@ export default function MachinePage() {
                           <div className="w-full bg-surface-200 rounded-full h-2">
                             <div
                               className="bg-warning h-2 rounded-full transition-all"
-                              style={{ width: `${batchProgress.totalImages > 0 ? (batchProgress.completedImages / batchProgress.totalImages) * 100 : 0}%` }}
+                              style={{
+                                width: `${batchProgress.totalImages > 0 ? (batchProgress.completedImages / batchProgress.totalImages) * 100 : 0}%`,
+                              }}
                             />
                           </div>
-                          <p className="text-xs text-surface-400 mt-1">{batchProgress.completedImages}/{batchProgress.totalImages} images</p>
+                          <p className="text-xs text-surface-400 mt-1">
+                            {batchProgress.completedImages}/{batchProgress.totalImages} images
+                          </p>
                         </div>
                       )}
                       {s === 'images' && isDone && batchProgress && (
@@ -340,12 +405,8 @@ export default function MachinePage() {
                       {s === 'script' && isDone && script && (
                         <p className="text-xs text-surface-400">{script.split(/\s+/).length} words</p>
                       )}
-                      {s === 'tts' && isDone && audioUrl && (
-                        <p className="text-xs text-surface-400">Audio ready</p>
-                      )}
-                      {isPending && (
-                        <p className="text-xs text-surface-300">Waiting...</p>
-                      )}
+                      {s === 'tts' && isDone && audioUrl && <p className="text-xs text-surface-400">Audio ready</p>}
+                      {isPending && <p className="text-xs text-surface-300">Waiting...</p>}
                     </div>
                   </div>
                 )
@@ -353,13 +414,9 @@ export default function MachinePage() {
             </div>
           </div>
 
-          <button
-            onClick={cancel}
-            className="w-full py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-danger text-white hover:bg-danger-hover transition-all"
-          >
-            <X className="w-5 h-5" />
+          <Button variant="danger" onClick={cancel} icon={<X className="w-5 h-5" />} className="w-full py-3">
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 
@@ -374,13 +431,21 @@ export default function MachinePage() {
 
             {batchProgress && batchProgress.images.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-surface-400 mb-3">Generated Images ({batchProgress.images.filter(i => i.status === 'completed').length})</h3>
+                <h3 className="text-sm font-semibold text-surface-400 mb-3">
+                  Generated Images ({batchProgress.images.filter((i) => i.status === 'completed').length})
+                </h3>
                 <div className="grid grid-cols-6 gap-2">
-                  {batchProgress.images.filter(i => i.status === 'completed' && i.url).map((img) => (
-                    <div key={img.index} className="aspect-[9/16] rounded-lg overflow-hidden bg-surface-100">
-                      <img src={assetUrl(img.url!)} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
+                  {batchProgress.images
+                    .filter((i) => i.status === 'completed' && i.url)
+                    .map((img) => (
+                      <div key={img.index} className="aspect-[9/16] rounded-lg overflow-hidden bg-surface-100">
+                        <img
+                          src={assetUrl(img.url!)}
+                          alt={`Generated result ${img.index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
@@ -397,6 +462,7 @@ export default function MachinePage() {
             {audioUrl && (
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-surface-400 mb-2">Audio</h3>
+                {/* biome-ignore lint/a11y/useMediaCaption: AI-generated audio, no captions available */}
                 <audio controls src={assetUrl(audioUrl)} className="w-full" />
               </div>
             )}
@@ -405,6 +471,7 @@ export default function MachinePage() {
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-surface-400 mb-2">Avatar Video</h3>
                 <div className="flex gap-4 items-start">
+                  {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
                   <video controls src={assetUrl(videoUrl)} className="max-w-sm rounded-lg" />
                   <a
                     href={assetUrl(videoUrl)}
@@ -420,16 +487,24 @@ export default function MachinePage() {
           </div>
 
           <div className="flex gap-4">
-            <button
-              onClick={() => useMachineStore.setState({
-                step: 'idle', failedStep: 'idle', prompts: [], batchProgress: null,
-                script: '', audioUrl: null, videoUrl: null, error: null,
-              })}
-              className="flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 transition-all"
+            <Button
+              onClick={() =>
+                useMachineStore.setState({
+                  step: 'idle',
+                  failedStep: 'idle',
+                  prompts: [],
+                  batchProgress: null,
+                  script: '',
+                  audioUrl: null,
+                  videoUrl: null,
+                  error: null,
+                })
+              }
+              icon={<RefreshCw className="w-5 h-5" />}
+              className="flex-1 py-3"
             >
-              <RefreshCw className="w-5 h-5" />
               Run Again
-            </button>
+            </Button>
           </div>
         </div>
       )}

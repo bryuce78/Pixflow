@@ -46,9 +46,7 @@ function parsePromptArray(raw: string): Record<string, unknown>[] {
 function parsePrompt(raw: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(raw) as unknown
-    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-      ? (parsed as Record<string, unknown>)
-      : {}
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {}
   } catch {
     return {}
   }
@@ -81,40 +79,40 @@ function normalizeHistorySource(input: unknown): 'generated' | 'analyzed' {
 
 export async function getHistory(userId: number, limit = 50): Promise<HistoryEntry[]> {
   const db = getDb()
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT id, concept, prompts, prompt_count, created_at, source
     FROM history
     WHERE user_id = ?
     ORDER BY datetime(created_at) DESC
     LIMIT ?
-  `).all(userId, Math.max(1, Math.min(limit, 200))) as HistoryRow[]
+  `)
+    .all(userId, Math.max(1, Math.min(limit, 200))) as HistoryRow[]
   return rows.map(mapHistoryRow)
 }
 
 export async function addToHistory(
   userId: number,
-  entry: Omit<HistoryEntry, 'id' | 'createdAt'>
+  entry: Omit<HistoryEntry, 'id' | 'createdAt'>,
 ): Promise<HistoryEntry> {
   const db = getDb()
   const source = normalizeHistorySource(entry.source)
 
   const tx = db.transaction(() => {
-    const inserted = db.prepare(`
+    const inserted = db
+      .prepare(`
       INSERT INTO history (user_id, concept, prompts, prompt_count, source)
       VALUES (?, ?, ?, ?, ?)
-    `).run(
-      userId,
-      entry.concept,
-      JSON.stringify(entry.prompts),
-      entry.promptCount,
-      source
-    )
+    `)
+      .run(userId, entry.concept, JSON.stringify(entry.prompts), entry.promptCount, source)
 
-    const row = db.prepare(`
+    const row = db
+      .prepare(`
       SELECT id, concept, prompts, prompt_count, created_at, source
       FROM history
       WHERE id = ?
-    `).get(Number(inserted.lastInsertRowid)) as HistoryRow
+    `)
+      .get(Number(inserted.lastInsertRowid)) as HistoryRow
 
     const count = (db.prepare('SELECT COUNT(*) as c FROM history WHERE user_id = ?').get(userId) as { c: number }).c
     if (count > 100) {
@@ -151,12 +149,14 @@ export async function clearHistory(userId: number): Promise<void> {
 
 export async function getFavorites(userId: number): Promise<FavoritePrompt[]> {
   const db = getDb()
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT id, prompt, name, concept, created_at
     FROM favorites
     WHERE user_id = ?
     ORDER BY datetime(created_at) DESC
-  `).all(userId) as FavoriteRow[]
+  `)
+    .all(userId) as FavoriteRow[]
   return rows.map(mapFavoriteRow)
 }
 
@@ -164,19 +164,23 @@ export async function addToFavorites(
   userId: number,
   prompt: Record<string, unknown>,
   name: string,
-  concept?: string
+  concept?: string,
 ): Promise<FavoritePrompt> {
   const db = getDb()
-  const inserted = db.prepare(`
+  const inserted = db
+    .prepare(`
     INSERT INTO favorites (user_id, prompt, name, concept)
     VALUES (?, ?, ?, ?)
-  `).run(userId, JSON.stringify(prompt), name, concept ?? null)
+  `)
+    .run(userId, JSON.stringify(prompt), name, concept ?? null)
 
-  const row = db.prepare(`
+  const row = db
+    .prepare(`
     SELECT id, prompt, name, concept, created_at
     FROM favorites
     WHERE id = ?
-  `).get(Number(inserted.lastInsertRowid)) as FavoriteRow
+  `)
+    .get(Number(inserted.lastInsertRowid)) as FavoriteRow
 
   return mapFavoriteRow(row)
 }

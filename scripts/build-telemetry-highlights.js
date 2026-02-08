@@ -1,5 +1,5 @@
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -61,10 +61,10 @@ async function run() {
     lines.push('| Metric | Current | Previous | Delta | Status |')
     lines.push('|---|---:|---:|---:|---|')
     lines.push(
-      `| Success rate | ${pct(current.overallSuccessRate)} | ${pct(previous.overallSuccessRate)} | ${signedPct(successDelta)} | ${successRegressed ? 'regressed' : (successDelta > 0 ? 'improved' : 'stable')} |`
+      `| Success rate | ${pct(current.overallSuccessRate)} | ${pct(previous.overallSuccessRate)} | ${signedPct(successDelta)} | ${successRegressed ? 'regressed' : successDelta > 0 ? 'improved' : 'stable'} |`,
     )
     lines.push(
-      `| p95 latency | ${ms(current.overallP95Ms)} | ${ms(previous.overallP95Ms)} | ${signedMs(p95Delta)} | ${p95Regressed ? 'regressed' : (p95Delta < 0 ? 'improved' : 'stable')} |`
+      `| p95 latency | ${ms(current.overallP95Ms)} | ${ms(previous.overallP95Ms)} | ${signedMs(p95Delta)} | ${p95Regressed ? 'regressed' : p95Delta < 0 ? 'improved' : 'stable'} |`,
     )
     lines.push('')
 

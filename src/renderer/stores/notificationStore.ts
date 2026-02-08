@@ -38,9 +38,7 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
       const res = await authFetch(apiUrl(`/api/notifications/${id}/read`), { method: 'PATCH' })
       if (res.ok) {
         set((state) => {
-          const notifications = state.notifications.map((n) =>
-            n.id === id ? { ...n, read: true } : n
-          )
+          const notifications = state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
           return {
             notifications,
             unreadCount: notifications.filter((n) => !n.read).length,

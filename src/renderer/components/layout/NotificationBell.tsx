@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
 import { Bell, Check } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useNotificationStore } from '../../stores/notificationStore'
 
 export function NotificationBell() {
@@ -23,6 +23,7 @@ export function NotificationBell() {
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={handleOpen}
         className="relative p-2 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100"
       >
@@ -40,6 +41,7 @@ export function NotificationBell() {
             <span className="text-sm font-medium">Notifications</span>
             {unreadCount > 0 && (
               <button
+                type="button"
                 onClick={markAllRead}
                 className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1"
               >
@@ -54,8 +56,11 @@ export function NotificationBell() {
             ) : (
               notifications.slice(0, 20).map((n) => (
                 <button
+                  type="button"
                   key={n.id}
-                  onClick={() => { if (!n.read) markRead(n.id) }}
+                  onClick={() => {
+                    if (!n.read) markRead(n.id)
+                  }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-100 transition-colors ${
                     n.read ? 'text-surface-400' : 'text-surface-800'
                   }`}

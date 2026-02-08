@@ -122,7 +122,7 @@ export interface VarietyScore {
 }
 
 const AESTHETIC_KEYWORDS: Record<string, string[]> = {
-  'Editorial': ['editorial', 'magazine', 'professional', 'polished', 'high-fashion'],
+  Editorial: ['editorial', 'magazine', 'professional', 'polished', 'high-fashion'],
   'Lifestyle editorial': ['lifestyle', 'candid', 'natural', 'everyday', 'authentic'],
   'Minimal studio': ['minimal', 'studio', 'clean', 'simple', 'sleek'],
   'Intimate portrait': ['intimate', 'close-up', 'personal', 'emotional', 'tender'],
@@ -130,11 +130,11 @@ const AESTHETIC_KEYWORDS: Record<string, string[]> = {
 }
 
 const EMOTION_KEYWORDS: Record<string, string[]> = {
-  'Romantic': ['romantic', 'love', 'tender', 'soft', 'dreamy', 'warm'],
-  'Playful': ['playful', 'fun', 'joyful', 'cheerful', 'lively', 'spirited'],
-  'Confident': ['confident', 'bold', 'strong', 'powerful', 'fierce', 'empowered'],
-  'Intimate': ['intimate', 'cozy', 'personal', 'close', 'private', 'quiet'],
-  'Mysterious': ['mysterious', 'enigmatic', 'dark', 'moody', 'dramatic', 'shadowy'],
+  Romantic: ['romantic', 'love', 'tender', 'soft', 'dreamy', 'warm'],
+  Playful: ['playful', 'fun', 'joyful', 'cheerful', 'lively', 'spirited'],
+  Confident: ['confident', 'bold', 'strong', 'powerful', 'fierce', 'empowered'],
+  Intimate: ['intimate', 'cozy', 'personal', 'close', 'private', 'quiet'],
+  Mysterious: ['mysterious', 'enigmatic', 'dark', 'moody', 'dramatic', 'shadowy'],
 }
 
 export function validatePrompt(prompt: PromptOutput): { valid: boolean; errors: string[] } {
@@ -169,7 +169,28 @@ export function validatePrompt(prompt: PromptOutput): { valid: boolean; errors: 
   }
 
   // Locked terms - identity descriptors that must never appear
-  const lockedTerms = ['blonde', 'brunette', 'redhead', 'asian', 'caucasian', 'african', 'hispanic', 'young', 'old', 'beautiful', 'pretty', 'gorgeous', 'handsome', 'blue eyes', 'brown eyes', 'green eyes', 'tan skin', 'fair skin', 'dark skin', 'pale skin']
+  const lockedTerms = [
+    'blonde',
+    'brunette',
+    'redhead',
+    'asian',
+    'caucasian',
+    'african',
+    'hispanic',
+    'young',
+    'old',
+    'beautiful',
+    'pretty',
+    'gorgeous',
+    'handsome',
+    'blue eyes',
+    'brown eyes',
+    'green eyes',
+    'tan skin',
+    'fair skin',
+    'dark skin',
+    'pale skin',
+  ]
   const promptStrLower = promptStr.toLowerCase()
   for (const term of lockedTerms) {
     if (promptStrLower.includes(term)) {
@@ -187,12 +208,10 @@ export function calculateVarietyScore(prompts: PromptOutput[]): VarietyScore {
   const combinations = new Set<string>()
 
   for (const prompt of prompts) {
-    const searchText = [
-      prompt.style,
-      prompt.lighting?.mood,
-      prompt.set_design?.atmosphere,
-      prompt.outfit?.styling,
-    ].filter(Boolean).join(' ').toLowerCase()
+    const searchText = [prompt.style, prompt.lighting?.mood, prompt.set_design?.atmosphere, prompt.outfit?.styling]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
 
     for (const [aesthetic, keywords] of Object.entries(AESTHETIC_KEYWORDS)) {
       if (keywords.some((kw) => searchText.includes(kw))) {
@@ -216,7 +235,11 @@ export function calculateVarietyScore(prompts: PromptOutput[]): VarietyScore {
 
   const hasDuplicates = combinations.size < prompts.length
   const minRequired = Math.min(3, prompts.length)
-  const passed = aesthetics.size >= minRequired && emotions.size >= minRequired && lightingSetups.size >= minRequired && !hasDuplicates
+  const passed =
+    aesthetics.size >= minRequired &&
+    emotions.size >= minRequired &&
+    lightingSetups.size >= minRequired &&
+    !hasDuplicates
 
   return {
     aesthetics_used: Array.from(aesthetics),

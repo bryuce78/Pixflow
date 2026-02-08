@@ -1,6 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { fal } from '@fal-ai/client'
-import fs from 'fs/promises'
-import path from 'path'
 import { ensureFalConfig } from './falConfig.js'
 import { isMockProvidersEnabled, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
 
@@ -50,27 +50,29 @@ export async function textToSpeech(options: TTSOptions): Promise<TTSResult> {
   console.log(`[TTS] Converting text to speech with voice: ${options.voiceId}`)
 
   const result = await runWithRetries(
-    () => fal.subscribe(TTS_MODEL, {
-      input: {
-        text: options.text,
-        voice: options.voiceId,
-        stability: options.stability ?? 0.5,
-        similarity_boost: options.similarityBoost ?? 0.75,
-        speed: options.speed ?? 1,
-        apply_text_normalization: 'auto',
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS' && update.logs) {
-          update.logs.forEach((log) => console.log(`[fal.ai TTS] ${log.message}`))
-        }
-      },
-    }),
+    () =>
+      fal.subscribe(TTS_MODEL, {
+        input: {
+          text: options.text,
+          voice: options.voiceId,
+          stability: options.stability ?? 0.5,
+          similarity_boost: options.similarityBoost ?? 0.75,
+          speed: options.speed ?? 1,
+          apply_text_normalization: 'auto',
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS' && update.logs) {
+            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+            update.logs.forEach((log) => console.log(`[fal.ai TTS] ${log.message}`))
+          }
+        },
+      }),
     {
       pipeline: 'avatars.tts.provider',
       provider: 'fal',
       metadata: { textLength: options.text.length, voiceId: options.voiceId },
-    }
+    },
   )
 
   const audioUrl = result.data?.audio?.url
@@ -125,7 +127,5 @@ export async function getVoice(voiceId: string): Promise<Voice | null> {
  * Get available TTS models.
  */
 export function getAvailableModels() {
-  return [
-    { id: 'eleven_v3', name: 'ElevenLabs v3', description: 'Latest ElevenLabs model via fal.ai' },
-  ]
+  return [{ id: 'eleven_v3', name: 'ElevenLabs v3', description: 'Latest ElevenLabs model via fal.ai' }]
 }

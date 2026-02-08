@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
-import type { Avatar, Voice, LipsyncJob, ErrorInfo } from '../types'
+import type { Avatar, ErrorInfo, LipsyncJob, Voice } from '../types'
 import { parseError } from '../types'
 
 type AvatarGender = 'female' | 'male'
@@ -11,25 +11,25 @@ type ScriptTone = 'casual' | 'professional' | 'energetic' | 'friendly' | 'dramat
 
 const AGE_DESCRIPTIONS: Record<AvatarAgeGroup, string> = {
   'young-adult': 'young adult in their 20s',
-  'adult': 'adult in their 30s',
+  adult: 'adult in their 30s',
   'middle-aged': 'middle-aged person in their 40s-50s',
 }
 
 const ETHNICITY_DESCRIPTIONS: Record<AvatarEthnicity, string> = {
-  'caucasian': 'caucasian',
-  'black': 'black/african',
-  'asian': 'east asian',
-  'hispanic': 'hispanic/latino',
+  caucasian: 'caucasian',
+  black: 'black/african',
+  asian: 'east asian',
+  hispanic: 'hispanic/latino',
   'middle-eastern': 'middle eastern',
   'south-asian': 'south asian',
 }
 
 const OUTFIT_DESCRIPTIONS: Record<AvatarOutfit, string> = {
-  'casual': 'casual everyday clothes',
-  'business': 'professional business attire',
-  'sporty': 'athletic sportswear',
-  'elegant': 'elegant formal outfit',
-  'streetwear': 'trendy streetwear',
+  casual: 'casual everyday clothes',
+  business: 'professional business attire',
+  sporty: 'athletic sportswear',
+  elegant: 'elegant formal outfit',
+  streetwear: 'trendy streetwear',
 }
 
 interface AvatarState {
@@ -207,6 +207,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
 
   uploadAvatars: async (files) => {
     const formData = new FormData()
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect FormData append
     Array.from(files).forEach((f) => formData.append('files', f))
 
     try {

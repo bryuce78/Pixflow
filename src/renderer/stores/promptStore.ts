@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import { apiUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
-import type { GeneratedPrompt, ResearchData, VarietyScore, ErrorInfo } from '../types'
-import { parseError } from '../types'
 import { PROMPT_GENERATE_DEFAULT, PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } from '../../constants/limits'
+import { apiUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
+import type { ErrorInfo, GeneratedPrompt, ResearchData, VarietyScore } from '../types'
+import { parseError } from '../types'
 
 interface PromptState {
   concept: string
@@ -68,9 +68,10 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
   analyzeCopied: false,
 
   setConcept: (concept) => set({ concept }),
-  setCount: (count) => set({
-    count: Math.max(PROMPT_GENERATE_MIN, Math.min(PROMPT_GENERATE_MAX, count)),
-  }),
+  setCount: (count) =>
+    set({
+      count: Math.max(PROMPT_GENERATE_MIN, Math.min(PROMPT_GENERATE_MAX, count)),
+    }),
   setPromptMode: (promptMode) => set({ promptMode }),
   setSelectedIndex: (index) => {
     const { prompts } = get()
@@ -191,7 +192,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
   setAnalyzeImage: (file, preview) => {
     const old = get().analyzePreview
-    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old)
+    if (old?.startsWith('blob:')) URL.revokeObjectURL(old)
     set({
       analyzeImage: file,
       analyzePreview: preview,
@@ -249,7 +250,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
   reset: () => {
     const old = get().analyzePreview
-    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old)
+    if (old?.startsWith('blob:')) URL.revokeObjectURL(old)
     set({
       concept: '',
       prompts: [],

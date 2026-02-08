@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -39,7 +39,7 @@ function relativeDelta(current, proposed) {
 
 function direction(current, proposed, lowerIsTighter) {
   if (proposed === current) return 'unchanged'
-  return (proposed < current) === lowerIsTighter ? 'tighten' : 'loosen'
+  return proposed < current === lowerIsTighter ? 'tighten' : 'loosen'
 }
 
 async function readJson(filePath, fallback) {
@@ -61,7 +61,9 @@ async function run() {
   if (!baseline) throw new Error(`baseline file missing or invalid: ${baselineFile}`)
 
   if (!baseline.readyForEnforcementTuning) {
-    console.log(`[Threshold:Propose] Not ready for tuning (samples=${Number(baseline.sampleCount || 0)}, transitions=${Number(baseline.transitionCount || 0)}). Need >= 5 transitions.`)
+    console.log(
+      `[Threshold:Propose] Not ready for tuning (samples=${Number(baseline.sampleCount || 0)}, transitions=${Number(baseline.transitionCount || 0)}). Need >= 5 transitions.`,
+    )
     return
   }
 
@@ -70,7 +72,10 @@ async function run() {
 
   const currentSuccessDrop = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_SUCCESS_DROP, 0.01)
   const currentP95IncreaseMs = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_P95_INCREASE_MS, 5000)
-  const currentProviderFailIncrease = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE, 0.05)
+  const currentProviderFailIncrease = parseNonNegative(
+    process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE,
+    0.05,
+  )
   const currentProviderOverrides = parseProviderThresholdMap(process.env.PIXFLOW_REGRESSION_PROVIDER_THRESHOLDS_JSON)
 
   const proposals = []
@@ -165,19 +170,15 @@ async function run() {
       '## Provider Overrides',
       '| Provider | Current | Proposed | Delta | Recommendation |',
       '|---|---|---|---|---|',
-      ...providerProposals.map((p) => `| ${p.provider} | ${p.current} | ${p.proposed} | ${p.delta} | ${p.recommendation} |`),
+      ...providerProposals.map(
+        (p) => `| ${p.provider} | ${p.current} | ${p.proposed} | ${p.delta} | ${p.recommendation} |`,
+      ),
       '',
     )
   }
 
   if (envLines.length > 0) {
-    md.push(
-      '## Proposed `.env` Snippet',
-      '```',
-      ...envLines,
-      '```',
-      '',
-    )
+    md.push('## Proposed `.env` Snippet', '```', ...envLines, '```', '')
   } else {
     md.push('All thresholds within tolerance of current values. No changes proposed.', '')
   }

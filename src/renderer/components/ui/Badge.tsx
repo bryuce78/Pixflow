@@ -1,4 +1,4 @@
-import { type HTMLAttributes } from 'react'
+import type { HTMLAttributes } from 'react'
 
 type Variant = 'default' | 'success' | 'warning' | 'danger' | 'brand'
 

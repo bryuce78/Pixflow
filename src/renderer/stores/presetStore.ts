@@ -24,7 +24,7 @@ interface PresetState {
   remove: (id: number) => Promise<boolean>
 }
 
-export const usePresetStore = create<PresetState>()((set, get) => ({
+export const usePresetStore = create<PresetState>()((set, _get) => ({
   presets: [],
   loading: false,
   error: null,

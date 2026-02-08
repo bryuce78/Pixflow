@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 type TelemetryStatus = 'start' | 'success' | 'error'
 
@@ -113,7 +113,10 @@ async function run(): Promise<void> {
   const outFile = outArg ? path.resolve(outArg) : path.join(process.cwd(), 'logs', 'telemetry-trends.json')
 
   const raw = await fs.readFile(sourceFile, 'utf8')
-  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+  const lines = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
   const parsed: TelemetryEvent[] = lines
     .map((line) => {
       try {
@@ -135,7 +138,8 @@ async function run(): Promise<void> {
   ])
   const providerFailRateDelta: Record<string, number> = {}
   for (const provider of providers) {
-    providerFailRateDelta[provider] = (current.providerFailRate[provider] || 0) - (previous.providerFailRate[provider] || 0)
+    providerFailRateDelta[provider] =
+      (current.providerFailRate[provider] || 0) - (previous.providerFailRate[provider] || 0)
   }
 
   const snapshot: TrendSnapshot = {

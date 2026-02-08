@@ -1,19 +1,14 @@
+import { execFile } from 'node:child_process'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { Router } from 'express'
-import path from 'path'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
-import fs from 'fs/promises'
-import { execFile } from 'child_process'
-import {
-  createBatchJob,
-  generateBatch,
-  getJob,
-  formatPromptForFal,
-} from '../services/fal.js'
-import { analyzeImage } from '../services/vision.js'
 import type { AuthRequest } from '../middleware/auth.js'
-import { sendError, sendSuccess } from '../utils/http.js'
+import { createBatchJob, formatPromptForFal, generateBatch, getJob } from '../services/fal.js'
 import { createPipelineSpan, recordPipelineEvent } from '../services/telemetry.js'
+import { analyzeImage } from '../services/vision.js'
+import { sendError, sendSuccess } from '../utils/http.js'
 
 const MAX_PROMPTS = 20
 
@@ -87,7 +82,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         aspectRatio = '9:16',
         numImagesPerPrompt = '1',
         resolution = '1080p',
-        outputFormat = 'png'
+        outputFormat = 'png',
       } = req.body
       const files = req.files as Express.Multer.File[]
 
@@ -149,7 +144,9 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       const referenceImageUrls = files.map((file) => `file://${file.path}`)
       const textPrompts = prompts.map((p) => formatPromptForFal(p))
 
-      console.log(`[Batch] Starting with ${files.length} reference image(s), ${aspectRatio}, ${resolution}, ${numImages} images/prompt`)
+      console.log(
+        `[Batch] Starting with ${files.length} reference image(s), ${aspectRatio}, ${resolution}, ${numImages} images/prompt`,
+      )
 
       generateBatch(job.id, referenceImageUrls, textPrompts, {
         resolution,
@@ -181,7 +178,13 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
     } catch (error) {
       console.error('[Batch] Error:', error)
       span?.error(error)
-      sendError(res, 500, 'Failed to start batch generation', 'BATCH_START_FAILED', error instanceof Error ? error.message : 'Unknown error')
+      sendError(
+        res,
+        500,
+        'Failed to start batch generation',
+        'BATCH_START_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
     }
   })
 
@@ -230,7 +233,13 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         mimetype: file.mimetype,
       })
     } catch (error) {
-      sendError(res, 500, 'Failed to upload image', 'UPLOAD_FAILED', error instanceof Error ? error.message : 'Unknown error')
+      sendError(
+        res,
+        500,
+        'Failed to upload image',
+        'UPLOAD_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
     }
   })
 
@@ -256,7 +265,13 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       })
     } catch (error) {
       console.error('[Vision] Error:', error)
-      sendError(res, 500, 'Failed to analyze image', 'IMAGE_ANALYSIS_FAILED', error instanceof Error ? error.message : 'Unknown error')
+      sendError(
+        res,
+        500,
+        'Failed to analyze image',
+        'IMAGE_ANALYSIS_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
     }
   })
 

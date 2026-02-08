@@ -1,5 +1,5 @@
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -82,7 +82,7 @@ function sectionProviders(report) {
   const lines = ['| Provider | Success Rate | Fail Rate | Recovery Rate | p95 |', '|---|---:|---:|---:|---:|']
   for (const [provider, row] of providers.sort((a, b) => a[0].localeCompare(b[0]))) {
     lines.push(
-      `| ${provider} | ${pct(row.successRate)} | ${pct(row.failRate)} | ${pct(row.retryRecoveryRate)} | ${ms(row.durationP95Ms)} |`
+      `| ${provider} | ${pct(row.successRate)} | ${pct(row.failRate)} | ${pct(row.retryRecoveryRate)} | ${ms(row.durationP95Ms)} |`,
     )
   }
   return lines.join('\n')
@@ -94,7 +94,7 @@ function sectionPipelines(report) {
   const lines = ['| Pipeline | Attempts | Success | Error | Success Rate |', '|---|---:|---:|---:|---:|']
   for (const [pipeline, row] of pipelines.sort((a, b) => a[0].localeCompare(b[0]))) {
     lines.push(
-      `| ${pipeline} | ${row.attempts ?? 0} | ${row.success ?? 0} | ${row.error ?? 0} | ${pct(row.successRate)} |`
+      `| ${pipeline} | ${row.attempts ?? 0} | ${row.success ?? 0} | ${row.error ?? 0} | ${pct(row.successRate)} |`,
     )
   }
   return lines.join('\n')
@@ -154,13 +154,16 @@ async function run() {
       const providers = new Set([...Object.keys(currentRows), ...Object.keys(previousRows), ...Object.keys(deltaRows)])
       const rows = [...providers]
       if (rows.length === 0) return '- No provider fail-rate trend data found.'
-      const lines = ['| Provider | Current Fail Rate | Previous Fail Rate | Delta | Status |', '|---|---:|---:|---:|---|']
+      const lines = [
+        '| Provider | Current Fail Rate | Previous Fail Rate | Delta | Status |',
+        '|---|---:|---:|---:|---|',
+      ]
       for (const provider of rows.sort((a, b) => a.localeCompare(b))) {
         const current = currentRows[provider] || 0
         const previous = previousRows[provider] || 0
         const delta = deltaRows[provider] ?? current - previous
         lines.push(
-          `| ${provider} | ${pct(current)} | ${metricOrNA(hasPreviousWindow, pct, previous)} | ${metricOrNA(hasPreviousWindow, signedPct, delta)} | ${hasPreviousWindow ? deltaStatus('providerFailRate', delta) : 'n/a'} |`
+          `| ${provider} | ${pct(current)} | ${metricOrNA(hasPreviousWindow, pct, previous)} | ${metricOrNA(hasPreviousWindow, signedPct, delta)} | ${hasPreviousWindow ? deltaStatus('providerFailRate', delta) : 'n/a'} |`,
         )
       }
       return lines.join('\n')

@@ -1,12 +1,12 @@
-import { Wand2, Layers, Video, Zap, Star, Loader2, BookOpen, Sun, Moon } from 'lucide-react'
-import { useNavigationStore, type TabId } from '../../stores/navigationStore'
-import { usePromptStore } from '../../stores/promptStore'
-import { useMachineStore } from '../../stores/machineStore'
+import { BookOpen, Layers, Loader2, Moon, Star, Sun, Video, Wand2, Zap } from 'lucide-react'
 import { useHistoryStore } from '../../stores/historyStore'
+import { useMachineStore } from '../../stores/machineStore'
+import { type TabId, useNavigationStore } from '../../stores/navigationStore'
+import { usePromptStore } from '../../stores/promptStore'
 import { useThemeStore } from '../../stores/themeStore'
+import { Badge } from '../ui/Badge'
 import { NotificationBell } from './NotificationBell'
 import { UserMenu } from './UserMenu'
-import { Badge } from '../ui/Badge'
 
 const TABS: { id: TabId; label: string; icon: typeof Wand2 }[] = [
   { id: 'prompts', label: 'Prompt Factory', icon: Wand2 },
@@ -34,6 +34,7 @@ export function TopNav() {
           <div className="flex items-center gap-2 app-no-drag">
             <NotificationBell />
             <button
+              type="button"
               onClick={toggleMode}
               className="p-2 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100"
               title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -50,6 +51,7 @@ export function TopNav() {
           <div className="flex gap-1">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
+                type="button"
                 key={id}
                 onClick={() => navigate(id)}
                 className={`px-6 py-3 font-medium transition-colors relative flex items-center gap-2 ${
@@ -58,9 +60,7 @@ export function TopNav() {
               >
                 <Icon className="w-4 h-4" />
                 {label}
-                {id === 'generate' && promptCount > 0 && (
-                  <Badge>{promptCount}</Badge>
-                )}
+                {id === 'generate' && promptCount > 0 && <Badge>{promptCount}</Badge>}
                 {id === 'machine' && machineStep !== 'idle' && machineStep !== 'done' && machineStep !== 'error' && (
                   <Loader2 className="w-3 h-3 animate-spin text-warning" />
                 )}

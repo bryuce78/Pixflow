@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
-import type { AddressInfo } from 'net'
+import fs from 'node:fs/promises'
+import type { AddressInfo } from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
 import { createApp } from '../createApp.js'
 import { stopJobCleanup } from '../services/fal.js'
 
@@ -23,13 +23,13 @@ function assertEnvelope<T>(value: unknown, endpoint: string): asserts value is A
   assert(!!value && typeof value === 'object', `${endpoint}: response is not object`)
   const obj = value as Record<string, unknown>
   assert(typeof obj.success === 'boolean', `${endpoint}: missing success`)
-  assert(Object.prototype.hasOwnProperty.call(obj, 'data'), `${endpoint}: missing data`)
+  assert(Object.hasOwn(obj, 'data'), `${endpoint}: missing data`)
 }
 
 async function requestJson<T>(
   baseUrl: string,
   endpoint: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<{ status: number; json: ApiEnvelope<T> }> {
   const res = await fetch(`${baseUrl}${endpoint}`, init)
   const json = (await res.json()) as unknown
@@ -39,11 +39,9 @@ async function requestJson<T>(
 
 async function waitForBatchCompletion(baseUrl: string, token: string, jobId: string): Promise<void> {
   for (let i = 0; i < 20; i++) {
-    const progress = await requestJson<{ status: string }>(
-      baseUrl,
-      `/api/generate/progress/${jobId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+    const progress = await requestJson<{ status: string }>(baseUrl, `/api/generate/progress/${jobId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
     assert(progress.status === 200 && progress.json.success, 'batch progress failed')
     if (progress.json.data.status === 'completed') return
     if (progress.json.data.status === 'failed') throw new Error('batch failed state')
@@ -129,9 +127,14 @@ async function run(): Promise<void> {
     const historyId = historyCreate.json.data.entry.id
     assert(typeof historyId === 'string' && historyId.length > 0, 'history id missing')
 
-    const historyList = await requestJson<{ history: Array<{ id: string }> }>(baseUrl, '/api/history', { headers: authHeaders })
+    const historyList = await requestJson<{ history: Array<{ id: string }> }>(baseUrl, '/api/history', {
+      headers: authHeaders,
+    })
     assert(historyList.status === 200 && historyList.json.success, 'history list failed')
-    assert(historyList.json.data.history.some((entry) => entry.id === historyId), 'desktop history entry not found')
+    assert(
+      historyList.json.data.history.some((entry) => entry.id === historyId),
+      'desktop history entry not found',
+    )
 
     console.log('[Smoke:Desktop] Journey 2/2: Avatar -> Script -> TTS -> Lipsync -> I2V')
     const avatar = await requestJson<{ localPath: string }>(baseUrl, '/api/avatars/generate', {
@@ -166,7 +169,10 @@ async function run(): Promise<void> {
       body: JSON.stringify({ imageUrl: avatarPath, audioUrl }),
     })
     assert(lipsync.status === 200 && lipsync.json.success, 'avatar lipsync failed')
-    assert(typeof lipsync.json.data.localPath === 'string' && lipsync.json.data.localPath.startsWith('/outputs/'), 'lipsync path invalid')
+    assert(
+      typeof lipsync.json.data.localPath === 'string' && lipsync.json.data.localPath.startsWith('/outputs/'),
+      'lipsync path invalid',
+    )
 
     const i2v = await requestJson<{ localPath: string }>(baseUrl, '/api/avatars/i2v', {
       method: 'POST',
@@ -174,7 +180,10 @@ async function run(): Promise<void> {
       body: JSON.stringify({ imageUrl: avatarPath, prompt: 'subtle camera push-in', duration: '5' }),
     })
     assert(i2v.status === 200 && i2v.json.success, 'avatar i2v failed')
-    assert(typeof i2v.json.data.localPath === 'string' && i2v.json.data.localPath.startsWith('/outputs/'), 'i2v path invalid')
+    assert(
+      typeof i2v.json.data.localPath === 'string' && i2v.json.data.localPath.startsWith('/outputs/'),
+      'i2v path invalid',
+    )
 
     await requestJson(baseUrl, `/api/history/${historyId}`, { method: 'DELETE', headers: authHeaders })
     await requestJson(baseUrl, '/api/history', { method: 'DELETE', headers: authHeaders })

@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { authenticateUser, changePassword, createUser, getUserById, listUsers } from '../services/auth.js'
-import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js'
+import { type AuthRequest, requireAdmin, requireAuth } from '../middleware/auth.js'
+import { authenticateUser, changePassword, createUser, listUsers } from '../services/auth.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 export function createAuthRouter(): Router {
@@ -57,8 +57,8 @@ export function createAuthRouter(): Router {
     try {
       const user = createUser(email, password, name, role)
       sendSuccess(res, { user }, 201)
-    } catch (err: any) {
-      if (err.message?.includes('UNIQUE constraint')) {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('UNIQUE constraint')) {
         sendError(res, 409, 'Email already exists', 'EMAIL_EXISTS')
         return
       }

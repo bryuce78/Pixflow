@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, getApiError, unwrapApiData } from '../lib/api'
-import { getToken, setToken, clearToken } from '../lib/auth'
+import { clearToken, getToken, setToken } from '../lib/auth'
 
 interface User {
   id: number

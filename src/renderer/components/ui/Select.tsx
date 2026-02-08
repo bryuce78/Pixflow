@@ -1,5 +1,5 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { forwardRef, type SelectHTMLAttributes } from 'react'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
@@ -25,7 +25,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {...rest}
           >
             {options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />

@@ -1,23 +1,24 @@
-import { lazy, Suspense, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { useAuthStore } from '../../stores/authStore'
-import { useThemeStore } from '../../stores/themeStore'
-import { useProductStore } from '../../stores/productStore'
-import { useNotificationStore } from '../../stores/notificationStore'
-import { useNavigationStore } from '../../stores/navigationStore'
-import { LoginPage } from '../auth/LoginPage'
-import { TopNav } from './TopNav'
-import { ProductSelector } from './ProductSelector'
-import { PageTransition } from './PageTransition'
-import { ImagePreviewOverlay } from './ImagePreviewOverlay'
-import { AvatarPreviewOverlay } from './AvatarPreviewOverlay'
-import { FeedbackWidget } from '../feedback/FeedbackWidget'
-import { Skeleton } from '../ui/Skeleton'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
+import { useAuthStore } from '../../stores/authStore'
+import { useNavigationStore } from '../../stores/navigationStore'
+import { useNotificationStore } from '../../stores/notificationStore'
+import { useProductStore } from '../../stores/productStore'
+import { useThemeStore } from '../../stores/themeStore'
+import { LoginPage } from '../auth/LoginPage'
+import { FeedbackWidget } from '../feedback/FeedbackWidget'
+import { ErrorBoundary } from '../ui/ErrorBoundary'
+import { Skeleton } from '../ui/Skeleton'
+import { AvatarPreviewOverlay } from './AvatarPreviewOverlay'
+import { ImagePreviewOverlay } from './ImagePreviewOverlay'
+import { PageTransition } from './PageTransition'
+import { ProductSelector } from './ProductSelector'
+import { TopNav } from './TopNav'
 
 const PromptFactoryPage = lazy(() => import('../prompt-factory/PromptFactoryPage'))
-const AssetMonsterPage = lazy(() => import('../asset-monster/AssetMonsterPage').then((m) => ({ default: m.AssetMonsterPage })))
+const AssetMonsterPage = lazy(() => import('../asset-monster/AssetMonsterPage'))
 const AvatarStudioPage = lazy(() => import('../avatar-studio/AvatarStudioPage'))
 const MachinePage = lazy(() => import('../machine/MachinePage'))
 const LibraryPage = lazy(() => import('../library/LibraryPage'))
@@ -79,9 +80,11 @@ export function AppShell() {
       <ProductSelector />
       <div className="max-w-6xl mx-auto p-8">
         <PageTransition pageKey={activeTab}>
-          <Suspense fallback={<PageSkeleton />}>
-            <ActivePage />
-          </Suspense>
+          <ErrorBoundary key={activeTab} fallbackTitle="This tab failed to load">
+            <Suspense fallback={<PageSkeleton />}>
+              <ActivePage />
+            </Suspense>
+          </ErrorBoundary>
         </PageTransition>
       </div>
       <ImagePreviewOverlay />

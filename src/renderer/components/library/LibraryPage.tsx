@@ -1,19 +1,29 @@
+import { Copy, History, Loader2, Star, Trash2 } from 'lucide-react'
 import { useEffect } from 'react'
-import { Star, History, Copy, Trash2, Loader2 } from 'lucide-react'
 import { useHistoryStore } from '../../stores/historyStore'
-import { usePromptStore } from '../../stores/promptStore'
 import { useNavigationStore } from '../../stores/navigationStore'
+import { usePromptStore } from '../../stores/promptStore'
 import type { GeneratedPrompt } from '../../types'
+import { Button } from '../ui/Button'
 
 export default function LibraryPage() {
   const {
-    entries, favorites, loading, selectedPrompt, favoriteAdded,
-    setSelectedPrompt, loadAll, addToFavorites, removeFromFavorites,
+    entries,
+    favorites,
+    loading,
+    selectedPrompt,
+    favoriteAdded,
+    setSelectedPrompt,
+    loadAll,
+    addToFavorites,
+    removeFromFavorites,
   } = useHistoryStore()
   const { setPrompts, setConcept } = usePromptStore()
   const { navigate } = useNavigationStore()
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => {
+    loadAll()
+  }, [loadAll])
 
   return (
     <div className="space-y-6">
@@ -30,28 +40,32 @@ export default function LibraryPage() {
               <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
             </div>
           ) : favorites.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-surface-400 text-sm">
-              No favorites yet
-            </div>
+            <div className="flex-1 flex items-center justify-center text-surface-400 text-sm">No favorites yet</div>
           ) : (
             <div className="flex-1 overflow-y-auto space-y-2">
               {favorites.map((fav) => (
-                <div
+                <button
+                  type="button"
                   key={fav.id}
-                  className="group flex items-center justify-between p-3 bg-surface-200/30 rounded-lg hover:bg-surface-200/50 cursor-pointer transition-colors"
+                  className="group w-full text-left flex items-center justify-between p-3 bg-surface-200/30 rounded-lg hover:bg-surface-200/50 cursor-pointer transition-colors"
                   onClick={() => setSelectedPrompt(fav.prompt)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Star className="w-4 h-4 text-warning flex-shrink-0" />
                     <span className="text-sm text-surface-500 truncate">{fav.name}</span>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeFromFavorites(fav.id) }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-surface-400 hover:text-danger transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                  <Button
+                    variant="ghost-danger"
+                    size="xs"
+                    aria-label="Remove from favorites"
+                    icon={<Trash2 className="w-4 h-4" />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFromFavorites(fav.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100"
+                  />
+                </button>
               ))}
             </div>
           )}
@@ -69,15 +83,14 @@ export default function LibraryPage() {
               <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
             </div>
           ) : entries.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-surface-400 text-sm">
-              No history yet
-            </div>
+            <div className="flex-1 flex items-center justify-center text-surface-400 text-sm">No history yet</div>
           ) : (
             <div className="flex-1 overflow-y-auto space-y-2">
               {entries.map((entry) => (
-                <div
+                <button
+                  type="button"
                   key={entry.id}
-                  className="p-3 bg-surface-200/30 rounded-lg hover:bg-surface-200/50 cursor-pointer transition-colors"
+                  className="w-full text-left p-3 bg-surface-200/30 rounded-lg hover:bg-surface-200/50 cursor-pointer transition-colors"
                   onClick={() => setSelectedPrompt(entry.prompts[0])}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -85,22 +98,22 @@ export default function LibraryPage() {
                     <span className="text-xs text-surface-400">{entry.prompts.length} prompts</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-surface-400">
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </span>
-                    <button
+                    <span className="text-xs text-surface-400">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         setPrompts(entry.prompts as GeneratedPrompt[])
                         setConcept(entry.concept)
                         navigate('prompts')
                       }}
-                      className="text-xs px-2 py-1 bg-brand-600/30 text-brand-300 rounded hover:bg-brand-600/50 transition-colors"
+                      className="px-2 text-brand-300 bg-brand-600/30 hover:bg-brand-600/50"
                     >
                       Load All
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -112,21 +125,23 @@ export default function LibraryPage() {
             <h3 className="text-lg font-semibold text-surface-900">Preview</h3>
             {selectedPrompt && (
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label="Copy prompt"
+                  icon={<Copy className="w-4 h-4" />}
                   onClick={() => navigator.clipboard.writeText(JSON.stringify(selectedPrompt, null, 2))}
-                  className="p-1.5 text-surface-400 hover:text-surface-900 transition-colors"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-                <button
+                />
+                <Button
+                  variant="ghost-warning"
+                  size="xs"
+                  aria-label="Add to favorites"
+                  icon={<Star className="w-4 h-4" />}
                   onClick={() => {
                     const styleWords = selectedPrompt.style?.split(' ').slice(0, 4).join(' ') || 'Untitled'
                     addToFavorites(selectedPrompt, styleWords)
                   }}
-                  className="p-1.5 text-surface-400 hover:text-warning transition-colors"
-                >
-                  <Star className="w-4 h-4" />
-                </button>
+                />
               </div>
             )}
           </div>

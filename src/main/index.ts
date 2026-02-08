@@ -1,9 +1,8 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import path from 'path'
-import net from 'net'
+import net from 'node:net'
+import path, { join } from 'node:path'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import dotenv from 'dotenv'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { createApp } from '../server/createApp.js'
 import { backupDatabase, closeDatabase } from '../server/db/index.js'
 import { stopJobCleanup } from '../server/services/fal.js'
@@ -31,18 +30,12 @@ function findAvailablePort(start: number): Promise<number> {
 }
 
 async function startEmbeddedServer(): Promise<number> {
-  const envPath = is.dev
-    ? path.resolve(process.cwd(), '.env')
-    : path.join(process.resourcesPath, '.env')
+  const envPath = is.dev ? path.resolve(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
   dotenv.config({ path: envPath })
 
-  const projectRoot = is.dev
-    ? process.cwd()
-    : path.join(app.getPath('documents'), 'Pixflow')
+  const projectRoot = is.dev ? process.cwd() : path.join(app.getPath('documents'), 'Pixflow')
 
-  appDataDir = is.dev
-    ? path.join(process.cwd(), 'data')
-    : path.join(app.getPath('userData'), 'data')
+  appDataDir = is.dev ? path.join(process.cwd(), 'data') : path.join(app.getPath('userData'), 'data')
 
   const expressApp = createApp({
     projectRoot,
@@ -88,8 +81,8 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
@@ -115,16 +108,19 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('get-server-port', () => serverPort)
 
-  setInterval(() => {
-    if (appDataDir) {
-      try {
-        backupDatabase(appDataDir)
-        console.log('[Electron] Periodic database backup complete')
-      } catch (err) {
-        console.error('[Electron] Periodic backup failed:', err)
+  setInterval(
+    () => {
+      if (appDataDir) {
+        try {
+          backupDatabase(appDataDir)
+          console.log('[Electron] Periodic database backup complete')
+        } catch (err) {
+          console.error('[Electron] Periodic backup failed:', err)
+        }
       }
-    }
-  }, 30 * 60 * 1000)
+    },
+    30 * 60 * 1000,
+  )
 
   ipcMain.handle('open-path', async (_, filePath: string) => {
     return shell.openPath(filePath)

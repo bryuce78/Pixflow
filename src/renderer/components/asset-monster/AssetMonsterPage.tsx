@@ -1,17 +1,39 @@
+import {
+  AlertCircle,
+  Check,
+  CheckCircle,
+  Clock,
+  FileJson,
+  FolderOpen,
+  Image,
+  ImagePlus,
+  List,
+  Loader2,
+  Play,
+  Sparkles,
+  Upload,
+  Users,
+  WifiOff,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
-import {
-  Sparkles, Check, CheckCircle, XCircle, Upload, Image, Play, Loader2,
-  FolderOpen, AlertCircle, X, WifiOff, Clock, Users, ImagePlus, FileJson, List,
-} from 'lucide-react'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import {
+  ASPECT_RATIOS,
+  MAX_REFERENCE_IMAGES,
+  OUTPUT_FORMATS,
+  RESOLUTIONS,
   useGenerationStore,
-  MAX_REFERENCE_IMAGES, ASPECT_RATIOS, RESOLUTIONS, OUTPUT_FORMATS,
 } from '../../stores/generationStore'
-import { usePromptStore } from '../../stores/promptStore'
 import { useNavigationStore } from '../../stores/navigationStore'
+import { usePromptStore } from '../../stores/promptStore'
 import type { GeneratedPrompt } from '../../types'
+import { Badge } from '../ui/Badge'
+import { Button } from '../ui/Button'
+import { Select } from '../ui/Select'
+import { Slider } from '../ui/Slider'
 
 function adaptPromptFormat(input: Record<string, unknown>): GeneratedPrompt {
   if (typeof input.style === 'string') {
@@ -35,52 +57,52 @@ function adaptPromptFormat(input: Record<string, unknown>): GeneratedPrompt {
     style: styleParts.join(', ') || 'Custom prompt',
 
     pose: {
-      framing: camera?.framing as string || '',
-      body_position: subject?.pose as string || '',
-      arms: subject?.movement_detail as string || '',
+      framing: (camera?.framing as string) || '',
+      body_position: (subject?.pose as string) || '',
+      arms: (subject?.movement_detail as string) || '',
       posture: '',
       expression: {
-        facial: subject?.expression as string || '',
+        facial: (subject?.expression as string) || '',
         eyes: '',
         mouth: '',
       },
     },
 
     lighting: {
-      setup: lighting?.style as string || '',
-      key_light: lighting?.key_light as string || '',
-      fill_light: lighting?.fill_light as string || lighting?.ambient_light as string || '',
+      setup: (lighting?.style as string) || '',
+      key_light: (lighting?.key_light as string) || '',
+      fill_light: (lighting?.fill_light as string) || (lighting?.ambient_light as string) || '',
       shadows: '',
-      mood: scene?.atmosphere as string || '',
+      mood: (scene?.atmosphere as string) || '',
     },
 
     set_design: {
-      backdrop: scene?.environment as string || '',
-      surface: scene?.depth as string || '',
-      props: Array.isArray(scene?.background_elements) ? scene.background_elements as string[] : [],
-      atmosphere: scene?.atmosphere as string || '',
+      backdrop: (scene?.environment as string) || '',
+      surface: (scene?.depth as string) || '',
+      props: Array.isArray(scene?.background_elements) ? (scene.background_elements as string[]) : [],
+      atmosphere: (scene?.atmosphere as string) || '',
     },
 
     outfit: {
-      main: subjectOutfit?.outer_layer as string || subjectOutfit?.inner_layer as string || '',
-      underneath: subjectOutfit?.inner_layer as string || '',
+      main: (subjectOutfit?.outer_layer as string) || (subjectOutfit?.inner_layer as string) || '',
+      underneath: (subjectOutfit?.inner_layer as string) || '',
       accessories: '',
       styling: '',
     },
 
     camera: {
-      lens: camera?.lens as string || '',
-      aperture: camera?.aperture as string || '',
-      angle: camera?.camera_angle as string || '',
-      focus: camera?.focus as string || '',
+      lens: (camera?.lens as string) || '',
+      aperture: (camera?.aperture as string) || '',
+      angle: (camera?.camera_angle as string) || '',
+      focus: (camera?.focus as string) || '',
       distortion: '',
     },
 
     effects: {
-      color_grade: colorGrading?.palette as string || '',
-      grain: quality?.grain as string || '',
+      color_grade: (colorGrading?.palette as string) || '',
+      grain: (quality?.grain as string) || '',
       vignette: '',
-      atmosphere: colorGrading?.tone_control as string || '',
+      atmosphere: (colorGrading?.tone_control as string) || '',
     },
   }
 }
@@ -141,23 +163,58 @@ async function parseCustomPrompt(
   return Array(customPromptCount).fill(converted)
 }
 
-export function AssetMonsterPage() {
+export default function AssetMonsterPage() {
   const {
-    selectedPrompts, referenceImages, referencePreviews, batchLoading, batchProgress, batchError, uploadError, previewImage,
-    promptSource, customPromptJson, customPromptCount, customPromptError,
-    imageSource, avatars, avatarsLoading,
-    aspectRatio, numImagesPerPrompt, outputFormat, resolution,
-    togglePromptSelection, selectAllPrompts, deselectAllPrompts,
-    setPromptSource, setCustomPromptJson, setCustomPromptCount, setCustomPromptError,
-    setImageSource, setAspectRatio, setNumImagesPerPrompt, setOutputFormat, setResolution, setPreviewImage,
-    addReferenceFiles, removeReferenceImage, clearReferenceImages, setUploadError, setBatchError,
-    selectAvatar, loadAvatars, startBatch,
+    selectedPrompts,
+    referenceImages,
+    referencePreviews,
+    batchLoading,
+    batchProgress,
+    batchError,
+    uploadError,
+    promptSource,
+    customPromptJson,
+    customPromptCount,
+    customPromptError,
+    imageSource,
+    avatars,
+    avatarsLoading,
+    aspectRatio,
+    numImagesPerPrompt,
+    outputFormat,
+    resolution,
+    togglePromptSelection,
+    selectAllPrompts,
+    deselectAllPrompts,
+    setPromptSource,
+    setCustomPromptJson,
+    setCustomPromptCount,
+    setCustomPromptError,
+    setImageSource,
+    setAspectRatio,
+    setNumImagesPerPrompt,
+    setOutputFormat,
+    setResolution,
+    setPreviewImage,
+    addReferenceFiles,
+    removeReferenceImage,
+    clearReferenceImages,
+    setUploadError,
+    setBatchError,
+    selectAvatar,
+    loadAvatars,
+    startBatch,
   } = useGenerationStore()
 
   const { prompts, concept } = usePromptStore()
   const { navigate } = useNavigationStore()
 
-  const { getRootProps, getInputProps, isDragActive, open: openFilePicker } = useDropzone({
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    open: openFilePicker,
+  } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
     noClick: false,
@@ -170,7 +227,9 @@ export function AssetMonsterPage() {
     },
   })
 
-  useEffect(() => { loadAvatars() }, [])
+  useEffect(() => {
+    loadAvatars()
+  }, [loadAvatars])
 
   const handleBatchGenerate = async () => {
     if (promptSource === 'custom') {
@@ -189,6 +248,8 @@ export function AssetMonsterPage() {
     }
   }
 
+  const totalImages = promptSource === 'custom' ? customPromptCount : selectedPrompts.size
+
   return (
     <div className="grid grid-cols-3 gap-6">
       {/* Left: Prompt Selection */}
@@ -197,6 +258,7 @@ export function AssetMonsterPage() {
           <h2 className="text-lg font-semibold">Prompts</h2>
           <div className="flex bg-surface-100 rounded-lg p-1">
             <button
+              type="button"
               onClick={() => setPromptSource('generated')}
               className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
                 promptSource === 'generated'
@@ -208,11 +270,10 @@ export function AssetMonsterPage() {
               Generated
             </button>
             <button
+              type="button"
               onClick={() => setPromptSource('custom')}
               className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                promptSource === 'custom'
-                  ? 'bg-brand-600 text-surface-900'
-                  : 'text-surface-400 hover:text-surface-900'
+                promptSource === 'custom' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
               }`}
             >
               <FileJson className="w-3 h-3" />
@@ -222,74 +283,69 @@ export function AssetMonsterPage() {
         </div>
 
         {promptSource === 'generated' ? (
-          <>
-            {prompts.length === 0 ? (
-              <div className="text-center py-8 text-surface-400">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No prompts yet</p>
-                <button
-                  onClick={() => navigate('prompts')}
-                  className="mt-2 text-brand-400 hover:text-brand-300 text-sm"
-                >
-                  Generate prompts first →
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => selectAllPrompts(prompts.length)}
-                      className="text-xs px-2 py-1 bg-surface-100 hover:bg-surface-200 rounded"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={deselectAllPrompts}
-                      className="text-xs px-2 py-1 bg-surface-100 hover:bg-surface-200 rounded"
-                    >
-                      Deselect All
-                    </button>
-                  </div>
-                  <span className="text-sm text-surface-400">
-                    {selectedPrompts.size}/{prompts.length}
-                  </span>
+          prompts.length === 0 ? (
+            <div className="text-center py-8 text-surface-400">
+              <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>No prompts yet</p>
+              <button
+                type="button"
+                onClick={() => navigate('prompts')}
+                className="mt-2 text-brand-400 hover:text-brand-300 text-sm"
+              >
+                Generate prompts first →
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => selectAllPrompts(prompts.length)}>
+                    Select All
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={deselectAllPrompts}>
+                    Deselect All
+                  </Button>
                 </div>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                  {prompts.map((prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => togglePromptSelection(index)}
-                      className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
-                        selectedPrompts.has(index)
-                          ? 'bg-brand-600/30 border border-brand-500'
-                          : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
+                <span className="text-sm text-surface-400">
+                  {selectedPrompts.size}/{prompts.length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {prompts.map((prompt, index) => (
+                  <button
+                    type="button"
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                    key={index}
+                    onClick={() => togglePromptSelection(index)}
+                    className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
+                      selectedPrompts.has(index)
+                        ? 'bg-brand-600/30 border border-brand-500'
+                        : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                        selectedPrompts.has(index) ? 'bg-brand-500 border-brand-500' : 'border-surface-200'
                       }`}
                     >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                        selectedPrompts.has(index)
-                          ? 'bg-brand-500 border-brand-500'
-                          : 'border-surface-200'
-                      }`}>
-                        {selectedPrompts.has(index) && <Check className="w-3 h-3" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-xs text-surface-400">#{index + 1}</span>
-                        <p className="text-sm break-words">{prompt.style}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
+                      {selectedPrompts.has(index) && <Check className="w-3 h-3" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-xs text-surface-400">#{index + 1}</span>
+                      <p className="text-sm break-words">{prompt.style}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-surface-400 mb-2">
+              <span className="block text-sm text-surface-400 mb-2">
                 Custom Prompt
                 <span className="text-surface-400 ml-2 font-normal">(JSON or plain text)</span>
-              </label>
+              </span>
               <textarea
                 value={customPromptJson}
                 onChange={(e) => {
@@ -302,9 +358,7 @@ Examples:
 • Black & white editorial photoshoot with dramatic lighting
 • {"style": "Romantic portrait...", "lighting": {...}}`}
                 className={`w-full h-64 bg-surface-100 rounded-lg p-3 text-sm resize-none border ${
-                  customPromptError
-                    ? 'border-danger focus:border-danger'
-                    : 'border-transparent focus:border-brand-500'
+                  customPromptError ? 'border-danger focus:border-danger' : 'border-transparent focus:border-brand-500'
                 } focus:outline-none`}
               />
               {customPromptError && (
@@ -314,25 +368,14 @@ Examples:
                 </p>
               )}
             </div>
-            <div>
-              <label className="block text-sm text-surface-400 mb-2">
-                Number of Images: {customPromptCount}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="4"
-                value={customPromptCount}
-                onChange={(e) => setCustomPromptCount(Number(e.target.value))}
-                className="w-full accent-brand-500"
-              />
-              <div className="flex justify-between text-xs text-surface-400 mt-1">
-                <span>1</span>
-                <span>2</span>
-                <span>3</span>
-                <span>4</span>
-              </div>
-            </div>
+            <Slider
+              label="Number of Images"
+              displayValue={customPromptCount}
+              min={1}
+              max={4}
+              value={customPromptCount}
+              onChange={(e) => setCustomPromptCount(Number(e.currentTarget.value))}
+            />
           </div>
         )}
       </div>
@@ -347,17 +390,17 @@ Examples:
             <h2 className="text-lg font-semibold">Reference Image</h2>
             <div className="flex bg-surface-100 rounded-lg p-1">
               <button
+                type="button"
                 onClick={() => setImageSource('upload')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-                  imageSource === 'upload'
-                    ? 'bg-brand-600 text-surface-900'
-                    : 'text-surface-400 hover:text-surface-900'
+                  imageSource === 'upload' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
                 }`}
               >
                 <ImagePlus className="w-4 h-4" />
                 Upload
               </button>
               <button
+                type="button"
                 onClick={() => setImageSource('gallery')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
                   imageSource === 'gallery'
@@ -381,22 +424,20 @@ Examples:
                     <span className="text-xs text-surface-400 font-normal">(for couple/family)</span>
                   )}
                 </p>
-                <button
-                  onClick={clearReferenceImages}
-                  className="text-surface-400 hover:text-danger text-sm"
-                >
+                <Button variant="ghost-danger" size="sm" onClick={clearReferenceImages}>
                   Clear All
-                </button>
+                </Button>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {referencePreviews.map((preview, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={preview}
-                      alt={`Reference ${index + 1}`}
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                    key={index}
+                    className="relative group"
+                  >
+                    <img src={preview} alt={`Reference ${index + 1}`} className="w-16 h-16 object-cover rounded-lg" />
                     <button
+                      type="button"
                       onClick={() => removeReferenceImage(index)}
                       className="absolute -top-1 -right-1 bg-danger rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -406,6 +447,7 @@ Examples:
                 ))}
                 {referencePreviews.length < MAX_REFERENCE_IMAGES && (
                   <button
+                    type="button"
                     onClick={openFilePicker}
                     className="w-16 h-16 border-2 border-dashed border-surface-200 rounded-lg flex items-center justify-center text-surface-400 hover:border-brand-500 hover:text-brand-400 transition-colors"
                   >
@@ -420,16 +462,12 @@ Examples:
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                isDragActive
-                  ? 'border-brand-500 bg-brand-500/10'
-                  : 'border-surface-200 hover:border-surface-200'
+                isDragActive ? 'border-brand-500 bg-brand-500/10' : 'border-surface-200 hover:border-surface-200'
               }`}
             >
               <input {...getInputProps()} />
               <Upload className="w-10 h-10 mx-auto mb-3 text-surface-400" />
-              <p className="text-surface-400">
-                {isDragActive ? 'Drop image here' : 'Drag & drop or click to upload'}
-              </p>
+              <p className="text-surface-400">{isDragActive ? 'Drop image here' : 'Drag & drop or click to upload'}</p>
               <p className="text-sm text-surface-400 mt-1">JPEG, PNG, WebP up to 10MB</p>
             </div>
           )}
@@ -444,7 +482,9 @@ Examples:
                 <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
                   <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
                   <p>No avatars in gallery</p>
-                  <p className="text-sm mt-1">Add images to <code className="bg-surface-100 px-1 rounded">avatars/</code> folder</p>
+                  <p className="text-sm mt-1">
+                    Add images to <code className="bg-surface-100 px-1 rounded">avatars/</code> folder
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-8 gap-2 max-h-[400px] overflow-auto">
@@ -452,6 +492,7 @@ Examples:
                     const isSelected = referenceImages.some((f) => f.name === avatar.filename)
                     return (
                       <button
+                        type="button"
                         key={avatar.filename}
                         onClick={() => selectAvatar(avatar)}
                         className={`aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
@@ -460,11 +501,7 @@ Examples:
                             : 'border-transparent hover:border-surface-200'
                         }`}
                       >
-                        <img
-                          src={assetUrl(avatar.url)}
-                          alt={avatar.name}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
                         {isSelected && (
                           <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
                             <Check className="w-3 h-3" />
@@ -483,89 +520,60 @@ Examples:
         <div className="bg-surface-50 rounded-lg p-4">
           <h3 className="text-sm font-medium text-surface-400 mb-3">Generation Settings</h3>
           <div className="grid grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs text-surface-400 mb-1">Aspect Ratio</label>
-              <select
-                value={aspectRatio}
-                onChange={(e) => setAspectRatio(e.target.value)}
-                className="w-full bg-surface-100 border border-surface-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-brand-500"
-              >
-                {ASPECT_RATIOS.map((ratio) => (
-                  <option key={ratio} value={ratio}>{ratio}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-surface-400 mb-1">Images per Prompt</label>
-              <select
-                value={numImagesPerPrompt}
-                onChange={(e) => setNumImagesPerPrompt(Number(e.target.value))}
-                className="w-full bg-surface-100 border border-surface-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-brand-500"
-              >
-                {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-surface-400 mb-1">Resolution</label>
-              <select
-                value={resolution}
-                onChange={(e) => setResolution(e.target.value)}
-                className="w-full bg-surface-100 border border-surface-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-brand-500"
-              >
-                {RESOLUTIONS.map((res) => (
-                  <option key={res} value={res}>{res}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-surface-400 mb-1">Format</label>
-              <select
-                value={outputFormat}
-                onChange={(e) => setOutputFormat(e.target.value)}
-                className="w-full bg-surface-100 border border-surface-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-brand-500"
-              >
-                {OUTPUT_FORMATS.map((fmt) => (
-                  <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Aspect Ratio"
+              value={aspectRatio}
+              onChange={(e) => setAspectRatio(e.target.value)}
+              options={ASPECT_RATIOS.map((r) => ({ value: r, label: r }))}
+            />
+            <Select
+              label="Images per Prompt"
+              value={String(numImagesPerPrompt)}
+              onChange={(e) => setNumImagesPerPrompt(Number(e.target.value))}
+              options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: String(n) }))}
+            />
+            <Select
+              label="Resolution"
+              value={resolution}
+              onChange={(e) => setResolution(e.target.value)}
+              options={RESOLUTIONS.map((r) => ({ value: r, label: r }))}
+            />
+            <Select
+              label="Format"
+              value={outputFormat}
+              onChange={(e) => setOutputFormat(e.target.value)}
+              options={OUTPUT_FORMATS.map((f) => ({ value: f, label: f.toUpperCase() }))}
+            />
           </div>
         </div>
 
         {/* Generate Button */}
-        <button
+        <Button
+          variant="success"
+          size="lg"
+          icon={batchLoading ? undefined : <Play className="w-5 h-5" />}
+          loading={batchLoading}
           onClick={handleBatchGenerate}
           disabled={
             batchLoading ||
             referenceImages.length === 0 ||
             (promptSource === 'generated' ? selectedPrompts.size === 0 : !customPromptJson.trim())
           }
-          className="w-full bg-success hover:bg-success-hover disabled:bg-surface-200 disabled:cursor-not-allowed text-white rounded-lg px-6 py-4 font-medium transition-all flex items-center justify-center gap-2"
+          className="w-full"
         >
-          {batchLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Generating {batchProgress?.completedImages || 0}/{batchProgress?.totalImages || (promptSource === 'custom' ? customPromptCount : selectedPrompts.size)}...
-            </>
-          ) : (
-            <>
-              <Play className="w-5 h-5" />
-              Generate {promptSource === 'custom' ? customPromptCount : selectedPrompts.size} Image{(promptSource === 'custom' ? customPromptCount : selectedPrompts.size) !== 1 ? 's' : ''}
-            </>
-          )}
-        </button>
+          {batchLoading
+            ? `Generating ${batchProgress?.completedImages || 0}/${batchProgress?.totalImages || totalImages}...`
+            : `Generate ${totalImages} Image${totalImages !== 1 ? 's' : ''}`}
+        </Button>
 
         {batchError && (
-          <div className={`rounded-lg p-4 flex items-start gap-3 ${
-            batchError.type === 'warning'
-              ? 'bg-warning-muted/50 border border-warning/40'
-              : 'bg-danger-muted/50 border border-danger/40'
-          }`}>
+          <div
+            className={`rounded-lg p-4 flex items-start gap-3 ${
+              batchError.type === 'warning'
+                ? 'bg-warning-muted/50 border border-warning/40'
+                : 'bg-danger-muted/50 border border-danger/40'
+            }`}
+          >
             {batchError.type === 'warning' ? (
               <Clock className="w-5 h-5 text-warning shrink-0 mt-0.5" />
             ) : !navigator.onLine ? (
@@ -574,26 +582,28 @@ Examples:
               <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
             )}
             <div className="flex-1">
-              <p className={batchError.type === 'warning' ? 'text-warning' : 'text-danger'}>
-                {batchError.message}
-              </p>
+              <p className={batchError.type === 'warning' ? 'text-warning' : 'text-danger'}>{batchError.message}</p>
               {batchError.action && (
                 <button
+                  type="button"
                   onClick={batchError.action.onClick}
                   className={`mt-2 text-sm underline ${
-                    batchError.type === 'warning' ? 'text-warning hover:text-warning-hover' : 'text-danger hover:text-danger-hover'
+                    batchError.type === 'warning'
+                      ? 'text-warning hover:text-warning-hover'
+                      : 'text-danger hover:text-danger-hover'
                   }`}
                 >
                   {batchError.action.label}
                 </button>
               )}
             </div>
-            <button
+            <Button
+              variant="ghost-muted"
+              size="xs"
+              aria-label="Dismiss"
+              icon={<X className="w-4 h-4" />}
               onClick={() => setBatchError(null)}
-              className="text-surface-400 hover:text-surface-900"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            />
           </div>
         )}
 
@@ -601,12 +611,13 @@ Examples:
           <div className="bg-danger-muted/50 border border-danger/40 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
             <p className="flex-1 text-danger">{uploadError}</p>
-            <button
+            <Button
+              variant="ghost-muted"
+              size="xs"
+              aria-label="Dismiss"
+              icon={<X className="w-4 h-4" />}
               onClick={() => setUploadError(null)}
-              className="text-surface-400 hover:text-surface-900"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            />
           </div>
         )}
 
@@ -615,38 +626,43 @@ Examples:
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Generation Progress</h2>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded text-xs text-white ${
-                  batchProgress.status === 'completed'
-                    ? 'bg-success'
-                    : batchProgress.status === 'failed'
-                    ? 'bg-danger'
-                    : 'bg-warning'
-                }`}>
+                <Badge
+                  variant={
+                    batchProgress.status === 'completed'
+                      ? 'success'
+                      : batchProgress.status === 'failed'
+                        ? 'danger'
+                        : 'warning'
+                  }
+                >
                   {batchProgress.status.toUpperCase()}
-                </span>
-                <span className="text-sm text-surface-400">
-                  {batchProgress.progress}%
-                </span>
+                </Badge>
+                <span className="text-sm text-surface-400">{batchProgress.progress}%</span>
               </div>
             </div>
 
             <div className="grid grid-cols-6 gap-3">
               {batchProgress.images.map((img) => (
                 <button
+                  type="button"
                   key={img.index}
                   onClick={() => img.status === 'completed' && img.url && setPreviewImage(img.url)}
                   className={`aspect-[9/16] rounded-lg border-2 flex items-center justify-center ${
                     img.status === 'completed'
                       ? 'border-success bg-success/10 cursor-pointer hover:border-success-hover hover:scale-105 transition-all'
                       : img.status === 'generating'
-                      ? 'border-warning bg-warning/10'
-                      : img.status === 'failed'
-                      ? 'border-danger bg-danger/10'
-                      : 'border-surface-200 bg-surface-100'
+                        ? 'border-warning bg-warning/10'
+                        : img.status === 'failed'
+                          ? 'border-danger bg-danger/10'
+                          : 'border-surface-200 bg-surface-100'
                   }`}
                 >
                   {img.status === 'completed' && img.url ? (
-                    <img src={assetUrl(img.url!)} alt={`Generated ${img.index + 1}`} className="w-full h-full object-cover rounded-lg" />
+                    <img
+                      src={assetUrl(img.url!)}
+                      alt={`Generated ${img.index + 1}`}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
                   ) : img.status === 'generating' ? (
                     <Loader2 className="w-6 h-6 animate-spin text-warning" />
                   ) : img.status === 'failed' ? (
@@ -660,7 +676,10 @@ Examples:
 
             {batchProgress.status === 'completed' && (
               <div className="mt-4 pt-4 border-t border-surface-100 flex justify-end">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<FolderOpen className="w-4 h-4" />}
                   onClick={async () => {
                     try {
                       const response = await authFetch(apiUrl('/api/generate/open-folder'), {
@@ -676,11 +695,9 @@ Examples:
                       setBatchError({ message: 'Failed to open folder', type: 'error' })
                     }
                   }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-surface-100 hover:bg-surface-200 rounded-lg text-sm"
                 >
-                  <FolderOpen className="w-4 h-4" />
                   Open Folder
-                </button>
+                </Button>
               </div>
             )}
           </div>

@@ -1,28 +1,28 @@
-import express from 'express'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import cors from 'cors'
+import express from 'express'
 import rateLimit from 'express-rate-limit'
-import path from 'path'
-import fs from 'fs/promises'
-import { performResearch, analyzeResearchResults } from './services/research.js'
-import { generatePrompts, validateAllPrompts, textToPrompt } from './services/promptGenerator.js'
-import { addToHistory } from './services/history.js'
-import { createGenerateRouter } from './routes/generate.js'
-import { createHistoryRouter } from './routes/history.js'
-import { createAvatarsRouter } from './routes/avatars.js'
-import { initDatabase, getDb } from './db/index.js'
+import { PROMPT_GENERATE_DEFAULT, PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } from '../constants/limits.js'
+import { validateServerEnv } from './config/validation.js'
+import { getDb, initDatabase } from './db/index.js'
 import { migrateJsonToSqlite } from './db/migrations.js'
-import { ensureBootstrapAdminIfConfigured } from './services/auth.js'
+import type { AuthRequest } from './middleware/auth.js'
 import { requireAuth } from './middleware/auth.js'
 import { createAuthRouter } from './routes/auth.js'
-import { createProductsRouter } from './routes/products.js'
-import { createPresetsRouter } from './routes/presets.js'
+import { createAvatarsRouter } from './routes/avatars.js'
 import { createFeedbackRouter } from './routes/feedback.js'
+import { createGenerateRouter } from './routes/generate.js'
+import { createHistoryRouter } from './routes/history.js'
 import { createNotificationsRouter } from './routes/notifications.js'
-import { validateServerEnv } from './config/validation.js'
-import type { AuthRequest } from './middleware/auth.js'
-import { sendError, sendSuccess } from './utils/http.js'
-import { PROMPT_GENERATE_DEFAULT, PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } from '../constants/limits.js'
+import { createPresetsRouter } from './routes/presets.js'
+import { createProductsRouter } from './routes/products.js'
+import { ensureBootstrapAdminIfConfigured } from './services/auth.js'
+import { addToHistory } from './services/history.js'
+import { generatePrompts, textToPrompt, validateAllPrompts } from './services/promptGenerator.js'
+import { analyzeResearchResults, performResearch } from './services/research.js'
 import { createPipelineSpan } from './services/telemetry.js'
+import { sendError, sendSuccess } from './utils/http.js'
 
 export interface ServerConfig {
   projectRoot: string
@@ -133,7 +133,9 @@ export function createApp(config: ServerConfig): express.Express {
         console.log(`[Validation] ${invalidCount} prompts have issues`)
       }
 
-      console.log(`[Complete] Generated ${prompts.length} prompts, variety score: ${varietyScore.passed ? 'PASS' : 'FAIL'}`)
+      console.log(
+        `[Complete] Generated ${prompts.length} prompts, variety score: ${varietyScore.passed ? 'PASS' : 'FAIL'}`,
+      )
 
       await addToHistory(req.user!.id, {
         concept,
@@ -172,7 +174,7 @@ export function createApp(config: ServerConfig): express.Express {
         500,
         'Failed to generate prompts',
         'PROMPT_GENERATION_FAILED',
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       )
     }
   })
@@ -197,7 +199,7 @@ export function createApp(config: ServerConfig): express.Express {
         500,
         'Failed to perform research',
         'RESEARCH_FAILED',
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       )
     }
   })
@@ -226,7 +228,7 @@ export function createApp(config: ServerConfig): express.Express {
         500,
         'Failed to convert text to prompt',
         'TEXT_TO_PROMPT_FAILED',
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       )
     }
   })

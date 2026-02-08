@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
-import type { AddressInfo } from 'net'
+import fs from 'node:fs/promises'
+import type { AddressInfo } from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
 import { createApp } from '../createApp.js'
 import { stopJobCleanup } from '../services/fal.js'
 import { recordPipelineEvent } from '../services/telemetry.js'
@@ -33,13 +33,13 @@ function assertEnvelope<T>(value: unknown, endpoint: string): asserts value is A
   assert(!!value && typeof value === 'object', `${endpoint}: response is not object`)
   const obj = value as Record<string, unknown>
   assert(typeof obj.success === 'boolean', `${endpoint}: missing success`)
-  assert(Object.prototype.hasOwnProperty.call(obj, 'data'), `${endpoint}: missing data`)
+  assert(Object.hasOwn(obj, 'data'), `${endpoint}: missing data`)
 }
 
 async function requestJson<T>(
   baseUrl: string,
   endpoint: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<{ status: number; json: ApiEnvelope<T> }> {
   const res = await fetch(`${baseUrl}${endpoint}`, init)
   const json = (await res.json()) as unknown
@@ -180,7 +180,10 @@ async function run(): Promise<void> {
     })
     assert(lipsync.status === 200 && lipsync.json.success, 'lipsync failed')
     await spend(ESTIMATED_COST_USD.lipsync, 'avatars.lipsync')
-    assert(typeof lipsync.json.data.localPath === 'string' && lipsync.json.data.localPath.startsWith('/outputs/'), 'lipsync path invalid')
+    assert(
+      typeof lipsync.json.data.localPath === 'string' && lipsync.json.data.localPath.startsWith('/outputs/'),
+      'lipsync path invalid',
+    )
 
     const i2v = await requestJson<{ localPath: string }>(baseUrl, '/api/avatars/i2v', {
       method: 'POST',
@@ -189,7 +192,10 @@ async function run(): Promise<void> {
     })
     assert(i2v.status === 200 && i2v.json.success, 'i2v failed')
     await spend(ESTIMATED_COST_USD.i2v, 'avatars.i2v')
-    assert(typeof i2v.json.data.localPath === 'string' && i2v.json.data.localPath.startsWith('/outputs/'), 'i2v path invalid')
+    assert(
+      typeof i2v.json.data.localPath === 'string' && i2v.json.data.localPath.startsWith('/outputs/'),
+      'i2v path invalid',
+    )
 
     const pngPath = path.join(tempRoot, 'reference.png')
     await fs.writeFile(pngPath, Buffer.from(ONE_BY_ONE_PNG_BASE64, 'base64'))
@@ -222,7 +228,7 @@ async function run(): Promise<void> {
       const progress = await requestJson<{ status: string; completedImages: number; totalImages: number }>(
         baseUrl,
         `/api/generate/progress/${jobId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       )
       assert(progress.status === 200 && progress.json.success, 'progress fetch failed')
       if (progress.json.data.status === 'completed') {
@@ -252,7 +258,9 @@ async function run(): Promise<void> {
       },
     })
 
-    console.log(`[Smoke:External] External-integrated pipeline passed (${runReal ? 'real providers' : 'mock providers'})`)
+    console.log(
+      `[Smoke:External] External-integrated pipeline passed (${runReal ? 'real providers' : 'mock providers'})`,
+    )
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => {

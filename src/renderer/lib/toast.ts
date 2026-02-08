@@ -16,6 +16,5 @@ export const notify = {
     toast.success(message, { ...defaults, iconTheme: { primary: '#22c55e', secondary: '#fff' } }),
   error: (message: string) =>
     toast.error(message, { ...defaults, iconTheme: { primary: '#ef4444', secondary: '#fff' } }),
-  info: (message: string) =>
-    toast(message, { ...defaults, icon: 'ℹ️' }),
+  info: (message: string) => toast(message, { ...defaults, icon: 'ℹ️' }),
 }

@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { MessageSquare, X } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
+import { notify } from '../../lib/toast'
 import { useFeedbackStore } from '../../stores/feedbackStore'
 import { useProductStore } from '../../stores/productStore'
 import { Button } from '../ui/Button'
-import { notify } from '../../lib/toast'
 
 const CATEGORIES = [
   { value: 'bug', label: 'Bug Report' },
@@ -44,7 +44,11 @@ export function FeedbackWidget() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
               <span className="text-sm font-semibold text-surface-900">Send Feedback</span>
-              <button onClick={() => setOpen(false)} className="text-surface-400 hover:text-surface-600 transition-colors">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-surface-400 hover:text-surface-600 transition-colors"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -52,6 +56,7 @@ export function FeedbackWidget() {
               <div className="flex gap-1.5 flex-wrap">
                 {CATEGORIES.map((c) => (
                   <button
+                    type="button"
                     key={c.value}
                     onClick={() => setCategory(c.value)}
                     className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
@@ -87,6 +92,7 @@ export function FeedbackWidget() {
       </AnimatePresence>
 
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-colors ${
           open ? 'bg-surface-200 text-surface-700' : 'bg-brand-600 text-white hover:bg-brand-500'

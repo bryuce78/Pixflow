@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -25,7 +25,11 @@ async function readJsonl(filePath) {
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        try { return JSON.parse(line) } catch { return null }
+        try {
+          return JSON.parse(line)
+        } catch {
+          return null
+        }
       })
       .filter(Boolean)
   } catch {

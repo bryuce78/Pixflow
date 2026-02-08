@@ -11,6 +11,7 @@ export function ProductSelector() {
         <div className="flex gap-2">
           {products.map((product) => (
             <button
+              type="button"
               key={product.id}
               onClick={() => setActiveProduct(product)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
@@ -19,10 +20,7 @@ export function ProductSelector() {
                   : 'text-surface-400 hover:text-surface-900 hover:bg-surface-100'
               }`}
             >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: product.color_primary }}
-              />
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: product.color_primary }} />
               {product.name}
             </button>
           ))}

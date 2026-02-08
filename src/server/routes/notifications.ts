@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { getNotifications, markAsRead, markAllAsRead } from '../services/notifications.js'
 import type { AuthRequest } from '../middleware/auth.js'
+import { getNotifications, markAllAsRead, markAsRead } from '../services/notifications.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 export function createNotificationsRouter(): Router {

@@ -31,9 +31,7 @@ const WORDS_PER_SECOND = 2.5
  * Generate a voiceover script for a mobile app ad using GPT-4o.
  * The script is optimized for the specified duration and tone.
  */
-export async function generateVoiceoverScript(
-  options: ScriptGenerationOptions
-): Promise<ScriptGenerationResult> {
+export async function generateVoiceoverScript(options: ScriptGenerationOptions): Promise<ScriptGenerationResult> {
   const targetWords = Math.floor(options.duration * WORDS_PER_SECOND)
   const tolerance = Math.floor(targetWords * 0.1)
 
@@ -86,20 +84,21 @@ Target word count: ${targetWords} words
 ${options.examples && options.examples.length > 0 ? `\nReference examples for style (but create original content):\n${options.examples.join('\n\n')}` : ''}`
 
   const response = await runWithRetries(
-    () => getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.8,
-      max_tokens: 500,
-    }),
+    () =>
+      getOpenAI().chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 500,
+      }),
     {
       pipeline: 'avatars.script.provider',
       provider: 'openai',
       metadata: { duration: options.duration, tone: options.tone || 'energetic' },
-    }
+    },
   )
 
   const script = response.choices[0]?.message?.content?.trim()
@@ -122,7 +121,7 @@ ${options.examples && options.examples.length > 0 ? `\nReference examples for st
 export async function refineScript(
   originalScript: string,
   feedback: string,
-  targetDuration: number
+  targetDuration: number,
 ): Promise<ScriptGenerationResult> {
   const targetWords = Math.floor(targetDuration * WORDS_PER_SECOND)
 
@@ -142,28 +141,29 @@ export async function refineScript(
   }
 
   const response = await runWithRetries(
-    () => getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a creative copywriter. Refine the voiceover script based on feedback.
+    () =>
+      getOpenAI().chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a creative copywriter. Refine the voiceover script based on feedback.
 Output ONLY the refined spoken text, no formatting or directions.
 Target word count: ${targetWords} words.`,
-        },
-        {
-          role: 'user',
-          content: `Original script:\n${originalScript}\n\nFeedback:\n${feedback}`,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    }),
+          },
+          {
+            role: 'user',
+            content: `Original script:\n${originalScript}\n\nFeedback:\n${feedback}`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
     {
       pipeline: 'avatars.script.refine.provider',
       provider: 'openai',
       metadata: { targetDuration },
-    }
+    },
   )
 
   const script = response.choices[0]?.message?.content?.trim()

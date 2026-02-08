@@ -1,10 +1,10 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Download, FileJson, X } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useImagePreviewKeyboard } from '../../hooks/useImagePreviewKeyboard'
 import { assetUrl, authFetch } from '../../lib/api'
 import { useGenerationStore } from '../../stores/generationStore'
-import { usePromptStore } from '../../stores/promptStore'
 import { useNavigationStore } from '../../stores/navigationStore'
-import { useImagePreviewKeyboard } from '../../hooks/useImagePreviewKeyboard'
+import { usePromptStore } from '../../stores/promptStore'
 
 export function ImagePreviewOverlay() {
   const previewImage = useGenerationStore((s) => s.previewImage)
@@ -35,6 +35,7 @@ export function ImagePreviewOverlay() {
     <AnimatePresence>
       {previewImage && (
         <motion.div
+          role="presentation"
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 cursor-pointer"
           onClick={() => setPreviewImage(null)}
           initial={{ opacity: 0 }}
@@ -44,6 +45,7 @@ export function ImagePreviewOverlay() {
         >
           {currentIndex > 0 && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 setPreviewImage(completedImages[currentIndex - 1].url!)
@@ -78,6 +80,7 @@ export function ImagePreviewOverlay() {
                 <Download className="w-6 h-6" />
               </a>
               <button
+                type="button"
                 onClick={() => sendToImageToPrompt(previewImage)}
                 className="bg-brand-600 hover:bg-brand-500 rounded-full p-2 transition-colors text-white"
                 title="Extract prompt from image"
@@ -85,6 +88,7 @@ export function ImagePreviewOverlay() {
                 <FileJson className="w-6 h-6" />
               </button>
               <button
+                type="button"
                 onClick={() => setPreviewImage(null)}
                 className="bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
               >
@@ -104,6 +108,7 @@ export function ImagePreviewOverlay() {
 
           {currentIndex >= 0 && currentIndex < completedImages.length - 1 && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 setPreviewImage(completedImages[currentIndex + 1].url!)

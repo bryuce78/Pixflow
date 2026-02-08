@@ -26,7 +26,7 @@ export interface AvatarGenerationResult {
  */
 export async function generateAvatar(
   prompt: string,
-  options: AvatarGenerationOptions = {}
+  options: AvatarGenerationOptions = {},
 ): Promise<AvatarGenerationResult> {
   if (isMockProvidersEnabled()) {
     await recordMockProviderSuccess({
@@ -43,25 +43,27 @@ export async function generateAvatar(
   ensureFalConfig()
 
   const result = await runWithRetries(
-    () => fal.subscribe(AVATAR_MODEL, {
-      input: {
-        prompt,
-        resolution: options.resolution || '2K',
-        aspect_ratio: options.aspectRatio || '9:16',
-        output_format: 'png',
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS' && update.logs) {
-          update.logs.forEach((log) => console.log(`[fal.ai avatar] ${log.message}`))
-        }
-      },
-    }),
+    () =>
+      fal.subscribe(AVATAR_MODEL, {
+        input: {
+          prompt,
+          resolution: options.resolution || '2K',
+          aspect_ratio: options.aspectRatio || '9:16',
+          output_format: 'png',
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS' && update.logs) {
+            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+            update.logs.forEach((log) => console.log(`[fal.ai avatar] ${log.message}`))
+          }
+        },
+      }),
     {
       pipeline: 'avatars.generate',
       provider: 'fal',
       metadata: { aspectRatio: options.aspectRatio || '9:16', promptLength: prompt.length },
-    }
+    },
   )
 
   const imageUrl = result.data?.images?.[0]?.url
@@ -82,7 +84,7 @@ export async function generateAvatar(
 export async function generateAvatarFromReference(
   referenceImageUrl: string,
   prompt: string,
-  options: AvatarGenerationOptions = {}
+  options: AvatarGenerationOptions = {},
 ): Promise<AvatarGenerationResult> {
   if (isMockProvidersEnabled()) {
     await recordMockProviderSuccess({
@@ -99,26 +101,28 @@ export async function generateAvatarFromReference(
   ensureFalConfig()
 
   const result = await runWithRetries(
-    () => fal.subscribe(AVATAR_MODEL, {
-      input: {
-        prompt,
-        image_urls: [referenceImageUrl],
-        resolution: options.resolution || '2K',
-        aspect_ratio: options.aspectRatio || '9:16',
-        output_format: 'png',
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS' && update.logs) {
-          update.logs.forEach((log) => console.log(`[fal.ai avatar i2i] ${log.message}`))
-        }
-      },
-    }),
+    () =>
+      fal.subscribe(AVATAR_MODEL, {
+        input: {
+          prompt,
+          image_urls: [referenceImageUrl],
+          resolution: options.resolution || '2K',
+          aspect_ratio: options.aspectRatio || '9:16',
+          output_format: 'png',
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS' && update.logs) {
+            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+            update.logs.forEach((log) => console.log(`[fal.ai avatar i2i] ${log.message}`))
+          }
+        },
+      }),
     {
       pipeline: 'avatars.generateFromReference',
       provider: 'fal',
       metadata: { aspectRatio: options.aspectRatio || '9:16', promptLength: prompt.length },
-    }
+    },
   )
 
   const imageUrl = result.data?.images?.[0]?.url

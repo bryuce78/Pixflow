@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 type TelemetryStatus = 'start' | 'success' | 'error'
 
@@ -48,17 +48,20 @@ interface TelemetryReport {
     durationP95Ms: number
   }
   pipelines: Record<string, { success: number; error: number; attempts: number; successRate: number }>
-  providers: Record<string, {
-    success: number
-    error: number
-    attempts: number
-    successRate: number
-    failRate: number
-    retryRecoveryRate: number
-    durationP50Ms: number
-    durationP95Ms: number
-    failureTypes: Record<string, number>
-  }>
+  providers: Record<
+    string,
+    {
+      success: number
+      error: number
+      attempts: number
+      successRate: number
+      failRate: number
+      retryRecoveryRate: number
+      durationP50Ms: number
+      durationP95Ms: number
+      failureTypes: Record<string, number>
+    }
+  >
 }
 
 function percentile(values: number[], p: number): number {
@@ -97,13 +100,13 @@ function formatReportText(report: TelemetryReport): string {
   lines.push('=== Pixflow Telemetry Report ===')
   lines.push(`File: ${report.file}`)
   lines.push(
-    `Events: ${report.totals.events} (start=${report.totals.start}, success=${report.totals.success}, error=${report.totals.error})`
+    `Events: ${report.totals.events} (start=${report.totals.start}, success=${report.totals.success}, error=${report.totals.error})`,
   )
   lines.push(`Window: ${report.window.start} -> ${report.window.end}`)
   lines.push('')
   lines.push('Overall:')
   lines.push(
-    `- Success rate: ${percent(report.totals.success, report.totals.attempts)} (${report.totals.success}/${report.totals.attempts})`
+    `- Success rate: ${percent(report.totals.success, report.totals.attempts)} (${report.totals.success}/${report.totals.attempts})`,
   )
   lines.push(`- Duration p50: ${report.overall.durationP50Ms.toFixed(1)}ms`)
   lines.push(`- Duration p95: ${report.overall.durationP95Ms.toFixed(1)}ms`)
@@ -112,21 +115,24 @@ function formatReportText(report: TelemetryReport): string {
   for (const pipeline of Object.keys(report.pipelines).sort()) {
     const row = report.pipelines[pipeline]
     lines.push(
-      `- ${pipeline}: success=${row.success}, error=${row.error}, successRate=${percent(row.success, row.attempts)} (${row.attempts} attempts)`
+      `- ${pipeline}: success=${row.success}, error=${row.error}, successRate=${percent(row.success, row.attempts)} (${row.attempts} attempts)`,
     )
   }
   lines.push('')
   lines.push('By Provider:')
   for (const provider of Object.keys(report.providers).sort()) {
     const stats = report.providers[provider]
-    const failBreakdown = Object.entries(stats.failureTypes)
-      .sort((a, b) => b[1] - a[1])
-      .map(([type, count]) => `${type}:${count}`)
-      .join(', ') || '-'
+    const failBreakdown =
+      Object.entries(stats.failureTypes)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, count]) => `${type}:${count}`)
+        .join(', ') || '-'
     lines.push(`- ${provider}:`)
     lines.push(`  successRate=${percent(stats.success, stats.attempts)} (${stats.success}/${stats.attempts})`)
     lines.push(`  failRate=${percent(stats.error, stats.attempts)} (${stats.error}/${stats.attempts})`)
-    lines.push(`  retryRecoveryRate=${percent(stats.retryRecoveryRate * stats.success, stats.success)} (${Math.round(stats.retryRecoveryRate * stats.success)}/${stats.success})`)
+    lines.push(
+      `  retryRecoveryRate=${percent(stats.retryRecoveryRate * stats.success, stats.success)} (${Math.round(stats.retryRecoveryRate * stats.success)}/${stats.success})`,
+    )
     lines.push(`  p50=${stats.durationP50Ms.toFixed(1)}ms, p95=${stats.durationP95Ms.toFixed(1)}ms`)
     lines.push(`  failureTypes=${failBreakdown}`)
   }
@@ -141,7 +147,10 @@ async function run(): Promise<void> {
   const filePath = fileArg ? path.resolve(fileArg) : defaultPath
 
   const raw = await fs.readFile(filePath, 'utf8')
-  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+  const lines = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
   const events: TelemetryEvent[] = lines
     .map((line) => {
       try {

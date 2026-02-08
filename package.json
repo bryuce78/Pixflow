@@ -9,9 +9,18 @@
     "dev:server": "tsx watch src/server/index.ts",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "postinstall": "npx --yes @electron/rebuild -f -w better-sqlite3",
+    "native:rebuild": "npx --yes @electron/rebuild -f -w better-sqlite3",
     "lint": "tsc --noEmit",
+    "lint:biome": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "smoke:api": "tsx src/server/smoke/criticalPath.ts",
     "smoke:desktop": "tsx src/server/smoke/desktopCriticalPaths.ts",
+    "smoke:desktop:journey": "tsx src/server/smoke/desktopCriticalPaths.ts",
     "smoke:external": "tsx src/server/smoke/externalPipeline.ts",
     "smoke:external:real": "tsx src/server/smoke/externalPipeline.ts --real",
     "telemetry:report": "tsx src/server/telemetry/report.ts",
@@ -33,7 +42,7 @@
     "threshold:propose": "node scripts/propose-threshold-update.js",
     "preflight:history": "node scripts/build-preflight-history.js",
     "alert:dedup": "node scripts/build-nightly-alert-dedup.js",
-    "gate:release": "npm run validate:playbooks && npm run lint && npm run smoke:api && npm run smoke:desktop && npm run smoke:external && npm run telemetry:report -- --out telemetry-report.txt && npm run telemetry:report:json -- --out telemetry-report.json && npm run telemetry:trends -- --out logs/telemetry-trends.json && npm run telemetry:dashboard -- --report telemetry-report.json --trends logs/telemetry-trends.json --out docs/ops/telemetry-dashboard.md && npm run telemetry:highlights -- --trends logs/telemetry-trends.json --out docs/ops/telemetry-highlights.md && npm run telemetry:baseline -- --trends logs/telemetry-trends.json --history logs/telemetry-trends-history.jsonl --out-json docs/ops/telemetry-baseline.json --out-md docs/ops/telemetry-baseline.md && npm run threshold:propose -- --baseline docs/ops/telemetry-baseline.json --out-env docs/ops/proposed-thresholds.env --out-md docs/ops/proposed-thresholds.md && npm run preflight:release -- --report telemetry-report.json --trends logs/telemetry-trends.json --baseline docs/ops/telemetry-baseline.json --registry docs/ops/playbook-registry.json --out-json docs/ops/release-preflight.json --out-md docs/ops/release-preflight.md && npm run preflight:history -- --preflight docs/ops/release-preflight.json --history logs/preflight-history.jsonl --out docs/ops/preflight-history.md && npm run telemetry:check:regression:block && npm run telemetry:check:release"
+    "gate:release": "npm run lint:biome && npm run validate:playbooks && npm run lint && npm run test && npm run smoke:api && npm run smoke:desktop:journey && npm run smoke:external && npm run telemetry:report -- --out telemetry-report.txt && npm run telemetry:report:json -- --out telemetry-report.json && npm run telemetry:trends -- --out logs/telemetry-trends.json && npm run telemetry:dashboard -- --report telemetry-report.json --trends logs/telemetry-trends.json --out docs/ops/telemetry-dashboard.md && npm run telemetry:highlights -- --trends logs/telemetry-trends.json --out docs/ops/telemetry-highlights.md && npm run telemetry:baseline -- --trends logs/telemetry-trends.json --history logs/telemetry-trends-history.jsonl --out-json docs/ops/telemetry-baseline.json --out-md docs/ops/telemetry-baseline.md && npm run threshold:propose -- --baseline docs/ops/telemetry-baseline.json --out-env docs/ops/proposed-thresholds.env --out-md docs/ops/proposed-thresholds.md && npm run preflight:release -- --report telemetry-report.json --trends logs/telemetry-trends.json --baseline docs/ops/telemetry-baseline.json --registry docs/ops/playbook-registry.json --out-json docs/ops/release-preflight.json --out-md docs/ops/release-preflight.md && npm run preflight:history -- --preflight docs/ops/release-preflight.json --history logs/preflight-history.jsonl --out docs/ops/preflight-history.md && npm run telemetry:check:regression:block && npm run telemetry:check:release"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -60,6 +69,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
     "@tailwindcss/vite": "^4.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
@@ -72,12 +82,14 @@
     "@types/react-dom": "^19.0.0",
     "@types/uuid": "^9.0.7",
     "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "electron": "^33.0.0",
     "electron-vite": "^5.0.0",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"

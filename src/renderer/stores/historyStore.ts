@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, authFetch, unwrapApiData } from '../lib/api'
-import type { HistoryEntry, FavoritePrompt, GeneratedPrompt } from '../types'
+import type { FavoritePrompt, GeneratedPrompt, HistoryEntry } from '../types'
 
 interface HistoryState {
   entries: HistoryEntry[]
@@ -19,7 +19,7 @@ interface HistoryState {
   clearHistory: () => Promise<void>
 }
 
-export const useHistoryStore = create<HistoryState>()((set, get) => ({
+export const useHistoryStore = create<HistoryState>()((set, _get) => ({
   entries: [],
   favorites: [],
   loading: false,

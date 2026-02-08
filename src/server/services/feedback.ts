@@ -33,36 +33,35 @@ export function getFeedback(userId: number, productId?: number): FeedbackEntry[]
   }
 
   const where = conditions.join(' AND ')
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT f.*, u.name as user_name, p.name as product_name
     FROM feedback f
     LEFT JOIN users u ON f.user_id = u.id
     LEFT JOIN products p ON f.product_id = p.id
     WHERE ${where}
     ORDER BY f.created_at DESC
-  `).all(...params) as FeedbackRow[]
+  `)
+    .all(...params) as FeedbackRow[]
 
   return rows
 }
 
-export function createFeedback(
-  userId: number,
-  content: string,
-  category: string,
-  productId?: number,
-): FeedbackEntry {
+export function createFeedback(userId: number, content: string, category: string, productId?: number): FeedbackEntry {
   const db = getDb()
-  const result = db.prepare(
-    'INSERT INTO feedback (user_id, content, category, product_id) VALUES (?, ?, ?, ?)'
-  ).run(userId, content, category, productId ?? null)
+  const result = db
+    .prepare('INSERT INTO feedback (user_id, content, category, product_id) VALUES (?, ?, ?, ?)')
+    .run(userId, content, category, productId ?? null)
 
-  const row = db.prepare(`
+  const row = db
+    .prepare(`
     SELECT f.*, u.name as user_name, p.name as product_name
     FROM feedback f
     LEFT JOIN users u ON f.user_id = u.id
     LEFT JOIN products p ON f.product_id = p.id
     WHERE f.id = ?
-  `).get(result.lastInsertRowid) as FeedbackRow
+  `)
+    .get(result.lastInsertRowid) as FeedbackRow
 
   return row
 }

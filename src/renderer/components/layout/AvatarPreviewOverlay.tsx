@@ -1,5 +1,5 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { Download, X } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { assetUrl } from '../../lib/api'
 import { useAvatarStore } from '../../stores/avatarStore'
 
@@ -11,6 +11,7 @@ export function AvatarPreviewOverlay() {
     <AnimatePresence>
       {fullSizeAvatarUrl && (
         <motion.div
+          role="presentation"
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 cursor-pointer"
           onClick={() => setFullSizeAvatarUrl(null)}
           initial={{ opacity: 0 }}
@@ -42,6 +43,7 @@ export function AvatarPreviewOverlay() {
                 <Download className="w-6 h-6" />
               </a>
               <button
+                type="button"
                 onClick={() => setFullSizeAvatarUrl(null)}
                 className="bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
               >

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs/promises')
-const fss = require('fs')
-const path = require('path')
+const fs = require('node:fs/promises')
+const fss = require('node:fs')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -54,12 +54,27 @@ async function run() {
   const baseline = await readJson(baselineFile, null)
   const registry = await readJson(registryFile, { playbooks: [] })
 
-  const minOverall = parsePositiveNumber(process.env.PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE, profile === 'nightly' ? 0.9 : 1)
-  const minProvider = parsePositiveNumber(process.env.PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE, profile === 'nightly' ? 0.8 : 1)
+  const minOverall = parsePositiveNumber(
+    process.env.PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE,
+    profile === 'nightly' ? 0.9 : 1,
+  )
+  const minProvider = parsePositiveNumber(
+    process.env.PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE,
+    profile === 'nightly' ? 0.8 : 1,
+  )
   const maxP95Ms = parsePositiveNumber(process.env.PIXFLOW_GATE_MAX_P95_MS, profile === 'nightly' ? 600000 : 300000)
-  const maxSuccessDrop = parsePositiveNumber(process.env.PIXFLOW_REGRESSION_MAX_SUCCESS_DROP, profile === 'nightly' ? 0.03 : 0.01)
-  const maxP95IncreaseMs = parsePositiveNumber(process.env.PIXFLOW_REGRESSION_MAX_P95_INCREASE_MS, profile === 'nightly' ? 30000 : 5000)
-  const maxProviderFailIncrease = parsePositiveNumber(process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE, profile === 'nightly' ? 0.1 : 0.05)
+  const maxSuccessDrop = parsePositiveNumber(
+    process.env.PIXFLOW_REGRESSION_MAX_SUCCESS_DROP,
+    profile === 'nightly' ? 0.03 : 0.01,
+  )
+  const maxP95IncreaseMs = parsePositiveNumber(
+    process.env.PIXFLOW_REGRESSION_MAX_P95_INCREASE_MS,
+    profile === 'nightly' ? 30000 : 5000,
+  )
+  const maxProviderFailIncrease = parsePositiveNumber(
+    process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE,
+    profile === 'nightly' ? 0.1 : 0.05,
+  )
 
   const checks = []
 
@@ -91,13 +106,22 @@ async function run() {
   }
 
   if (!trends || !trends.current || !trends.previous || !trends.delta) {
-    checks.push({ id: 'trend_snapshot_present', status: 'fail', detail: 'telemetry-trends.json missing required shape' })
+    checks.push({
+      id: 'trend_snapshot_present',
+      status: 'fail',
+      detail: 'telemetry-trends.json missing required shape',
+    })
   } else {
     const previousEvents = Number(trends.previous.windowEvents || 0)
     if (previousEvents <= 0) {
-      checks.push({ id: 'regression_baseline_window', status: 'warn', detail: 'previous trend window empty; regression comparison limited' })
+      checks.push({
+        id: 'regression_baseline_window',
+        status: 'warn',
+        detail: 'previous trend window empty; regression comparison limited',
+      })
     } else {
-      const successDrop = Number(trends.previous.overallSuccessRate || 0) - Number(trends.current.overallSuccessRate || 0)
+      const successDrop =
+        Number(trends.previous.overallSuccessRate || 0) - Number(trends.current.overallSuccessRate || 0)
       const p95Increase = Number(trends.current.overallP95Ms || 0) - Number(trends.previous.overallP95Ms || 0)
       checks.push({
         id: 'regression_success_drop',
@@ -116,7 +140,10 @@ async function run() {
       checks.push({
         id: 'regression_provider_failrate_increase',
         status: badProviderDeltas.length === 0 ? 'pass' : 'fail',
-        detail: badProviderDeltas.length === 0 ? `all providers <= ${pct(maxProviderFailIncrease)}` : badProviderDeltas.join(', '),
+        detail:
+          badProviderDeltas.length === 0
+            ? `all providers <= ${pct(maxProviderFailIncrease)}`
+            : badProviderDeltas.join(', '),
       })
     }
   }
@@ -142,12 +169,15 @@ async function run() {
   checks.push({
     id: 'runbook_coverage',
     status: missingRunbooks.length === 0 ? 'pass' : 'fail',
-    detail: missingRunbooks.length === 0 ? `all ${playbooks.length} runbooks resolved` : `missing: ${missingRunbooks.join(', ')}`,
+    detail:
+      missingRunbooks.length === 0
+        ? `all ${playbooks.length} runbooks resolved`
+        : `missing: ${missingRunbooks.join(', ')}`,
   })
 
   const failCount = checks.filter((check) => check.status === 'fail').length
   const warnCount = checks.filter((check) => check.status === 'warn').length
-  const decision = failCount > 0 ? 'NOT_READY' : (warnCount > 0 ? 'CONDITIONAL' : 'READY')
+  const decision = failCount > 0 ? 'NOT_READY' : warnCount > 0 ? 'CONDITIONAL' : 'READY'
 
   const preflight = {
     generatedAt: new Date().toISOString(),

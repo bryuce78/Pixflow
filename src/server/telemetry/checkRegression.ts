@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 type Mode = 'warn' | 'block'
 
@@ -63,7 +63,10 @@ async function run(): Promise<void> {
 
   const maxSuccessDrop = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_SUCCESS_DROP, 0.01)
   const maxP95IncreaseMs = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_P95_INCREASE_MS, 5000)
-  const maxProviderFailRateIncrease = parseNonNegative(process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE, 0.05)
+  const maxProviderFailRateIncrease = parseNonNegative(
+    process.env.PIXFLOW_REGRESSION_MAX_PROVIDER_FAILRATE_INCREASE,
+    0.05,
+  )
   const providerThresholds = parseProviderThresholdMap(process.env.PIXFLOW_REGRESSION_PROVIDER_THRESHOLDS_JSON)
 
   const raw = await fs.readFile(filePath, 'utf8')
@@ -75,7 +78,9 @@ async function run(): Promise<void> {
   console.log(`File: ${filePath}`)
   console.log(`Current events: ${snapshot.current?.windowEvents ?? 0}`)
   console.log(`Previous events: ${previousEvents}`)
-  console.log(`Thresholds: successDrop<=${maxSuccessDrop.toFixed(4)}, p95Increase<=${maxP95IncreaseMs.toFixed(1)}ms, providerFailIncrease<=${maxProviderFailRateIncrease.toFixed(4)}`)
+  console.log(
+    `Thresholds: successDrop<=${maxSuccessDrop.toFixed(4)}, p95Increase<=${maxP95IncreaseMs.toFixed(1)}ms, providerFailIncrease<=${maxProviderFailRateIncrease.toFixed(4)}`,
+  )
   if (Object.keys(providerThresholds).length > 0) {
     console.log(`Provider overrides: ${JSON.stringify(providerThresholds)}`)
   }

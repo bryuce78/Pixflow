@@ -27,7 +27,7 @@ export function validateServerEnv(): void {
 
   if (!hasValue(bootstrapEmail) || !hasValue(bootstrapPassword)) {
     throw new Error(
-      'Bootstrap admin is enabled; PIXFLOW_BOOTSTRAP_ADMIN_EMAIL and PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD must both be set.'
+      'Bootstrap admin is enabled; PIXFLOW_BOOTSTRAP_ADMIN_EMAIL and PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD must both be set.',
     )
   }
 

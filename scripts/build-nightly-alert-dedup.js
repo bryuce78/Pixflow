@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const path = require('path')
-const crypto = require('crypto')
+const fs = require('node:fs')
+const path = require('node:path')
+const crypto = require('node:crypto')
 
 const cwd = process.cwd()
 const alertFile = path.join(cwd, 'nightly-alert.json')
@@ -26,7 +26,7 @@ try {
 
 const now = Date.now()
 const lastAlertedMs = state.lastAlertedAt ? new Date(state.lastAlertedAt).getTime() : 0
-const withinWindow = (now - lastAlertedMs) < windowMs
+const withinWindow = now - lastAlertedMs < windowMs
 const sameSignature = state.lastSignature === signature
 
 if (sameSignature && withinWindow) {

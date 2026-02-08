@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { useNavigationStore, type TabId } from '../stores/navigationStore'
-import { useGenerationStore } from '../stores/generationStore'
 import { useAvatarStore } from '../stores/avatarStore'
+import { useGenerationStore } from '../stores/generationStore'
+import { type TabId, useNavigationStore } from '../stores/navigationStore'
 
 const TAB_ORDER: TabId[] = ['prompts', 'generate', 'avatars', 'machine', 'history']
 
@@ -12,7 +12,12 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return
 
       if (e.metaKey && e.key >= '1' && e.key <= '5') {
         e.preventDefault()

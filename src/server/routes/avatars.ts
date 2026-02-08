@@ -1,17 +1,17 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import express from 'express'
-import multer from 'multer'
-import path from 'path'
-import fs from 'fs/promises'
 import rateLimit from 'express-rate-limit'
-import { generateAvatar, generateAvatarFromReference } from '../services/avatar.js'
-import { generateVoiceoverScript, refineScript } from '../services/voiceover.js'
-import { textToSpeech, listVoices, getAvailableModels } from '../services/tts.js'
-import { createHedraVideo, downloadHedraVideo } from '../services/hedra.js'
-import { generateKlingVideo, downloadKlingVideo } from '../services/kling.js'
-import { notify } from '../services/notifications.js'
+import multer from 'multer'
 import type { AuthRequest } from '../middleware/auth.js'
-import { sendError, sendSuccess } from '../utils/http.js'
+import { generateAvatar, generateAvatarFromReference } from '../services/avatar.js'
+import { createHedraVideo, downloadHedraVideo } from '../services/hedra.js'
+import { downloadKlingVideo, generateKlingVideo } from '../services/kling.js'
+import { notify } from '../services/notifications.js'
 import { createPipelineSpan } from '../services/telemetry.js'
+import { getAvailableModels, listVoices, textToSpeech } from '../services/tts.js'
+import { generateVoiceoverScript, refineScript } from '../services/voiceover.js'
+import { sendError, sendSuccess } from '../utils/http.js'
 
 interface AvatarsRouterConfig {
   projectRoot: string
@@ -111,7 +111,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       sendError(res, 400, 'No files uploaded', 'NO_FILES_UPLOADED')
       return
     }
-    const uploaded = files.map(f => ({
+    const uploaded = files.map((f) => ({
       name: f.filename,
       filename: f.filename,
       url: `/avatars/${encodeURIComponent(f.filename)}`,
@@ -163,10 +163,22 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     const file = req.file
     try {
       const { prompt, aspectRatio } = req.body
-      if (!file) { sendError(res, 400, 'Reference image is required', 'MISSING_REFERENCE_IMAGE'); return }
-      if (!prompt || typeof prompt !== 'string') { sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT'); return }
-      if (prompt.length > MAX_PROMPT_LENGTH) { sendError(res, 400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`, 'PROMPT_TOO_LONG'); return }
-      if (aspectRatio && !VALID_ASPECT_RATIOS.includes(aspectRatio)) { sendError(res, 400, 'Invalid aspect ratio', 'INVALID_ASPECT_RATIO'); return }
+      if (!file) {
+        sendError(res, 400, 'Reference image is required', 'MISSING_REFERENCE_IMAGE')
+        return
+      }
+      if (!prompt || typeof prompt !== 'string') {
+        sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT')
+        return
+      }
+      if (prompt.length > MAX_PROMPT_LENGTH) {
+        sendError(res, 400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`, 'PROMPT_TOO_LONG')
+        return
+      }
+      if (aspectRatio && !VALID_ASPECT_RATIOS.includes(aspectRatio)) {
+        sendError(res, 400, 'Invalid aspect ratio', 'INVALID_ASPECT_RATIO')
+        return
+      }
 
       const imageBuffer = await fs.readFile(file.path)
       const dataUrl = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`
@@ -200,11 +212,26 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     let span: ReturnType<typeof createPipelineSpan> | null = null
     try {
       const { concept, duration, examples, tone } = req.body
-      if (!concept || typeof concept !== 'string') { sendError(res, 400, 'Concept is required', 'INVALID_CONCEPT'); return }
-      if (concept.length > 500) { sendError(res, 400, 'Concept too long (max 500 characters)', 'CONCEPT_TOO_LONG'); return }
-      if (!duration || typeof duration !== 'number' || duration < 5 || duration > 120) { sendError(res, 400, 'Duration must be between 5 and 120 seconds', 'INVALID_DURATION'); return }
-      if (tone && !VALID_TONES.includes(tone)) { sendError(res, 400, 'Invalid tone', 'INVALID_TONE'); return }
-      if (examples && (!Array.isArray(examples) || examples.length > 5)) { sendError(res, 400, 'Examples must be an array with max 5 items', 'INVALID_EXAMPLES'); return }
+      if (!concept || typeof concept !== 'string') {
+        sendError(res, 400, 'Concept is required', 'INVALID_CONCEPT')
+        return
+      }
+      if (concept.length > 500) {
+        sendError(res, 400, 'Concept too long (max 500 characters)', 'CONCEPT_TOO_LONG')
+        return
+      }
+      if (!duration || typeof duration !== 'number' || duration < 5 || duration > 120) {
+        sendError(res, 400, 'Duration must be between 5 and 120 seconds', 'INVALID_DURATION')
+        return
+      }
+      if (tone && !VALID_TONES.includes(tone)) {
+        sendError(res, 400, 'Invalid tone', 'INVALID_TONE')
+        return
+      }
+      if (examples && (!Array.isArray(examples) || examples.length > 5)) {
+        sendError(res, 400, 'Examples must be an array with max 5 items', 'INVALID_EXAMPLES')
+        return
+      }
       span = createPipelineSpan({
         pipeline: 'avatars.script',
         metadata: { conceptLength: concept.length, duration, tone: tone || 'default' },
@@ -226,9 +253,18 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
   router.post('/script/refine', avatarLimiter, async (req, res) => {
     try {
       const { script, feedback, duration } = req.body
-      if (!script || typeof script !== 'string') { sendError(res, 400, 'Script is required', 'INVALID_SCRIPT'); return }
-      if (!feedback || typeof feedback !== 'string') { sendError(res, 400, 'Feedback is required', 'INVALID_FEEDBACK'); return }
-      if (script.length > MAX_TEXT_LENGTH || feedback.length > 1000) { sendError(res, 400, 'Input too long', 'INPUT_TOO_LONG'); return }
+      if (!script || typeof script !== 'string') {
+        sendError(res, 400, 'Script is required', 'INVALID_SCRIPT')
+        return
+      }
+      if (!feedback || typeof feedback !== 'string') {
+        sendError(res, 400, 'Feedback is required', 'INVALID_FEEDBACK')
+        return
+      }
+      if (script.length > MAX_TEXT_LENGTH || feedback.length > 1000) {
+        sendError(res, 400, 'Input too long', 'INPUT_TOO_LONG')
+        return
+      }
 
       console.log('[Script] Refining script...')
       const result = await refineScript(script, feedback, duration || 30)
@@ -257,10 +293,22 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     let span: ReturnType<typeof createPipelineSpan> | null = null
     try {
       const { text, voiceId, modelId } = req.body
-      if (!text || typeof text !== 'string') { sendError(res, 400, 'Text is required', 'INVALID_TEXT'); return }
-      if (text.length > MAX_TEXT_LENGTH) { sendError(res, 400, `Text too long (max ${MAX_TEXT_LENGTH} characters)`, 'TEXT_TOO_LONG'); return }
-      if (!voiceId || typeof voiceId !== 'string') { sendError(res, 400, 'Voice ID is required', 'INVALID_VOICE_ID'); return }
-      if (voiceId.length > 100 || !/^[a-zA-Z0-9_-]+$/.test(voiceId)) { sendError(res, 400, 'Invalid voice ID format', 'INVALID_VOICE_ID'); return }
+      if (!text || typeof text !== 'string') {
+        sendError(res, 400, 'Text is required', 'INVALID_TEXT')
+        return
+      }
+      if (text.length > MAX_TEXT_LENGTH) {
+        sendError(res, 400, `Text too long (max ${MAX_TEXT_LENGTH} characters)`, 'TEXT_TOO_LONG')
+        return
+      }
+      if (!voiceId || typeof voiceId !== 'string') {
+        sendError(res, 400, 'Voice ID is required', 'INVALID_VOICE_ID')
+        return
+      }
+      if (voiceId.length > 100 || !/^[a-zA-Z0-9_-]+$/.test(voiceId)) {
+        sendError(res, 400, 'Invalid voice ID format', 'INVALID_VOICE_ID')
+        return
+      }
       span = createPipelineSpan({
         pipeline: 'avatars.tts',
         metadata: { textLength: text.length, voiceId, modelId: modelId || 'default' },
@@ -292,8 +340,14 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
     try {
       const { imageUrl, audioUrl } = req.body
-      if (!imageUrl) { sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL'); return }
-      if (!audioUrl) { sendError(res, 400, 'Audio URL is required', 'MISSING_AUDIO_URL'); return }
+      if (!imageUrl) {
+        sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL')
+        return
+      }
+      if (!audioUrl) {
+        sendError(res, 400, 'Audio URL is required', 'MISSING_AUDIO_URL')
+        return
+      }
       span = createPipelineSpan({
         pipeline: 'avatars.lipsync',
         userId: req.user?.id,
@@ -313,14 +367,24 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         audioPath = sanitizePath(outputsDir, path.basename(decodeURIComponent(audioUrl)))
       }
 
-      if (!imagePath) { sendError(res, 400, 'Invalid image path — must be a local avatar or output', 'INVALID_IMAGE_PATH'); return }
-      if (!audioPath) { sendError(res, 400, 'Invalid audio path — must be a local output', 'INVALID_AUDIO_PATH'); return }
+      if (!imagePath) {
+        sendError(res, 400, 'Invalid image path — must be a local avatar or output', 'INVALID_IMAGE_PATH')
+        return
+      }
+      if (!audioPath) {
+        sendError(res, 400, 'Invalid audio path — must be a local output', 'INVALID_AUDIO_PATH')
+        return
+      }
 
-      try { await fs.access(imagePath) } catch {
+      try {
+        await fs.access(imagePath)
+      } catch {
         sendError(res, 400, `Image file not found: ${path.basename(imagePath)}`, 'IMAGE_NOT_FOUND')
         return
       }
-      try { await fs.access(audioPath) } catch {
+      try {
+        await fs.access(audioPath)
+      } catch {
         sendError(res, 400, `Audio file not found: ${path.basename(audioPath)}`, 'AUDIO_NOT_FOUND')
         return
       }
@@ -332,7 +396,8 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       const outputFilename = `lipsync_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
       await downloadHedraVideo(result.videoUrl, path.join(outputsDir, outputFilename))
 
-      if (req.user?.id) notify(req.user.id, 'lipsync_complete', 'Lipsync Video Ready', 'Your talking avatar video is ready to download')
+      if (req.user?.id)
+        notify(req.user.id, 'lipsync_complete', 'Lipsync Video Ready', 'Your talking avatar video is ready to download')
       span.success({ outputFile: outputFilename, generationId: result.generationId })
 
       sendSuccess(res, {
@@ -343,7 +408,13 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     } catch (error) {
       console.error('[Lipsync] Generation failed:', error)
       span?.error(error)
-      sendError(res, 500, 'Failed to create lipsync video', 'LIPSYNC_FAILED', error instanceof Error ? error.message : 'Unknown error')
+      sendError(
+        res,
+        500,
+        'Failed to create lipsync video',
+        'LIPSYNC_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
     }
   })
 
@@ -354,11 +425,26 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
     try {
       const { imageUrl, prompt, duration, aspectRatio } = req.body
-      if (!imageUrl || typeof imageUrl !== 'string') { sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL'); return }
-      if (!prompt || typeof prompt !== 'string') { sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT'); return }
-      if (prompt.length > MAX_PROMPT_LENGTH) { sendError(res, 400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`, 'PROMPT_TOO_LONG'); return }
-      if (duration && !['5', '10'].includes(String(duration))) { sendError(res, 400, 'Duration must be 5 or 10', 'INVALID_DURATION'); return }
-      if (aspectRatio && !VALID_ASPECT_RATIOS.includes(aspectRatio)) { sendError(res, 400, 'Invalid aspect ratio', 'INVALID_ASPECT_RATIO'); return }
+      if (!imageUrl || typeof imageUrl !== 'string') {
+        sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL')
+        return
+      }
+      if (!prompt || typeof prompt !== 'string') {
+        sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT')
+        return
+      }
+      if (prompt.length > MAX_PROMPT_LENGTH) {
+        sendError(res, 400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`, 'PROMPT_TOO_LONG')
+        return
+      }
+      if (duration && !['5', '10'].includes(String(duration))) {
+        sendError(res, 400, 'Duration must be 5 or 10', 'INVALID_DURATION')
+        return
+      }
+      if (aspectRatio && !VALID_ASPECT_RATIOS.includes(aspectRatio)) {
+        sendError(res, 400, 'Invalid aspect ratio', 'INVALID_ASPECT_RATIO')
+        return
+      }
       span = createPipelineSpan({
         pipeline: 'avatars.i2v',
         userId: req.user?.id,
@@ -371,9 +457,14 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       } else if (imageUrl.startsWith('/outputs/')) {
         imagePath = sanitizePath(outputsDir, path.basename(decodeURIComponent(imageUrl)))
       }
-      if (!imagePath) { sendError(res, 400, 'Invalid image path — must be a local avatar or output', 'INVALID_IMAGE_PATH'); return }
+      if (!imagePath) {
+        sendError(res, 400, 'Invalid image path — must be a local avatar or output', 'INVALID_IMAGE_PATH')
+        return
+      }
 
-      try { await fs.access(imagePath) } catch {
+      try {
+        await fs.access(imagePath)
+      } catch {
         sendError(res, 400, `Image file not found: ${path.basename(imagePath)}`, 'IMAGE_NOT_FOUND')
         return
       }
@@ -401,7 +492,13 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     } catch (error) {
       console.error('[I2V] Generation failed:', error)
       span?.error(error)
-      sendError(res, 500, 'Failed to generate video', 'I2V_FAILED', error instanceof Error ? error.message : 'Unknown error')
+      sendError(
+        res,
+        500,
+        'Failed to generate video',
+        'I2V_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
     }
   })
 
@@ -410,9 +507,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
     if (error instanceof multer.MulterError) {
       const code = error.code === 'LIMIT_FILE_SIZE' ? 'FILE_TOO_LARGE' : 'UPLOAD_FAILED'
-      const message = error.code === 'LIMIT_FILE_SIZE'
-        ? 'File too large (max 10MB)'
-        : error.message || 'Upload failed'
+      const message = error.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10MB)' : error.message || 'Upload failed'
       sendError(res, 400, message, code)
       return
     }

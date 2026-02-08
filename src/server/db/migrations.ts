@@ -1,6 +1,6 @@
-import Database from 'better-sqlite3'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+import type Database from 'better-sqlite3'
 
 interface LegacyHistoryEntry {
   id: string
@@ -46,7 +46,7 @@ function migrateHistory(db: Database.Database, dataDir: string): void {
   const userId = adminUser?.id ?? 1
 
   const insert = db.prepare(
-    'INSERT INTO history (user_id, concept, prompts, prompt_count, source, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO history (user_id, concept, prompts, prompt_count, source, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   )
 
   const insertAll = db.transaction((rows: LegacyHistoryEntry[]) => {
@@ -57,14 +57,14 @@ function migrateHistory(db: Database.Database, dataDir: string): void {
         JSON.stringify(entry.prompts),
         entry.promptCount,
         entry.source ?? 'generate',
-        entry.createdAt
+        entry.createdAt,
       )
     }
   })
 
   insertAll(entries)
 
-  const bakPath = jsonPath + '.bak'
+  const bakPath = `${jsonPath}.bak`
   fs.renameSync(jsonPath, bakPath)
   console.log(`[Migration] Migrated ${entries.length} history entries, original backed up to ${bakPath}`)
 }
@@ -90,25 +90,17 @@ function migrateFavorites(db: Database.Database, dataDir: string): void {
   const adminUser = db.prepare('SELECT id FROM users WHERE role = ?').get('admin') as { id: number } | undefined
   const userId = adminUser?.id ?? 1
 
-  const insert = db.prepare(
-    'INSERT INTO favorites (user_id, prompt, name, concept, created_at) VALUES (?, ?, ?, ?, ?)'
-  )
+  const insert = db.prepare('INSERT INTO favorites (user_id, prompt, name, concept, created_at) VALUES (?, ?, ?, ?, ?)')
 
   const insertAll = db.transaction((rows: LegacyFavorite[]) => {
     for (const fav of rows) {
-      insert.run(
-        userId,
-        JSON.stringify(fav.prompt),
-        fav.name ?? null,
-        fav.concept ?? null,
-        fav.createdAt
-      )
+      insert.run(userId, JSON.stringify(fav.prompt), fav.name ?? null, fav.concept ?? null, fav.createdAt)
     }
   })
 
   insertAll(favorites)
 
-  const bakPath = jsonPath + '.bak'
+  const bakPath = `${jsonPath}.bak`
   fs.renameSync(jsonPath, bakPath)
   console.log(`[Migration] Migrated ${favorites.length} favorites, original backed up to ${bakPath}`)
 }

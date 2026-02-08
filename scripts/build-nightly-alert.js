@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
 
 function readJson(filePath, fallback) {
   try {
@@ -35,15 +35,21 @@ const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY
 const repoBase = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/blob/${process.env.GITHUB_SHA}`
 
 const lines = fs.existsSync(logsPath)
-  ? fs.readFileSync(logsPath, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean)
+  ? fs
+      .readFileSync(logsPath, 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
   : []
-const events = lines.map((l) => {
-  try {
-    return JSON.parse(l)
-  } catch {
-    return null
-  }
-}).filter(Boolean)
+const events = lines
+  .map((l) => {
+    try {
+      return JSON.parse(l)
+    } catch {
+      return null
+    }
+  })
+  .filter(Boolean)
 const registry = readJson(registryPath, { version: 'unknown', playbooks: [] })
 const trends = readJson(trendsPath, null)
 
@@ -80,9 +86,14 @@ const pipelineErrorCount = [...pipelineErrors.values()].reduce((a, b) => a + b, 
 const criticalReasons = new Set(['budget_exceeded', 'timeout_exceeded'])
 const severity = criticalReasons.has(String(guardrailReason)) || pipelineErrorCount >= 3 ? 'critical' : 'warning'
 
-const playbook = (registry.playbooks || []).find((p) => p.provider === topProvider.key)
-  || (registry.playbooks || []).find((p) => p.provider === 'none')
-  || { id: 'PB-CORE-GENERIC', version: 'unknown', ownerTeam: 'core-platform', ownerOncall: '@core-oncall', runbookPath: 'docs/ops/runbooks/nightly-failure.md' }
+const playbook = (registry.playbooks || []).find((p) => p.provider === topProvider.key) ||
+  (registry.playbooks || []).find((p) => p.provider === 'none') || {
+    id: 'PB-CORE-GENERIC',
+    version: 'unknown',
+    ownerTeam: 'core-platform',
+    ownerOncall: '@core-oncall',
+    runbookPath: 'docs/ops/runbooks/nightly-failure.md',
+  }
 
 const regressionSummary = (() => {
   if (!trends || !trends.current || !trends.previous || !trends.delta) {
@@ -106,9 +117,10 @@ const regressionSummary = (() => {
 
   const successDelta = Number(trends.delta.successRate || 0)
   const p95DeltaMs = Number(trends.delta.p95Ms || 0)
-  const providerDelta = trends.delta.providerFailRate && typeof trends.delta.providerFailRate === 'object'
-    ? trends.delta.providerFailRate
-    : {}
+  const providerDelta =
+    trends.delta.providerFailRate && typeof trends.delta.providerFailRate === 'object'
+      ? trends.delta.providerFailRate
+      : {}
   let topRegressedProvider = 'none'
   let topRegressedProviderDelta = 0
   for (const [provider, raw] of Object.entries(providerDelta)) {
@@ -128,11 +140,11 @@ const regressionSummary = (() => {
     success_rate_current: Number(trends.current.overallSuccessRate || 0),
     success_rate_previous: Number(trends.previous.overallSuccessRate || 0),
     success_rate_delta: successDelta,
-    success_rate_status: successDelta < 0 ? 'regressed' : (successDelta > 0 ? 'improved' : 'stable'),
+    success_rate_status: successDelta < 0 ? 'regressed' : successDelta > 0 ? 'improved' : 'stable',
     p95_current_ms: Number(trends.current.overallP95Ms || 0),
     p95_previous_ms: Number(trends.previous.overallP95Ms || 0),
     p95_delta_ms: p95DeltaMs,
-    p95_status: p95DeltaMs > 0 ? 'regressed' : (p95DeltaMs < 0 ? 'improved' : 'stable'),
+    p95_status: p95DeltaMs > 0 ? 'regressed' : p95DeltaMs < 0 ? 'improved' : 'stable',
     provider_failrate_deltas: providerDelta,
     top_regressed_provider: topRegressedProvider,
     top_regressed_provider_delta: topRegressedProviderDelta,
@@ -152,7 +164,7 @@ const nextActions = [
 
 if (regressionSummary.available && regressionSummary.baseline_ready) {
   nextActions.push(
-    `Review regression: success delta ${toPercent(regressionSummary.success_rate_delta)}, p95 delta ${Number(regressionSummary.p95_delta_ms || 0).toFixed(1)}ms`
+    `Review regression: success delta ${toPercent(regressionSummary.success_rate_delta)}, p95 delta ${Number(regressionSummary.p95_delta_ms || 0).toFixed(1)}ms`,
   )
 }
 
@@ -164,7 +176,7 @@ const alertSummaryLines = [
 
 if (regressionSummary.available && regressionSummary.baseline_ready) {
   alertSummaryLines.push(
-    `Regression: success ${toPercent(regressionSummary.success_rate_previous)} -> ${toPercent(regressionSummary.success_rate_current)} (${toPercent(regressionSummary.success_rate_delta)}), p95 ${Number(regressionSummary.p95_previous_ms || 0).toFixed(1)}ms -> ${Number(regressionSummary.p95_current_ms || 0).toFixed(1)}ms (${Number(regressionSummary.p95_delta_ms || 0).toFixed(1)}ms)`
+    `Regression: success ${toPercent(regressionSummary.success_rate_previous)} -> ${toPercent(regressionSummary.success_rate_current)} (${toPercent(regressionSummary.success_rate_delta)}), p95 ${Number(regressionSummary.p95_previous_ms || 0).toFixed(1)}ms -> ${Number(regressionSummary.p95_current_ms || 0).toFixed(1)}ms (${Number(regressionSummary.p95_delta_ms || 0).toFixed(1)}ms)`,
   )
 }
 

@@ -7,8 +7,30 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-08 (Session 3: status color token migration, native module fix, full E2E verification)
+Last updated: 2026-02-08 (Session 5: Sprint 5C — Accessibility fixes)
 Project root: `/Users/pixery/Projects/pixflow`
+
+---
+
+## 0) Executive Snapshot
+
+- Product: Pixflow (Electron desktop app with embedded Express API + React renderer).
+- Current operational state: release gate chain is green locally; preflight typically reports `CONDITIONAL` until baseline sample count matures.
+- Best single verification command:
+  - `npm run gate:release`
+- Core outputs to inspect first:
+  - `/Users/pixery/Projects/pixflow/docs/ops/release-preflight.md`
+  - `/Users/pixery/Projects/pixflow/docs/ops/telemetry-baseline.md`
+  - `/Users/pixery/Projects/pixflow/docs/ops/telemetry-highlights.md`
+  - `/Users/pixery/Projects/pixflow/docs/ops/telemetry-dashboard.md`
+- Key automation/workflow files:
+  - `/Users/pixery/Projects/pixflow/.github/workflows/ci.yml`
+  - `/Users/pixery/Projects/pixflow/.github/workflows/nightly-real-smoke.yml`
+- Unit tests: 86 tests via Vitest (`npm run test`), integrated into `gate:release`.
+- Static analysis: Biome v2.3.14 linter + formatter (`npm run lint:biome`), integrated into `gate:release` as first check. All rules at `"error"` severity (0 warnings).
+- High-priority residual risk:
+  - native module rebuild path is automated, but should be validated on clean environments to confirm `@electron/rebuild` consistently rebuilds `better-sqlite3`.
+  - `better-sqlite3` requires dual-build: system Node for tests, Electron for app. Rebuild sequence: `node-gyp rebuild` → `npm run test` → `npm run native:rebuild`.
 
 ---
 
@@ -291,7 +313,11 @@ System model:
   - `npm run telemetry:check`
   - `npm run gate:release`
 - `gate:release` sequence:
-  - `lint` -> `smoke:api` -> `smoke:external` -> `telemetry:report` -> `telemetry:check`
+  - `validate:playbooks` -> `lint` -> `smoke:api` -> `smoke:desktop` -> `smoke:external`
+  - `telemetry:report` -> `telemetry:report:json` -> `telemetry:trends`
+  - `telemetry:dashboard` -> `telemetry:highlights` -> `telemetry:baseline`
+  - `threshold:propose` -> `preflight:release` -> `preflight:history`
+  - `telemetry:check:regression:block` -> `telemetry:check:release`
 - Gate env controls:
   - `PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE` (default: `1.0`)
   - `PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE` (default: `1.0`)
@@ -301,12 +327,15 @@ System model:
 15. CI and nightly automation:
 - Added PR/main CI workflow:
   - `/Users/pixery/Projects/pixflow/.github/workflows/ci.yml`
-  - runs `gate:release` (includes lint/smokes/telemetry checks)
-  - uploads telemetry artifacts (`telemetry-report.txt`, `telemetry-report.json`, `logs/telemetry-trends.json`, `logs/pipeline-events.jsonl`)
+  - runs `gate:release` (full release gate chain above)
+  - publishes `telemetry-highlights`, `telemetry-baseline`, and `release-preflight` markdown files to `$GITHUB_STEP_SUMMARY`
+  - uploads telemetry/preflight artifacts (including `docs/ops/release-preflight.*`, `docs/ops/telemetry-*`, and logs)
 - Added nightly real-provider workflow:
   - `/Users/pixery/Projects/pixflow/.github/workflows/nightly-real-smoke.yml`
   - scheduled + manual trigger
-  - runs `lint`, `smoke:external:real`, `telemetry:report`, `telemetry:check`
+  - runs `validate:playbooks`, `lint`, `smoke:external:real`
+  - runs telemetry/preflight chain (`telemetry:report*`, `telemetry:trends`, `telemetry:dashboard`, `telemetry:highlights`, `telemetry:baseline`, `threshold:propose`, `preflight:nightly`, `preflight:history`)
+  - runs `telemetry:check:nightly` and `telemetry:check:regression:warn`
   - requires GitHub Actions secrets:
     - `OPENAI_API_KEY`
     - `FAL_API_KEY`
@@ -343,6 +372,8 @@ System model:
     - `playbook_registry`
     - `runbook_url`
     - `regression_summary`
+    - `alert_summary`
+    - `next_actions`
     - `ref`
     - `sha`
   - playbook/runbook mapping is now backed by repository docs:
@@ -355,6 +386,8 @@ System model:
     - `/Users/pixery/Projects/pixflow/docs/ops/runbooks/nightly-failure.md`
   - nightly alert payload is now built by script (not inline workflow JS):
     - `/Users/pixery/Projects/pixflow/scripts/build-nightly-alert.js`
+  - webhook send path now has dedup pre-check:
+    - `npm run alert:dedup` (`/Users/pixery/Projects/pixflow/scripts/build-nightly-alert-dedup.js`)
   - payload now includes regression context from `logs/telemetry-trends.json`:
     - baseline availability
     - success-rate delta/status
@@ -375,6 +408,10 @@ System model:
     - `PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE=0.90`
     - `PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE=0.80`
     - `PIXFLOW_GATE_MAX_P95_MS=600000`
+  - nightly also generates proposal/history docs:
+    - `docs/ops/proposed-thresholds.env`
+    - `docs/ops/proposed-thresholds.md`
+    - `docs/ops/preflight-history.md`
 
 16. Telemetry trend snapshots + profile-based SLO checks:
 - Added trend snapshot generator:
@@ -467,10 +504,12 @@ System model:
   - `/Users/pixery/Projects/pixflow/src/server/smoke/desktopCriticalPaths.ts`
 - Added npm command:
   - `npm run smoke:desktop`
+  - `npm run smoke:desktop:journey` (alias, explicit naming)
 - Coverage:
   - Journey A: login -> settings/products -> generate batch -> progress poll -> history write/read
   - Journey B: avatar generate -> script -> tts -> lipsync -> i2v
-- Release gate now includes `smoke:desktop` between API smoke and external smoke.
+- Release gate now includes `smoke:desktop:journey` between API smoke and external smoke.
+- Note: this smoke validates desktop user journeys through the embedded server API; it does not boot Electron UI.
 
 23. Ops readiness (actionable alerts + SLA checklists):
 - Nightly alert payload now includes human-action fields:
@@ -551,7 +590,10 @@ System model:
 - Fix: rebuilt `better-sqlite3` using `node-gyp rebuild --target=33.4.11 --dist-url=https://electronjs.org/headers` from within `node_modules/better-sqlite3/`.
 - Note: `npx electron-rebuild` and `npx @electron/rebuild` both silently skipped the rebuild. Manual `node-gyp` was required.
 - After rebuild, Electron embedded server starts successfully.
-- Important: this rebuild is local only (not committed). After `npm install`, the rebuild must be repeated. Consider adding a `postinstall` script: `electron-rebuild -f -w better-sqlite3` or using `electron-builder` rebuild hooks.
+- Follow-up automation added in Sprint 4A:
+  - `postinstall`: `npx --yes @electron/rebuild -f -w better-sqlite3`
+  - `native:rebuild`: `npx --yes @electron/rebuild -f -w better-sqlite3`
+  - CI/nightly now run `npm run native:rebuild` after `npm ci`.
 
 29. Full E2E verification pass (Session 3):
 - Test environment: Electron dev mode (`npm run dev`), Playwright browser automation on `http://localhost:5173`.
@@ -572,6 +614,170 @@ System model:
   - Generation settings: all dropdowns render (aspect ratio, images per prompt, resolution, format)
   - The Machine: full settings panel with concept input, prompt slider, avatar grid, voiceover controls
 
+30. Sprint 4B — ErrorBoundary + UI component library adoption (Session 4):
+- Added `ErrorBoundary` React class component:
+  - `src/renderer/components/ui/ErrorBoundary.tsx`
+  - Wraps all lazy-loaded pages in `AppShell.tsx` with `key={activeTab}` to reset on tab switch
+  - Shows error message + "Try Again" button on crash
+- Added `Textarea` UI component:
+  - `src/renderer/components/ui/Textarea.tsx`
+  - Matches `Input` component pattern with label/error support
+- Extended `Button` component with 3 new variants:
+  - `success` (solid green), `warning` (orange gradient), `accent` (cyan gradient)
+- UI component library adoption across all 5 page components:
+  - `LibraryPage.tsx` — inline buttons → `<Button>` with ghost/primary variants
+  - `PromptFactoryPage.tsx` — buttons → `<Button>`, concept input → `<Input>`, prompt count → `<Slider>`
+  - `AssetMonsterPage.tsx` — generation settings → `<Select>`, count slider → `<Slider>`, buttons → `<Button>`, status → `<Badge>`
+  - `AvatarStudioPage.tsx` — parameter dropdowns → `<Select>`, sliders → `<Slider>`, text areas → `<Textarea>`, buttons → `<Button>`
+  - `MachinePage.tsx` — concept → `<Input>`, duration/tone/voice → `<Select>`, prompt count → `<Slider>`, buttons → `<Button>`
+- Static options arrays extracted to module-level constants (DURATION_OPTIONS, TONE_OPTIONS, GENDER_OPTIONS, etc.)
+- Structural elements intentionally NOT migrated: toggle groups (segmented controls), avatar grid buttons, download `<a>` links, raw textareas with custom flex layouts
+- Code review fixes (HIGH+MID priority):
+  - Fixed `e.target as HTMLInputElement` → `e.currentTarget.value` across all Slider onChange handlers (4 files)
+  - Added `alt` attributes to `<img>` elements missing them (MachinePage)
+  - Added `aria-label` to ~12 icon-only `<Button>` instances across all 5 pages (WCAG 1.1.1 compliance)
+  - Added `displayName` to `Textarea` forwardRef component
+- Verification:
+  - `tsc --noEmit`: 0 errors
+  - `npm run build`: clean production build, all lazy chunks correctly code-split
+  - `npm run smoke:desktop:journey`: all journeys pass
+- Known MID-priority items deferred to future sprint:
+  - Two raw `<textarea>` elements not migrated to Textarea component (PromptFactoryPage editor, AssetMonsterPage custom prompt) due to layout constraints
+
+31. Sprint 4C — Button refinement + !important elimination (Session 4):
+- Extended `Button` component with `xs` size variant:
+  - `p-1 text-xs gap-1` — designed for icon-only buttons that previously needed `!p-1`
+- Extended `Button` component with 3 ghost color sub-variants:
+  - `ghost-danger`: transparent bg, text-surface-400, hover → bg-danger-muted/30 + text-danger
+  - `ghost-warning`: transparent bg, text-surface-400, hover → bg-warning-muted/30 + text-warning
+  - `ghost-muted`: transparent bg, text-surface-400, hover → bg-surface-100 + text-surface-900
+- Eliminated all ~20 `!important` overrides across 5 page components:
+  - `LibraryPage.tsx` — trash → ghost-danger xs, Load All → ghost xs, copy → ghost xs, star → ghost-warning xs
+  - `PromptFactoryPage.tsx` — tab toggles → ghost-muted, overlay close → ghost xs, copy → ghost xs, star → ghost-warning xs, cancel research → ghost-danger
+  - `AssetMonsterPage.tsx` — Clear All → ghost-danger, generate button padding normalized, dismiss → ghost-muted xs
+  - `AvatarStudioPage.tsx` — dismiss → ghost-muted xs
+  - `MachinePage.tsx` — dismiss → ghost-muted xs
+- Post-sweep: 0 `!important` overrides remaining (verified via grep)
+- Textarea resize: changed hardcoded `resize-none` → `resize-y` for user flexibility
+- Fixed AssetMonsterPage export inconsistency:
+  - Changed `export function AssetMonsterPage` → `export default function AssetMonsterPage`
+  - Simplified AppShell lazy import (removed `.then()` workaround)
+- Verification:
+  - `tsc --noEmit`: 0 errors
+  - `npm run build`: clean (CSS size dropped 47.87 → 47.73 kB)
+  - `npm run smoke:desktop:journey`: all journeys pass
+- Codex CLI unavailable this session (model `gpt-5.3-codex` not found). Self-review performed instead.
+
+32. Sprint 5A — Vitest unit test foundation (Session 5):
+- Installed Vitest v4.0.18 + @vitest/coverage-v8 as devDependencies.
+- Created `vitest.config.ts`:
+  - `pool: 'forks'` (required — `better-sqlite3` is a native addon that can't load in worker threads; forks also give process-level singleton isolation between test files)
+  - `environment: 'node'`, `globals: false`, `testTimeout: 10_000`
+  - Coverage: v8 provider, includes `src/server/**/*.ts`, excludes test files + smoke + telemetry CLI scripts
+- Created `src/server/test-helpers.ts`:
+  - `setupTestDb()` — creates temp dir via `mkdtemp()`, calls `initDatabase(tmpDir)`, returns `{ tmpDir, cleanup() }`
+  - `mockResponse()` — minimal Express Response spy with `_status` and `_json` capture
+  - `withEnv(overrides, fn)` — temporarily sets env vars, restores originals in finally block
+- Created 6 test files (86 tests total, all passing):
+  - `src/server/utils/http.test.ts` (7 tests) — sendSuccess/sendError envelope shape
+  - `src/server/db/index.test.ts` (10 tests) — DB singleton lifecycle, WAL mode, foreign keys, backup, idempotent init/close; each test creates its own tmpDir via try/finally
+  - `src/server/services/providerRuntime.test.ts` (19 tests) — isMockProvidersEnabled env parsing, mock data URL/PNG/ID shape, classifyProviderFailure classification, runWithRetries retry+telemetry, recordMockProviderSuccess; uses `vi.mock('./telemetry.js')` for telemetry stubbing
+  - `src/server/services/telemetry.test.ts` (6 tests) — recordPipelineEvent JSONL write/validation/disabled/error-swallow, createPipelineSpan success/error with durationMs
+  - `src/server/services/auth.test.ts` (19 tests) — createUser/authenticateUser/verifyToken/getUserById/changePassword/listUsers/ensureBootstrapAdminIfConfigured
+  - `src/server/services/history.test.ts` (25 tests) — getHistory/addToHistory/deleteHistoryEntry/clearHistory/getFavorites/addToFavorites/removeFromFavorites/updateFavoriteName including auto-prune at 100 and multi-user isolation
+- Updated `package.json`:
+  - Added scripts: `test` (vitest run), `test:watch` (vitest), `test:coverage` (vitest run --coverage)
+  - Inserted `npm run test` into `gate:release` between `lint` and `smoke:api` (fast-to-slow pyramid ordering)
+- Updated `tsconfig.node.json`: added `vitest.config.ts` to include array.
+- Native module dual-build pattern established:
+  - Tests require `better-sqlite3` compiled for system Node (`npx --yes node-gyp rebuild --directory=node_modules/better-sqlite3`)
+  - Electron app requires `better-sqlite3` compiled for Electron (`npm run native:rebuild`)
+  - Run tests first, then rebuild for Electron before running the app
+- Known production code observation: `backupDatabase()` in `db/index.ts` doesn't await `db.backup()` — tests use a 200ms delay workaround; may warrant a separate fix.
+- Code review: Codex CLI unavailable (model `gpt-5.3-codex` not found). Self-review performed; fixed 2 MID-priority issues:
+  - Replaced CJS `require('jsonwebtoken')` with ESM `import jwt from 'jsonwebtoken'` in auth.test.ts
+  - Removed redundant destructured `fs/promises` import in telemetry.test.ts (consolidated to single namespace import)
+- Verification: 86/86 tests pass, `tsc --noEmit` clean, `npm run build` clean, Electron native rebuild successful.
+
+33. Sprint 5B — Biome linter + formatter (Session 5):
+- Installed `@biomejs/biome` v2.3.14 as devDependency.
+- Created `biome.json` (Biome v2 schema):
+  - `vcs.useIgnoreFile: true` — respects `.gitignore` (avoids duplicating exclusions)
+  - `files.includes` — positive pattern targeting `src/**`, `scripts/**`, config files
+  - Formatter: space indent (2), line width 120, single quotes, no semicolons, trailing commas all
+  - Linter: recommended rules + selective overrides (see below)
+  - CSS: `tailwindDirectives: true` parser, formatter + linter disabled (Tailwind v4 compatibility)
+  - Assist: `organizeImports` enabled
+- Rule configuration decisions:
+  - `noNonNullAssertion: "off"` — 41 instances, mostly legitimate post-middleware assertions; tsc strict null checks cover the dangerous cases
+  - `useIterableCallbackReturn: "warn"` — false positives with `.forEach()` in `onQueueUpdate` callbacks
+  - `noArrayIndexKey: "warn"` — often valid with static React lists
+  - `useNodejsImportProtocol: "error"` — enforces `node:` prefix on all Node.js builtins
+  - 6 a11y rules set to `"warn"`: `useButtonType`, `useKeyWithClickEvents`, `useMediaCaption`, `noStaticElementInteractions`, `noLabelWithoutControl`, `noRedundantAlt` (61 warnings — deferred to accessibility sprint)
+- Added `package.json` scripts:
+  - `lint:biome` — `biome check .` (CI-safe, no writes)
+  - `format` — `biome format --write .` (dev workflow)
+  - `format:check` — `biome format .` (CI-safe)
+- Updated `gate:release`: inserted `npm run lint:biome &&` at the beginning (fastest check, sub-second)
+- Auto-fixed 98 source files via `biome check --fix --unsafe`:
+  - `node:` protocol added to all Node.js builtin imports (83 instances)
+  - `import type` separated from value imports (`useImportType` rule)
+  - Import ordering alphabetized (`organizeImports`)
+  - Optional chaining applied where applicable (`useOptionalChain`)
+  - Template literals used instead of concatenation (`useTemplate`)
+  - Prototype builtins replaced (`noPrototypeBuiltins`)
+  - `@ts-ignore` → `@ts-expect-error` (`noTsIgnore`)
+  - Unused imports removed
+  - Formatting normalized (trailing commas, line wrapping to 120 chars)
+- Manual code fixes (3 files):
+  - `src/renderer/components/asset-monster/AssetMonsterPage.tsx` — removed unused `previewImage` destructure
+  - `src/renderer/components/avatar-studio/AvatarStudioPage.tsx` — removed unused `fullSizeAvatarUrl` destructure
+  - `src/server/routes/auth.ts` — replaced `catch (err: any)` with `catch (err)` + `instanceof Error` type narrowing
+- CI workflow updates:
+  - `.github/workflows/ci.yml` — added `native:rebuild` step after `npm ci`
+  - `.github/workflows/nightly-real-smoke.yml` — added `native:rebuild` step + split Lint into `Lint (Biome)` + `Lint (TypeScript)`
+- Code review (Codex CLI unavailable, self-review performed):
+  - HIGH: nightly workflow missing `lint:biome` — FIXED (split into separate Biome + TypeScript lint steps)
+  - MID: `useIterableCallbackReturn` and `noArrayIndexKey` promoted from `"off"` to `"warn"` — FIXED
+  - MID: `noNonNullAssertion` kept as `"off"` — tsc strict null checks provide equivalent safety; 41 instances would add significant warning noise
+  - MID: `gate:release` chain maintainability — noted for future refactor to shell script
+  - LOW: all auto-fix transformations verified safe (`node:` protocol in Electron, `import type` separation, import reordering)
+- Verification: `biome check .` 0 errors/77 warnings, `tsc --noEmit` clean, 86/86 tests pass, `npm run build` clean, Electron native rebuild successful.
+
+34. Sprint 5C — Accessibility fixes (Session 5):
+- Fixed all 77 Biome warnings (61 a11y + 9 useIterableCallbackReturn + 7 noArrayIndexKey) and promoted all rules from `"warn"` to `"error"`.
+- `useButtonType` (30+ instances across 14 files):
+  - Added `type = 'button'` as default prop in `Button.tsx` component (prevents accidental form submission)
+  - Added explicit `type="button"` to every raw `<button>` element across 13 component files
+  - Files: Button, ErrorBoundary, Modal, TopNav, UserMenu, NotificationBell, ProductSelector, FeedbackWidget, AvatarPreviewOverlay, ImagePreviewOverlay, AssetMonsterPage, AvatarStudioPage, MachinePage
+- `useKeyWithClickEvents` + `noStaticElementInteractions` (overlay backdrops):
+  - Added `role="presentation"` to backdrop divs in Modal, AvatarPreviewOverlay, ImagePreviewOverlay
+  - Modal backdrop also has biome-ignore for `noStaticElementInteractions` (role="presentation" suppresses keyboard rule but not static interaction rule)
+  - Inner content containers (stopPropagation wrappers) inherit suppression from parent's `role="presentation"` — no additional attributes needed
+- `noLabelWithoutControl` (5 instances):
+  - Changed standalone `<label>` to `<span>` in Slider.tsx, AssetMonsterPage (Custom Prompt), AvatarStudioPage (Select Voice, Duration)
+  - Added `aria-label={label}` to Slider's `<input type="range">` to maintain screen reader association
+  - PromptFactoryPage `<label>` wrapping hidden file input left as-is (correct HTML pattern)
+- `noRedundantAlt` (1 instance): MachinePage `alt="Generated image"` → `alt="Generated result"`
+- `useMediaCaption` (5 instances): biome-ignore on AI-generated `<audio>`/`<video>` elements (AvatarStudioPage: 3, MachinePage: 2) — no captions available for AI-generated content
+- `noArrayIndexKey` (7 instances): biome-ignore on static/append-only lists (PromptFactoryPage: 3, AssetMonsterPage: 2, AvatarStudioPage: 1, MachinePage: 1)
+  - Suppression placement: inside JSX element, directly before `key=` prop (Biome v2 reports at prop location, not element start)
+- `useIterableCallbackReturn` (9 instances): biome-ignore on side-effect-only `.forEach()` callbacks
+  - Server services: fal.ts, avatar.ts (2), tts.ts, lipsync.ts, kling.ts (onQueueUpdate logging)
+  - Renderer stores: machineStore.ts, avatarStore.ts, generationStore.ts (FormData append)
+- Div-to-button conversions (4 instances): clickable `<div>` elements converted to `<button type="button">` with `w-full text-left` classes
+  - PromptFactoryPage: prompt list items
+  - LibraryPage: favorites list items, history entries
+  - AvatarStudioPage: generated avatar selector + clickable img wrapped in button
+- `biome.json` rule promotion: all 8 rules changed from `"warn"` to `"error"` (useButtonType, useKeyWithClickEvents, useMediaCaption, noStaticElementInteractions, noLabelWithoutControl, noRedundantAlt, noArrayIndexKey, useIterableCallbackReturn)
+- Code review findings (Codex CLI unavailable, self-review performed):
+  - HIGH: none
+  - MID (fixed): inner overlay content containers had `role="presentation"` which is semantically incorrect for containers with interactive children — removed (parent's role cascades)
+  - MID (fixed): Slider `<span>` label had no programmatic association to range input — added `aria-label={label}` to `<input>`
+  - MID (noted for follow-up): AvatarPreviewOverlay has no Escape-key keyboard support (pre-existing, not a Sprint 5C regression)
+  - LOW: `noArrayIndexKey` suppressions on prompt/avatar lists that can change during session — acceptable, React reconciliation risk minimal
+- Verification: `biome check .` 0 errors/0 warnings across 119 files, `tsc --noEmit` clean, `npm run build` clean.
+
 ---
 
 ## 6) Remaining Risks / Gaps
@@ -584,16 +790,20 @@ System model:
 - Telemetry now has report + trend snapshots + markdown dashboard snapshot + baseline history/suggestions.
 - Next depth step: publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
 
-3. Native module rebuild not automated:
-- `better-sqlite3` requires manual `node-gyp rebuild --target=<electron-version> --dist-url=https://electronjs.org/headers` after every `npm install`.
-- Risk: fresh installs or CI environments will fail at runtime with `NODE_MODULE_VERSION` mismatch.
-- Fix: add `postinstall` script or use `electron-builder` rebuild hooks.
+3. Native module rebuild reliability:
+- Rebuild automation exists (`postinstall` + explicit CI/nightly `native:rebuild` step).
+- Residual risk: verify rebuild behavior on clean environments and after Electron version bumps, since previous sessions observed `electron-rebuild` skip behavior in some setups.
 
-4. UI component library adoption gap:
-- 11 UI components exist in `src/renderer/components/ui/` (Button, Input, Select, Slider, Card, Modal, Badge, Skeleton, EmptyState, DropZone, ProgressBar).
-- None are imported or used in the 5 page components — pages still use inline `<button>`, `<input>`, `<select>` with Tailwind classes.
-- This is a consistency/maintainability gap, not a functional one. All pages work and use semantic tokens correctly.
-- Risk: low (cosmetic). Component adoption carries regression risk and should be done incrementally with visual diff testing.
+4. ~~Biome warning baseline~~ — RESOLVED (Session 5, Sprint 5C):
+- All 77 warnings fixed and rules promoted from `"warn"` to `"error"`.
+- `biome check .` now reports 0 errors/0 warnings.
+- New violations will fail CI immediately (no warning drift possible).
+
+5. UI component library adoption gap — RESOLVED (Session 4, Sprint 4C):
+- 13 UI components in `src/renderer/components/ui/` (Button, Input, Select, Slider, Card, Modal, Badge, Skeleton, EmptyState, DropZone, ProgressBar, ErrorBoundary, Textarea).
+- All 5 page components use shared UI components. Button has 10 variants (primary, secondary, ghost, ghost-danger, ghost-warning, ghost-muted, danger, success, warning, accent) and 4 sizes (xs, sm, md, lg).
+- 0 `!important` overrides remaining. Two raw textareas remain un-migrated due to custom layout needs (intentional).
+- Risk: none. Migration complete.
 
 ---
 
@@ -605,28 +815,35 @@ System model:
 3. ~~Expose preflight decision history~~ → **DONE** (Session 2)
 4. ~~Status color token migration~~ → **DONE** (Session 3): all hardcoded `emerald/amber/red/cyan` → semantic `success/warning/danger/accent` tokens.
 5. ~~E2E verification~~ → **DONE** (Session 3): all tabs, auth, product switching, theme toggle, feedback widget verified.
+6. ~~UI component library adoption~~ → **DONE** (Session 4): all 5 pages migrated to shared Button/Input/Select/Slider/Textarea/Badge.
+7. ~~React ErrorBoundary~~ → **DONE** (Session 4): wraps all lazy-loaded pages in AppShell.
+8. ~~Accessibility: icon-only button aria-labels~~ → **DONE** (Session 4): ~12 instances fixed across all pages.
+9. ~~Button refinement (xs size + ghost sub-variants)~~ → **DONE** (Session 4, Sprint 4C): added xs size, ghost-danger/warning/muted variants, eliminated all !important overrides.
+10. ~~AssetMonsterPage export fix~~ → **DONE** (Session 4, Sprint 4C): switched to export default, simplified lazy import.
+11. ~~Textarea resize-y~~ → **DONE** (Session 4, Sprint 4C): changed from resize-none to resize-y.
+12. ~~Vitest test runner + unit tests~~ → **DONE** (Session 5, Sprint 5A): 86 tests across 6 modules (http, db, providerRuntime, telemetry, auth, history). Integrated into gate:release.
+13. ~~Biome linter + formatter~~ → **DONE** (Session 5, Sprint 5B): Biome v2.3.14, 98 files auto-fixed, 3 manual fixes, integrated into gate:release + CI + nightly.
+14. ~~Accessibility sprint~~ → **DONE** (Session 5, Sprint 5C): All 77 Biome warnings fixed (30+ useButtonType, overlay role/keyboard patterns, label associations, media captions, array index keys, forEach callbacks). All rules promoted from `"warn"` to `"error"`. 0 errors/0 warnings.
 
 **Immediate priorities:**
 
-1. Automate native module rebuild:
-- Add `postinstall` script to `package.json`: `"postinstall": "electron-rebuild -f -w better-sqlite3"` or equivalent.
-- Verify it works on clean `npm install`.
+1. Validate native rebuild automation on clean environments:
+- Confirm `postinstall` + `native:rebuild` works across fresh local clone and CI run.
+- If intermittent skips recur, add fallback script with direct `node-gyp` parameters for `better-sqlite3`.
 
-2. UI component library adoption (Phase D+):
-- Incrementally replace inline `<button>`/`<input>`/`<select>` in page components with `<Button>`/`<Input>`/`<Select>` from component library.
-- Start with lowest-risk pages: LibraryPage → PromptFactoryPage → AssetMonsterPage → AvatarStudioPage → MachinePage.
-- Test each page visually after migration.
+2. AvatarPreviewOverlay keyboard support: add Escape-key dismiss (Modal and ImagePreviewOverlay already have this, AvatarPreviewOverlay does not).
 
 **Codex handoff (quality foundation):**
-3. Add Vitest test runner + unit tests for core backend services (history, telemetry, providerRuntime).
-4. Add Biome or ESLint for static analysis beyond `tsc --noEmit`.
-5. Add React ErrorBoundary wrappers around lazy-loaded page components.
+3. ~~Add Vitest test runner + unit tests for core backend services.~~ → **DONE** (Session 5, Sprint 5A).
+4. ~~Add Biome or ESLint for static analysis beyond `tsc --noEmit`.~~ → **DONE** (Session 5, Sprint 5B).
+5. ~~Add React ErrorBoundary wrappers around lazy-loaded page components.~~ → **DONE** (Session 4)
 6. Improve mock smoke tests to cover provider failure scenarios (timeout, rate limit, partial failure).
+7. Refactor `gate:release` from single `&&` chain to shell script for maintainability.
 
 **Feature backlog:**
-7. Publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
-8. Add provider-level SLA tracking with per-provider uptime windows.
-9. Integrate threshold proposals into automated PR creation via GitHub Actions.
+8. Publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
+9. Add provider-level SLA tracking with per-provider uptime windows.
+10. Integrate threshold proposals into automated PR creation via GitHub Actions.
 
 ---
 

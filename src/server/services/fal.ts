@@ -1,11 +1,17 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { fal } from '@fal-ai/client'
-import fs from 'fs/promises'
-import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { notify } from './notifications.js'
 import { ensureFalConfig } from './falConfig.js'
+import { notify } from './notifications.js'
+import {
+  isMockProvidersEnabled,
+  makeMockId,
+  makeMockPngDataUrl,
+  recordMockProviderSuccess,
+  runWithRetries,
+} from './providerRuntime.js'
 import { createPipelineSpan } from './telemetry.js'
-import { isMockProvidersEnabled, makeMockId, makeMockPngDataUrl, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
 
 const MODEL_ID = 'fal-ai/nano-banana-pro/edit'
 
@@ -60,7 +66,7 @@ async function fileToDataUrl(filePath: string): Promise<string> {
 export async function generateImage(
   referenceImagePaths: string | string[],
   prompt: string,
-  options: { resolution?: string; aspectRatio?: string; numImages?: number; outputFormat?: string } = {}
+  options: { resolution?: string; aspectRatio?: string; numImages?: number; outputFormat?: string } = {},
 ): Promise<{ urls: string[]; requestId: string }> {
   if (isMockProvidersEnabled()) {
     await recordMockProviderSuccess({
@@ -82,28 +88,40 @@ export async function generateImage(
         return fileToDataUrl(filePath)
       }
       return p
-    })
+    }),
   )
 
   const numImages = options.numImages || 1
 
   const result = await runWithRetries(
-    () => fal.subscribe(MODEL_ID, {
-      input: {
-        prompt,
-        image_urls: imageUrls,
-        resolution: (options.resolution || '2K') as '1K' | '2K' | '4K',
-        aspect_ratio: (options.aspectRatio || '9:16') as '9:16' | '16:9' | '1:1' | '4:3' | '3:4' | '4:5' | '5:4' | '3:2' | '2:3' | '21:9',
-        num_images: numImages,
-        output_format: (options.outputFormat || 'png') as 'png' | 'jpeg' | 'webp',
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS' && update.logs) {
-          update.logs.forEach((log) => console.log(`[fal.ai] ${log.message}`))
-        }
-      },
-    }),
+    () =>
+      fal.subscribe(MODEL_ID, {
+        input: {
+          prompt,
+          image_urls: imageUrls,
+          resolution: (options.resolution || '2K') as '1K' | '2K' | '4K',
+          aspect_ratio: (options.aspectRatio || '9:16') as
+            | '9:16'
+            | '16:9'
+            | '1:1'
+            | '4:3'
+            | '3:4'
+            | '4:5'
+            | '5:4'
+            | '3:2'
+            | '2:3'
+            | '21:9',
+          num_images: numImages,
+          output_format: (options.outputFormat || 'png') as 'png' | 'jpeg' | 'webp',
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS' && update.logs) {
+            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+            update.logs.forEach((log) => console.log(`[fal.ai] ${log.message}`))
+          }
+        },
+      }),
     {
       pipeline: 'generate.batch.provider',
       provider: 'fal',
@@ -112,7 +130,7 @@ export async function generateImage(
         referenceCount: imageUrls.length,
         numImages,
       },
-    }
+    },
   )
 
   const generatedUrls = result.data?.images?.map((img: { url: string }) => img.url) || []
@@ -134,12 +152,7 @@ export async function downloadImage(url: string, outputPath: string): Promise<st
   return outputPath
 }
 
-export function createBatchJob(
-  concept: string,
-  promptCount: number,
-  outputDir: string,
-  userId?: number,
-): BatchJob {
+export function createBatchJob(concept: string, promptCount: number, outputDir: string, userId?: number): BatchJob {
   const job: BatchJob = {
     id: uuidv4(),
     concept,
@@ -168,7 +181,13 @@ export async function generateBatch(
   jobId: string,
   referenceImageUrls: string | string[],
   prompts: string[],
-  options: { resolution?: string; aspectRatio?: string; numImages?: number; outputFormat?: string; concurrency?: number } = {}
+  options: {
+    resolution?: string
+    aspectRatio?: string
+    numImages?: number
+    outputFormat?: string
+    concurrency?: number
+  } = {},
 ): Promise<void> {
   const job = activeJobs.get(jobId)
   if (!job) throw new Error('Job not found')
@@ -210,10 +229,16 @@ export async function generateBatch(
         image.url = url
         image.status = 'completed'
 
-        const safeConcept = job.concept.toLowerCase().replace(/\.\./g, '').replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').slice(0, 50)
-        const fileName = numImagesPerPrompt > 1
-          ? `${safeConcept}_${String(promptIndex + 1).padStart(2, '0')}_v${variantIndex + 1}.${outputFormat}`
-          : `${safeConcept}_${String(imageIndex + 1).padStart(2, '0')}.${outputFormat}`
+        const safeConcept = job.concept
+          .toLowerCase()
+          .replace(/\.\./g, '')
+          .replace(/[<>:"/\\|?*]/g, '')
+          .replace(/\s+/g, '_')
+          .slice(0, 50)
+        const fileName =
+          numImagesPerPrompt > 1
+            ? `${safeConcept}_${String(promptIndex + 1).padStart(2, '0')}_v${variantIndex + 1}.${outputFormat}`
+            : `${safeConcept}_${String(imageIndex + 1).padStart(2, '0')}.${outputFormat}`
         const localPath = path.join(job.outputDir, fileName)
 
         try {
@@ -269,15 +294,15 @@ export async function generateBatch(
 }
 
 export function formatPromptForFal(promptJson: Record<string, unknown>): string {
-  const style = promptJson.style as string || ''
-  const pose = promptJson.pose as Record<string, unknown> || {}
-  const lighting = promptJson.lighting as Record<string, unknown> || {}
-  const setDesign = promptJson.set_design as Record<string, unknown> || {}
-  const outfit = promptJson.outfit as Record<string, unknown> || {}
-  const hairstyle = promptJson.hairstyle as Record<string, unknown> || {}
-  const makeup = promptJson.makeup as Record<string, unknown> || {}
-  const effects = promptJson.effects as Record<string, unknown> || {}
-  const camera = promptJson.camera as Record<string, unknown> || {}
+  const style = (promptJson.style as string) || ''
+  const pose = (promptJson.pose as Record<string, unknown>) || {}
+  const lighting = (promptJson.lighting as Record<string, unknown>) || {}
+  const setDesign = (promptJson.set_design as Record<string, unknown>) || {}
+  const outfit = (promptJson.outfit as Record<string, unknown>) || {}
+  const hairstyle = (promptJson.hairstyle as Record<string, unknown>) || {}
+  const makeup = (promptJson.makeup as Record<string, unknown>) || {}
+  const effects = (promptJson.effects as Record<string, unknown>) || {}
+  const camera = (promptJson.camera as Record<string, unknown>) || {}
 
   const parts = [
     style,

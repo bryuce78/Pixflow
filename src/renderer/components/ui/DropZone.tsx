@@ -1,6 +1,6 @@
-import { type ReactNode } from 'react'
-import { useDropzone, type Accept } from 'react-dropzone'
 import { Upload } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { type Accept, useDropzone } from 'react-dropzone'
 
 interface DropZoneProps {
   accept?: Accept
@@ -30,9 +30,7 @@ export function DropZone({ accept, maxFiles, onDrop, children, className = '' }:
       {children || (
         <div className="flex flex-col items-center gap-2 text-surface-400">
           <Upload className="w-8 h-8" />
-          <p className="text-sm">
-            {isDragActive ? 'Drop files here' : 'Drag & drop files, or click to browse'}
-          </p>
+          <p className="text-sm">{isDragActive ? 'Drop files here' : 'Drag & drop files, or click to browse'}</p>
         </div>
       )}
     </div>

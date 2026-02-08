@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { recordPipelineEvent } from './telemetry.js'
 
 interface RetryOptions {
@@ -10,8 +10,7 @@ interface RetryOptions {
   metadata?: Record<string, unknown>
 }
 
-const MOCK_PNG_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0yQAAAAASUVORK5CYII='
+const MOCK_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0yQAAAAASUVORK5CYII='
 
 export function isMockProvidersEnabled(): boolean {
   const raw = process.env.PIXFLOW_MOCK_PROVIDERS

@@ -2,11 +2,7 @@ import type { Response } from 'express'
 
 type JsonRecord = Record<string, unknown>
 
-export function sendSuccess(
-  res: Response,
-  payload: JsonRecord = {},
-  status = 200,
-): void {
+export function sendSuccess(res: Response, payload: JsonRecord = {}, status = 200): void {
   res.status(status).json({
     success: true,
     data: payload,

@@ -1,5 +1,11 @@
 import OpenAI from 'openai'
-import type { ResearchBrief, SubTheme, TrendFindings, CompetitorInsights, TechnicalRecommendations } from '../utils/prompts.js'
+import type {
+  CompetitorInsights,
+  ResearchBrief,
+  SubTheme,
+  TechnicalRecommendations,
+  TrendFindings,
+} from '../utils/prompts.js'
 
 let openaiClient: OpenAI | null = null
 let clientInitializing = false
@@ -222,15 +228,45 @@ async function generateSubThemes(
   client: OpenAI,
   concept: string,
   trends: TrendFindings,
-  competitors: CompetitorInsights
+  competitors: CompetitorInsights,
 ): Promise<SubTheme[]> {
   const defaultSubThemes: SubTheme[] = [
-    { name: 'Classic Portrait', aesthetic: 'Editorial', mood: 'Confident', key_elements: ['Clean backdrop', 'Professional lighting'] },
-    { name: 'Lifestyle Moment', aesthetic: 'Lifestyle editorial', mood: 'Playful', key_elements: ['Natural setting', 'Candid pose'] },
-    { name: 'Intimate Close-up', aesthetic: 'Intimate portrait', mood: 'Romantic', key_elements: ['Soft lighting', 'Emotional expression'] },
-    { name: 'Fashion Editorial', aesthetic: 'Fashion-forward', mood: 'Confident', key_elements: ['Bold styling', 'Dynamic pose'] },
-    { name: 'Minimal Studio', aesthetic: 'Minimal studio', mood: 'Mysterious', key_elements: ['Simple backdrop', 'Dramatic shadows'] },
-    { name: 'Environmental Portrait', aesthetic: 'Lifestyle editorial', mood: 'Intimate', key_elements: ['Location context', 'Natural light'] },
+    {
+      name: 'Classic Portrait',
+      aesthetic: 'Editorial',
+      mood: 'Confident',
+      key_elements: ['Clean backdrop', 'Professional lighting'],
+    },
+    {
+      name: 'Lifestyle Moment',
+      aesthetic: 'Lifestyle editorial',
+      mood: 'Playful',
+      key_elements: ['Natural setting', 'Candid pose'],
+    },
+    {
+      name: 'Intimate Close-up',
+      aesthetic: 'Intimate portrait',
+      mood: 'Romantic',
+      key_elements: ['Soft lighting', 'Emotional expression'],
+    },
+    {
+      name: 'Fashion Editorial',
+      aesthetic: 'Fashion-forward',
+      mood: 'Confident',
+      key_elements: ['Bold styling', 'Dynamic pose'],
+    },
+    {
+      name: 'Minimal Studio',
+      aesthetic: 'Minimal studio',
+      mood: 'Mysterious',
+      key_elements: ['Simple backdrop', 'Dramatic shadows'],
+    },
+    {
+      name: 'Environmental Portrait',
+      aesthetic: 'Lifestyle editorial',
+      mood: 'Intimate',
+      key_elements: ['Location context', 'Natural light'],
+    },
   ]
 
   try {
@@ -315,7 +351,10 @@ export function analyzeResearchResults(brief: ResearchBrief): {
   }
 
   // Check keyword coverage in sub-themes
-  const keywords = brief.concept.split(/[,،;]+/).map((k) => k.trim().toLowerCase()).filter(Boolean)
+  const keywords = brief.concept
+    .split(/[,،;]+/)
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean)
   if (keywords.length > 1) {
     const subThemeText = brief.sub_themes
       .map((s) => `${s.name} ${s.key_elements.join(' ')}`)

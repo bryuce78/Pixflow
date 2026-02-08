@@ -25,9 +25,9 @@ interface UserRow extends User {
 export function createUser(email: string, password: string, name: string, role = 'user'): User {
   const db = getDb()
   const hash = bcrypt.hashSync(password, 10)
-  const info = db.prepare(
-    'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)'
-  ).run(email, hash, name, role)
+  const info = db
+    .prepare('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)')
+    .run(email, hash, name, role)
 
   return { id: Number(info.lastInsertRowid), email, name, role, created_at: new Date().toISOString() }
 }
@@ -59,7 +59,9 @@ export function getUserById(id: number): User | null {
 
 export function changePassword(userId: number, currentPassword: string, newPassword: string): boolean {
   const db = getDb()
-  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash: string } | undefined
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as
+    | { password_hash: string }
+    | undefined
   if (!row) return false
   if (!bcrypt.compareSync(currentPassword, row.password_hash)) return false
 
@@ -91,7 +93,7 @@ export function ensureBootstrapAdminIfConfigured(): void {
 
   if (!email || !password) {
     throw new Error(
-      'PIXFLOW_BOOTSTRAP_ADMIN_ON_STARTUP is enabled, but PIXFLOW_BOOTSTRAP_ADMIN_EMAIL/PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD are missing.'
+      'PIXFLOW_BOOTSTRAP_ADMIN_ON_STARTUP is enabled, but PIXFLOW_BOOTSTRAP_ADMIN_EMAIL/PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD are missing.',
     )
   }
 

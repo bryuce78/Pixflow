@@ -1,7 +1,7 @@
-import { useEffect, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { type ReactNode, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   open: boolean
@@ -30,7 +30,8 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss */}
+          <div role="presentation" className="absolute inset-0 bg-black/60" onClick={onClose} />
           <motion.div
             className="relative bg-surface-50 border border-surface-100 rounded-xl shadow-xl w-full max-w-md mx-4"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -41,7 +42,11 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
             {title && (
               <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100">
                 <h2 className="text-lg font-semibold text-surface-900">{title}</h2>
-                <button onClick={onClose} className="text-surface-400 hover:text-surface-600 transition-colors">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-surface-400 hover:text-surface-600 transition-colors"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>

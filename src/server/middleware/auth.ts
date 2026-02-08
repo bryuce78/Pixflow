@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express'
-import { verifyToken, getUserById } from '../services/auth.js'
+import type { NextFunction, Request, Response } from 'express'
+import { getUserById, verifyToken } from '../services/auth.js'
 import { sendError } from '../utils/http.js'
 
 export interface AuthRequest extends Request {

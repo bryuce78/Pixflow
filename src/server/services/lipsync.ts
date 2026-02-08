@@ -1,6 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { fal } from '@fal-ai/client'
-import fs from 'fs/promises'
-import path from 'path'
 import { ensureFalConfig } from './falConfig.js'
 
 const OMNIHUMAN_MODEL = 'fal-ai/bytedance/omnihuman/v1.5'
@@ -54,6 +54,7 @@ export async function createLipsyncVideo(options: LipsyncOptions): Promise<Lipsy
       logs: true,
       onQueueUpdate: (update) => {
         if (update.status === 'IN_PROGRESS' && update.logs) {
+          // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
           update.logs.forEach((log) => console.log(`[fal.ai OmniHuman] ${log.message}`))
         }
       },

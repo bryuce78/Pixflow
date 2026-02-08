@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import type { PromptOutput, ResearchBrief, SubTheme, VarietyScore } from '../utils/prompts.js'
-import { validatePrompt, calculateVarietyScore } from '../utils/prompts.js'
+import { calculateVarietyScore, validatePrompt } from '../utils/prompts.js'
 
 let openaiClient: OpenAI | null = null
 let clientInitializing = false
@@ -200,11 +200,31 @@ const PROMPT_SCHEMA_EXAMPLE = `{
 
 function createFallbackPrompt(theme: SubTheme, concept: string): PromptOutput {
   const moodToLighting: Record<string, { setup: string; key: string; shadows: string }> = {
-    Romantic: { setup: 'Golden hour backlight with lens flare', key: 'Warm sun from behind, soft fill from front', shadows: 'Soft, lifted, dreamy' },
-    Playful: { setup: 'Bright natural daylight, airy and fresh', key: 'Soft diffused overhead', shadows: 'Minimal, open shadows' },
-    Confident: { setup: 'Editorial butterfly lighting', key: 'Beauty dish from above', shadows: 'Defined but flattering' },
-    Intimate: { setup: 'Window light with sheer curtain diffusion', key: 'Soft side light creating gentle modeling', shadows: 'Soft gradient, one side falling to shadow' },
-    Mysterious: { setup: 'Chiaroscuro with single source', key: 'Hard light from dramatic angle', shadows: 'Deep, crushed blacks' },
+    Romantic: {
+      setup: 'Golden hour backlight with lens flare',
+      key: 'Warm sun from behind, soft fill from front',
+      shadows: 'Soft, lifted, dreamy',
+    },
+    Playful: {
+      setup: 'Bright natural daylight, airy and fresh',
+      key: 'Soft diffused overhead',
+      shadows: 'Minimal, open shadows',
+    },
+    Confident: {
+      setup: 'Editorial butterfly lighting',
+      key: 'Beauty dish from above',
+      shadows: 'Defined but flattering',
+    },
+    Intimate: {
+      setup: 'Window light with sheer curtain diffusion',
+      key: 'Soft side light creating gentle modeling',
+      shadows: 'Soft gradient, one side falling to shadow',
+    },
+    Mysterious: {
+      setup: 'Chiaroscuro with single source',
+      key: 'Hard light from dramatic angle',
+      shadows: 'Deep, crushed blacks',
+    },
   }
 
   const moodToColor: Record<string, string> = {
@@ -225,7 +245,11 @@ function createFallbackPrompt(theme: SubTheme, concept: string): PromptOutput {
       body_position: 'Weight shifted, natural asymmetry',
       arms: 'One hand near face or relaxed gesture',
       posture: 'Elongated neck, shoulders back',
-      expression: { facial: 'Soft confidence, caught mid-moment', eyes: 'Engaged with gentle smize', mouth: 'Relaxed, barely-there smile' },
+      expression: {
+        facial: 'Soft confidence, caught mid-moment',
+        eyes: 'Engaged with gentle smize',
+        mouth: 'Relaxed, barely-there smile',
+      },
     },
     lighting: {
       setup: lighting.setup,
@@ -273,7 +297,7 @@ function createFallbackPrompt(theme: SubTheme, concept: string): PromptOutput {
 export async function generatePrompts(
   concept: string,
   count: number,
-  researchBrief: ResearchBrief
+  researchBrief: ResearchBrief,
 ): Promise<{ prompts: PromptOutput[]; varietyScore: VarietyScore }> {
   const client = await getOpenAI()
   const prompts: PromptOutput[] = []
@@ -306,13 +330,16 @@ async function generatePromptBatch(
   concept: string,
   themes: SubTheme[],
   research: ResearchBrief,
-  startIndex: number
+  startIndex: number,
 ): Promise<PromptOutput[]> {
   const fallbackPrompts = themes.map((theme) => createFallbackPrompt(theme, concept))
 
   try {
     const themeDescriptions = themes
-      .map((t, i) => `${startIndex + i + 1}. "${t.name}" (${t.aesthetic}, ${t.mood}) - Key elements: ${t.key_elements.join(', ')}`)
+      .map(
+        (t, i) =>
+          `${startIndex + i + 1}. "${t.name}" (${t.aesthetic}, ${t.mood}) - Key elements: ${t.key_elements.join(', ')}`,
+      )
       .join('\n')
 
     const response = await client.chat.completions.create({

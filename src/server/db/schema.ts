@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 
 export function createTables(db: Database.Database): void {
   db.exec(`
@@ -96,9 +96,7 @@ export function seedProducts(db: Database.Database): void {
   const existing = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number }
   if (existing.count > 0) return
 
-  const insert = db.prepare(
-    'INSERT INTO products (name, slug, color_primary, color_accent) VALUES (?, ?, ?, ?)'
-  )
+  const insert = db.prepare('INSERT INTO products (name, slug, color_primary, color_accent) VALUES (?, ?, ?, ?)')
 
   const products = [
     ['Clone AI', 'clone-ai', '#7C3AED', '#A78BFA'],

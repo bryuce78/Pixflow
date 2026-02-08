@@ -28,26 +28,22 @@ function rowToNotification(row: NotificationRow): Notification {
 
 export function getNotifications(userId: number, limit = 50): Notification[] {
   const db = getDb()
-  const rows = db.prepare(
-    'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
-  ).all(userId, limit) as NotificationRow[]
+  const rows = db
+    .prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .all(userId, limit) as NotificationRow[]
   return rows.map(rowToNotification)
 }
 
-export function createNotification(
-  userId: number,
-  type: string,
-  title: string,
-  body?: string,
-): Notification {
+export function createNotification(userId: number, type: string, title: string, body?: string): Notification {
   const db = getDb()
 
   const insertAndTrim = db.transaction(() => {
-    const result = db.prepare(
-      'INSERT INTO notifications (user_id, type, title, body) VALUES (?, ?, ?, ?)'
-    ).run(userId, type, title, body ?? null)
+    const result = db
+      .prepare('INSERT INTO notifications (user_id, type, title, body) VALUES (?, ?, ?, ?)')
+      .run(userId, type, title, body ?? null)
 
-    const count = (db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ?').get(userId) as { c: number }).c
+    const count = (db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ?').get(userId) as { c: number })
+      .c
     if (count > MAX_NOTIFICATIONS) {
       db.prepare(`
         DELETE FROM notifications WHERE id IN (
@@ -65,17 +61,13 @@ export function createNotification(
 
 export function markAsRead(id: number, userId: number): boolean {
   const db = getDb()
-  const result = db.prepare(
-    'UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'
-  ).run(id, userId)
+  const result = db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?').run(id, userId)
   return result.changes > 0
 }
 
 export function markAllAsRead(userId: number): number {
   const db = getDb()
-  const result = db.prepare(
-    'UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0'
-  ).run(userId)
+  const result = db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0').run(userId)
   return result.changes
 }
 

@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Rebuild native modules for Electron
+        run: npm run native:rebuild
+
       - name: Release Gate (Lint + Smoke + Telemetry Check)
         run: npm run gate:release
 

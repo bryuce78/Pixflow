@@ -1,6 +1,12 @@
-import fs from 'fs/promises'
-import path from 'path'
-import { isMockProvidersEnabled, makeMockDataUrl, makeMockId, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import {
+  isMockProvidersEnabled,
+  makeMockDataUrl,
+  makeMockId,
+  recordMockProviderSuccess,
+  runWithRetries,
+} from './providerRuntime.js'
 
 const HEDRA_BASE_URL = 'https://api.hedra.com/web-app/public'
 const POLL_INTERVAL_MS = 5000
@@ -47,7 +53,7 @@ async function createAsset(name: string, type: 'image' | 'audio'): Promise<strin
     headers: headers('application/json'),
     body: JSON.stringify({ name, type }),
   })
-  const data = await res.json() as { id: string }
+  const data = (await res.json()) as { id: string }
   console.log(`[Hedra] Created ${type} asset: ${data.id}`)
   return data.id
 }
@@ -70,7 +76,7 @@ async function uploadAsset(assetId: string, filePath: string): Promise<void> {
 async function createGeneration(
   imageAssetId: string,
   audioAssetId: string,
-  options: Pick<HedraLipsyncOptions, 'aspectRatio' | 'resolution'>
+  options: Pick<HedraLipsyncOptions, 'aspectRatio' | 'resolution'>,
 ): Promise<string> {
   const res = await hedraFetch('/generations', {
     method: 'POST',
@@ -87,7 +93,7 @@ async function createGeneration(
       },
     }),
   })
-  const data = await res.json() as { id: string }
+  const data = (await res.json()) as { id: string }
   console.log(`[Hedra] Generation started: ${data.id}`)
   return data.id
 }
@@ -104,7 +110,7 @@ async function pollGeneration(generationId: string): Promise<string> {
     const res = await hedraFetch(`/generations/${generationId}/status`, {
       headers: headers(),
     })
-    const data = await res.json() as GenerationStatus
+    const data = (await res.json()) as GenerationStatus
 
     if (data.status === 'complete' && data.url) {
       console.log(`[Hedra] Generation complete: ${data.url}`)
@@ -115,7 +121,7 @@ async function pollGeneration(generationId: string): Promise<string> {
     }
 
     console.log(`[Hedra] Status: ${data.status} (${Math.round((Date.now() - start) / 1000)}s)`)
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
   }
   throw new Error('Hedra generation timed out after 10 minutes')
 }
@@ -145,40 +151,28 @@ export async function createHedraVideo(options: HedraLipsyncOptions): Promise<He
   const audioName = path.basename(options.audioPath)
 
   const [imageAssetId, audioAssetId] = await runWithRetries(
-    () => Promise.all([
-      createAsset(imageName, 'image'),
-      createAsset(audioName, 'audio'),
-    ]),
+    () => Promise.all([createAsset(imageName, 'image'), createAsset(audioName, 'audio')]),
     {
       pipeline: 'avatars.lipsync.provider',
       provider: 'hedra',
       metadata: { stage: 'asset_create' },
-    }
+    },
   )
 
-  await Promise.all([
-    uploadAsset(imageAssetId, options.imagePath),
-    uploadAsset(audioAssetId, options.audioPath),
-  ])
+  await Promise.all([uploadAsset(imageAssetId, options.imagePath), uploadAsset(audioAssetId, options.audioPath)])
 
-  const generationId = await runWithRetries(
-    () => createGeneration(imageAssetId, audioAssetId, options),
-    {
-      pipeline: 'avatars.lipsync.provider',
-      provider: 'hedra',
-      metadata: { stage: 'generation_create' },
-    }
-  )
-  const videoUrl = await runWithRetries(
-    () => pollGeneration(generationId),
-    {
-      pipeline: 'avatars.lipsync.provider',
-      provider: 'hedra',
-      metadata: { stage: 'generation_poll' },
-      retries: 1,
-      baseDelayMs: 1000,
-    }
-  )
+  const generationId = await runWithRetries(() => createGeneration(imageAssetId, audioAssetId, options), {
+    pipeline: 'avatars.lipsync.provider',
+    provider: 'hedra',
+    metadata: { stage: 'generation_create' },
+  })
+  const videoUrl = await runWithRetries(() => pollGeneration(generationId), {
+    pipeline: 'avatars.lipsync.provider',
+    provider: 'hedra',
+    metadata: { stage: 'generation_poll' },
+    retries: 1,
+    baseDelayMs: 1000,
+  })
 
   return { videoUrl, generationId }
 }

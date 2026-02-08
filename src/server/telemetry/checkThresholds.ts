@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 type TelemetryStatus = 'start' | 'success' | 'error'
 type GateProfile = 'ci' | 'nightly' | 'release'
@@ -83,13 +83,24 @@ async function run(): Promise<void> {
   const filePath = fileArg ? path.resolve(fileArg) : path.join(process.cwd(), 'logs', 'pipeline-events.jsonl')
 
   const defaults = PROFILE_DEFAULTS[profile]
-  const minOverallSuccessRate = parsePositiveNumber(process.env.PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE, defaults.minOverallSuccessRate)
-  const minProviderSuccessRate = parsePositiveNumber(process.env.PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE, defaults.minProviderSuccessRate)
+  const minOverallSuccessRate = parsePositiveNumber(
+    process.env.PIXFLOW_GATE_MIN_OVERALL_SUCCESS_RATE,
+    defaults.minOverallSuccessRate,
+  )
+  const minProviderSuccessRate = parsePositiveNumber(
+    process.env.PIXFLOW_GATE_MIN_PROVIDER_SUCCESS_RATE,
+    defaults.minProviderSuccessRate,
+  )
   const maxP95Ms = parsePositiveNumber(process.env.PIXFLOW_GATE_MAX_P95_MS, defaults.maxP95Ms)
-  const requireProviderEvents = (process.env.PIXFLOW_GATE_REQUIRE_PROVIDER_EVENTS || String(defaults.requireProviderEvents)).toLowerCase() !== 'false'
+  const requireProviderEvents =
+    (process.env.PIXFLOW_GATE_REQUIRE_PROVIDER_EVENTS || String(defaults.requireProviderEvents)).toLowerCase() !==
+    'false'
 
   const raw = await fs.readFile(filePath, 'utf8')
-  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+  const lines = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
   const events: TelemetryEvent[] = lines
     .map((line) => {
       try {
@@ -141,14 +152,18 @@ async function run(): Promise<void> {
     if (providerAttempts === 0) continue
     const providerRate = ratio(counter.success, providerAttempts)
     if (providerRate < minProviderSuccessRate) {
-      failures.push(`provider ${provider} success rate ${providerRate.toFixed(4)} < ${minProviderSuccessRate.toFixed(4)}`)
+      failures.push(
+        `provider ${provider} success rate ${providerRate.toFixed(4)} < ${minProviderSuccessRate.toFixed(4)}`,
+      )
     }
   }
 
   console.log('=== Pixflow Telemetry Gate ===')
   console.log(`Profile: ${profile}`)
   console.log(`File: ${filePath}`)
-  console.log(`Overall success rate: ${overallSuccessRate.toFixed(4)} (threshold >= ${minOverallSuccessRate.toFixed(4)})`)
+  console.log(
+    `Overall success rate: ${overallSuccessRate.toFixed(4)} (threshold >= ${minOverallSuccessRate.toFixed(4)})`,
+  )
   console.log(`Overall p95 duration: ${p95Ms.toFixed(1)}ms (threshold <= ${maxP95Ms.toFixed(1)}ms)`)
   console.log(`Providers seen: ${providerCounters.size}`)
 

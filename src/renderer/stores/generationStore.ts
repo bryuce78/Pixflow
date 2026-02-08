@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
-import type { GeneratedPrompt, BatchProgress, ErrorInfo, Avatar } from '../types'
+import type { Avatar, BatchProgress, ErrorInfo, GeneratedPrompt } from '../types'
 import { parseError } from '../types'
 
 const MAX_REFERENCE_IMAGES = 4
@@ -96,12 +96,13 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   outputFormat: 'jpeg',
   resolution: '2K',
 
-  togglePromptSelection: (index) => set((state) => {
-    const next = new Set(state.selectedPrompts)
-    if (next.has(index)) next.delete(index)
-    else next.add(index)
-    return { selectedPrompts: next }
-  }),
+  togglePromptSelection: (index) =>
+    set((state) => {
+      const next = new Set(state.selectedPrompts)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return { selectedPrompts: next }
+    }),
 
   selectAllPrompts: (count) => set({ selectedPrompts: new Set(Array.from({ length: count }, (_, i) => i)) }),
   deselectAllPrompts: () => set({ selectedPrompts: new Set() }),
@@ -116,29 +117,32 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   setResolution: (resolution) => set({ resolution }),
   setPreviewImage: (previewImage) => set({ previewImage }),
 
-  addReferenceFiles: (files) => set((state) => {
-    revokePreviews(state.referencePreviews)
-    const newFiles = [...state.referenceImages, ...files].slice(0, MAX_REFERENCE_IMAGES)
-    return {
-      referenceImages: newFiles,
-      referencePreviews: rebuildPreviews(newFiles),
-      uploadError: null,
-    }
-  }),
+  addReferenceFiles: (files) =>
+    set((state) => {
+      revokePreviews(state.referencePreviews)
+      const newFiles = [...state.referenceImages, ...files].slice(0, MAX_REFERENCE_IMAGES)
+      return {
+        referenceImages: newFiles,
+        referencePreviews: rebuildPreviews(newFiles),
+        uploadError: null,
+      }
+    }),
 
-  removeReferenceImage: (index) => set((state) => {
-    revokePreviews(state.referencePreviews)
-    const newFiles = state.referenceImages.filter((_, i) => i !== index)
-    return {
-      referenceImages: newFiles,
-      referencePreviews: rebuildPreviews(newFiles),
-    }
-  }),
+  removeReferenceImage: (index) =>
+    set((state) => {
+      revokePreviews(state.referencePreviews)
+      const newFiles = state.referenceImages.filter((_, i) => i !== index)
+      return {
+        referenceImages: newFiles,
+        referencePreviews: rebuildPreviews(newFiles),
+      }
+    }),
 
-  clearReferenceImages: () => set((state) => {
-    revokePreviews(state.referencePreviews)
-    return { referenceImages: [], referencePreviews: [] }
-  }),
+  clearReferenceImages: () =>
+    set((state) => {
+      revokePreviews(state.referencePreviews)
+      return { referenceImages: [], referencePreviews: [] }
+    }),
 
   setUploadError: (uploadError) => set({ uploadError }),
   setBatchError: (batchError) => set({ batchError }),
@@ -212,6 +216,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
 
     try {
       const formData = new FormData()
+      // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect FormData append
       referenceImages.forEach((f) => formData.append('referenceImages', f))
       formData.append('concept', concept)
       formData.append('prompts', JSON.stringify(prompts))

@@ -1,8 +1,14 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { fal } from '@fal-ai/client'
-import fs from 'fs/promises'
-import path from 'path'
 import { ensureFalConfig } from './falConfig.js'
-import { isMockProvidersEnabled, makeMockDataUrl, makeMockId, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
+import {
+  isMockProvidersEnabled,
+  makeMockDataUrl,
+  makeMockId,
+  recordMockProviderSuccess,
+  runWithRetries,
+} from './providerRuntime.js'
 
 const MODEL_ID = 'fal-ai/kling-video/v2.1/master/image-to-video'
 
@@ -43,40 +49,47 @@ export async function generateKlingVideo(options: KlingI2VOptions): Promise<Klin
   ensureFalConfig()
 
   const resolved = path.resolve(options.imagePath)
-  try { await fs.access(resolved) } catch {
+  try {
+    await fs.access(resolved)
+  } catch {
     throw new Error(`Image file not found: ${resolved}`)
   }
 
   const imageUrl = await fileToDataUrl(resolved)
 
   const result = await runWithRetries(
-    () => fal.subscribe(MODEL_ID, {
-      input: {
-        prompt: options.prompt,
-        image_url: imageUrl,
-        duration: options.duration || '5',
-        aspect_ratio: options.aspectRatio || '9:16',
-        negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
-        cfg_scale: options.cfgScale ?? 0.5,
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS' && update.logs) {
-          update.logs.forEach((log) => console.log(`[Kling] ${log.message}`))
-        }
-      },
-    }),
+    () =>
+      fal.subscribe(MODEL_ID, {
+        input: {
+          prompt: options.prompt,
+          image_url: imageUrl,
+          duration: options.duration || '5',
+          aspect_ratio: options.aspectRatio || '9:16',
+          negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
+          cfg_scale: options.cfgScale ?? 0.5,
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS' && update.logs) {
+            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+            update.logs.forEach((log) => console.log(`[Kling] ${log.message}`))
+          }
+        },
+      }),
     {
       pipeline: 'avatars.i2v.provider',
       provider: 'kling',
       metadata: { duration: options.duration || '5', aspectRatio: options.aspectRatio || '9:16' },
-    }
+    },
   )
 
   const data = result.data as Record<string, unknown> | undefined
-  const videoUrl = (typeof data?.video_url === 'string' && data.video_url)
-    || (typeof (data?.video as Record<string, unknown>)?.url === 'string' && (data.video as Record<string, unknown>).url as string)
-  if (!videoUrl) throw new Error(`Kling returned no video URL. Response keys: ${data ? Object.keys(data).join(', ') : 'none'}`)
+  const videoUrl =
+    (typeof data?.video_url === 'string' && data.video_url) ||
+    (typeof (data?.video as Record<string, unknown>)?.url === 'string' &&
+      ((data.video as Record<string, unknown>).url as string))
+  if (!videoUrl)
+    throw new Error(`Kling returned no video URL. Response keys: ${data ? Object.keys(data).join(', ') : 'none'}`)
 
   return { videoUrl, requestId: result.requestId }
 }
@@ -98,12 +111,16 @@ export async function downloadKlingVideo(videoUrl: string, outputPath: string): 
 
   const contentLength = Number(response.headers.get('content-length') || '0')
   if (contentLength > MAX_VIDEO_SIZE) {
-    throw new Error(`Video too large: ${Math.round(contentLength / 1024 / 1024)}MB exceeds ${MAX_VIDEO_SIZE / 1024 / 1024}MB limit`)
+    throw new Error(
+      `Video too large: ${Math.round(contentLength / 1024 / 1024)}MB exceeds ${MAX_VIDEO_SIZE / 1024 / 1024}MB limit`,
+    )
   }
 
   const buffer = Buffer.from(await response.arrayBuffer())
   if (buffer.length > MAX_VIDEO_SIZE) {
-    throw new Error(`Video too large: ${Math.round(buffer.length / 1024 / 1024)}MB exceeds ${MAX_VIDEO_SIZE / 1024 / 1024}MB limit`)
+    throw new Error(
+      `Video too large: ${Math.round(buffer.length / 1024 / 1024)}MB exceeds ${MAX_VIDEO_SIZE / 1024 / 1024}MB limit`,
+    )
   }
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })

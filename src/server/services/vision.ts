@@ -1,6 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import OpenAI from 'openai'
-import fs from 'fs/promises'
-import path from 'path'
 
 let openaiClient: OpenAI | null = null
 

@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
-import type { AddressInfo } from 'net'
+import fs from 'node:fs/promises'
+import type { AddressInfo } from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
 import { createApp } from '../createApp.js'
 import { stopJobCleanup } from '../services/fal.js'
 
@@ -22,13 +22,13 @@ function assertEnvelope<T>(value: unknown, endpoint: string): asserts value is A
   assert(!!value && typeof value === 'object', `${endpoint}: response is not an object`)
   const obj = value as Record<string, unknown>
   assert(typeof obj.success === 'boolean', `${endpoint}: missing boolean success`)
-  assert(Object.prototype.hasOwnProperty.call(obj, 'data'), `${endpoint}: missing data envelope`)
+  assert(Object.hasOwn(obj, 'data'), `${endpoint}: missing data envelope`)
 }
 
 async function requestJson<T>(
   baseUrl: string,
   endpoint: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<{ status: number; json: ApiEnvelope<T> }> {
   const res = await fetch(`${baseUrl}${endpoint}`, init)
   const json = (await res.json()) as unknown
@@ -108,10 +108,15 @@ async function run(): Promise<void> {
     historyEntryId = historyCreate.json.data.entry.id
     assert(typeof historyEntryId === 'string' && historyEntryId.length > 0, 'history entry id missing')
 
-    const historyList = await requestJson<{ history: Array<{ id: string }> }>(baseUrl, '/api/history', { headers: authHeaders })
+    const historyList = await requestJson<{ history: Array<{ id: string }> }>(baseUrl, '/api/history', {
+      headers: authHeaders,
+    })
     assert(historyList.status === 200, '/api/history GET should return 200')
     assert(historyList.json.success, '/api/history GET should be success=true')
-    assert(historyList.json.data.history.some((entry) => entry.id === historyEntryId), 'history entry not found in listing')
+    assert(
+      historyList.json.data.history.some((entry) => entry.id === historyEntryId),
+      'history entry not found in listing',
+    )
 
     const favoriteCreate = await requestJson<{ favorite: { id: string } }>(baseUrl, '/api/history/favorites', {
       method: 'POST',

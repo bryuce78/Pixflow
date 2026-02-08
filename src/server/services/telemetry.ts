@@ -1,6 +1,6 @@
-import fs from 'fs/promises'
-import path from 'path'
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 type TelemetryStatus = 'start' | 'success' | 'error'
 
@@ -36,9 +36,7 @@ function toErrorMessage(error: unknown): string {
   return 'Unknown error'
 }
 
-export async function recordPipelineEvent(
-  payload: Omit<PipelineTelemetryEvent, 'id' | 'timestamp'>
-): Promise<void> {
+export async function recordPipelineEvent(payload: Omit<PipelineTelemetryEvent, 'id' | 'timestamp'>): Promise<void> {
   if (!isTelemetryEnabled()) return
 
   try {
@@ -55,11 +53,7 @@ export async function recordPipelineEvent(
   }
 }
 
-export function createPipelineSpan(input: {
-  pipeline: string
-  userId?: number
-  metadata?: Record<string, unknown>
-}) {
+export function createPipelineSpan(input: { pipeline: string; userId?: number; metadata?: Record<string, unknown> }) {
   const startedAt = Date.now()
   void recordPipelineEvent({
     pipeline: input.pipeline,

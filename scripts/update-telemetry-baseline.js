@@ -1,5 +1,5 @@
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 function getArgValue(name) {
   const index = process.argv.indexOf(name)
@@ -86,8 +86,12 @@ async function run() {
     transitions.push({ prev, curr })
   }
 
-  const successDrops = transitions.map(({ prev, curr }) => Math.max(0, Number(prev.successRate || 0) - Number(curr.successRate || 0)))
-  const p95Increases = transitions.map(({ prev, curr }) => Math.max(0, Number(curr.p95Ms || 0) - Number(prev.p95Ms || 0)))
+  const successDrops = transitions.map(({ prev, curr }) =>
+    Math.max(0, Number(prev.successRate || 0) - Number(curr.successRate || 0)),
+  )
+  const p95Increases = transitions.map(({ prev, curr }) =>
+    Math.max(0, Number(curr.p95Ms || 0) - Number(prev.p95Ms || 0)),
+  )
 
   const providerSet = new Set()
   for (const entry of deduped) {
@@ -98,8 +102,8 @@ async function run() {
   const providerSpecific = {}
   for (const provider of providerSet) {
     const series = transitions.map(({ prev, curr }) => {
-      const prevRate = Number((prev.providerFailRate || {})[provider] || 0)
-      const currRate = Number((curr.providerFailRate || {})[provider] || 0)
+      const prevRate = Number(prev.providerFailRate?.[provider] || 0)
+      const currRate = Number(curr.providerFailRate?.[provider] || 0)
       return Math.max(0, currRate - prevRate)
     })
     providerSpecific[provider] = series

@@ -1,55 +1,154 @@
-import { useEffect, useRef } from 'react'
 import {
-  Check, CheckCircle, XCircle, Upload, Loader2, FolderOpen, AlertCircle, X,
-  Users, Wand2, MessageSquare, Mic, Volume2, RefreshCw, Download, Video, AlertTriangle,
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  CheckCircle,
+  Download,
+  FolderOpen,
+  Loader2,
+  MessageSquare,
+  Mic,
+  RefreshCw,
+  Upload,
+  Users,
+  Video,
+  Volume2,
+  Wand2,
+  X,
+  XCircle,
 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { apiUrl, assetUrl, authFetch, getApiError } from '../../lib/api'
+import type { AvatarAgeGroup, AvatarEthnicity, AvatarGender, AvatarOutfit, ScriptTone } from '../../stores/avatarStore'
 import { useAvatarStore } from '../../stores/avatarStore'
-import type { AvatarGender, AvatarAgeGroup, AvatarEthnicity, AvatarOutfit, ScriptTone } from '../../stores/avatarStore'
+import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
+import { Slider } from '../ui/Slider'
+import { Textarea } from '../ui/Textarea'
+
+const GENDER_OPTIONS = [
+  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Male' },
+]
+const AGE_OPTIONS = [
+  { value: 'young-adult', label: 'Young Adult (20s)' },
+  { value: 'adult', label: 'Adult (30s)' },
+  { value: 'middle-aged', label: 'Middle-aged (40-50s)' },
+]
+const ETHNICITY_OPTIONS = [
+  { value: 'caucasian', label: 'Caucasian' },
+  { value: 'black', label: 'Black / African' },
+  { value: 'asian', label: 'East Asian' },
+  { value: 'hispanic', label: 'Hispanic / Latino' },
+  { value: 'middle-eastern', label: 'Middle Eastern' },
+  { value: 'south-asian', label: 'South Asian' },
+]
+const OUTFIT_OPTIONS = [
+  { value: 'casual', label: 'Casual' },
+  { value: 'business', label: 'Business' },
+  { value: 'sporty', label: 'Sporty' },
+  { value: 'elegant', label: 'Elegant' },
+  { value: 'streetwear', label: 'Streetwear' },
+]
+const TONE_OPTIONS = [
+  { value: 'energetic', label: 'Energetic' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'friendly', label: 'Friendly' },
+  { value: 'dramatic', label: 'Dramatic' },
+]
 
 export default function AvatarStudioPage() {
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
   const {
-    mode, avatars, avatarsLoading, selectedAvatar, fullSizeAvatarUrl, error,
-    gender, ageGroup, ethnicity, outfit, avatarCount, generating, generatedUrls, selectedGeneratedIndex, generationProgress,
-    scriptConcept, scriptDuration, scriptTone, scriptGenerating, generatedScript, scriptWordCount, scriptEstimatedDuration,
-    voices, voicesLoading, selectedVoice, ttsGenerating, generatedAudioUrl,
-    lipsyncGenerating, lipsyncJob, generatedVideoUrl,
-    i2vPrompt, i2vDuration, i2vLoading, i2vVideoUrl, i2vError,
-    setMode, setSelectedAvatar, setFullSizeAvatarUrl, setGender, setAgeGroup, setEthnicity, setOutfit, setAvatarCount, setSelectedGeneratedIndex,
-    setScriptConcept, setScriptDuration, setScriptTone, setGeneratedScript, setSelectedVoice,
-    setI2vPrompt, setI2vDuration,
-    loadAvatars, loadVoices, uploadAvatars, generateAvatar, generateScript, generateTTS, createLipsync, generateI2V,
+    mode,
+    avatars,
+    avatarsLoading,
+    selectedAvatar,
+    error,
+    gender,
+    ageGroup,
+    ethnicity,
+    outfit,
+    avatarCount,
+    generating,
+    generatedUrls,
+    selectedGeneratedIndex,
+    generationProgress,
+    scriptConcept,
+    scriptDuration,
+    scriptTone,
+    scriptGenerating,
+    generatedScript,
+    scriptWordCount,
+    scriptEstimatedDuration,
+    voices,
+    voicesLoading,
+    selectedVoice,
+    ttsGenerating,
+    generatedAudioUrl,
+    lipsyncGenerating,
+    lipsyncJob,
+    generatedVideoUrl,
+    i2vPrompt,
+    i2vDuration,
+    i2vLoading,
+    i2vVideoUrl,
+    i2vError,
+    setMode,
+    setSelectedAvatar,
+    setFullSizeAvatarUrl,
+    setGender,
+    setAgeGroup,
+    setEthnicity,
+    setOutfit,
+    setAvatarCount,
+    setSelectedGeneratedIndex,
+    setScriptConcept,
+    setScriptDuration,
+    setScriptTone,
+    setGeneratedScript,
+    setSelectedVoice,
+    setI2vPrompt,
+    setI2vDuration,
+    loadAvatars,
+    loadVoices,
+    uploadAvatars,
+    generateAvatar,
+    generateScript,
+    generateTTS,
+    createLipsync,
+    generateI2V,
   } = useAvatarStore()
 
   useEffect(() => {
     loadAvatars()
     loadVoices()
-  }, [])
+  }, [loadAvatars, loadVoices])
 
   return (
     <div className="space-y-6">
       {error && (
-        <div className={`rounded-lg p-4 flex items-start gap-3 ${
-          error.type === 'warning'
-            ? 'bg-warning-muted/50 border border-warning/40'
-            : 'bg-danger-muted/50 border border-danger/40'
-        }`}>
-          <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${
-            error.type === 'warning' ? 'text-warning' : 'text-danger'
-          }`} />
-          <p className={`flex-1 ${
-            error.type === 'warning' ? 'text-warning' : 'text-danger'
-          }`}>
-            {error.message}
-          </p>
-          <button
+        <div
+          className={`rounded-lg p-4 flex items-start gap-3 ${
+            error.type === 'warning'
+              ? 'bg-warning-muted/50 border border-warning/40'
+              : 'bg-danger-muted/50 border border-danger/40'
+          }`}
+        >
+          <AlertCircle
+            className={`w-5 h-5 shrink-0 mt-0.5 ${error.type === 'warning' ? 'text-warning' : 'text-danger'}`}
+          />
+          <p className={`flex-1 ${error.type === 'warning' ? 'text-warning' : 'text-danger'}`}>{error.message}</p>
+          <Button
+            variant="ghost-muted"
+            size="xs"
+            aria-label="Dismiss"
+            icon={<X className="w-4 h-4" />}
             onClick={() => useAvatarStore.setState({ error: null })}
-            className="text-surface-400 hover:text-surface-900"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          />
         </div>
       )}
 
@@ -66,17 +165,17 @@ export default function AvatarStudioPage() {
             {/* Mode Toggle */}
             <div className="flex bg-surface-100 rounded-lg p-1 mb-4">
               <button
+                type="button"
                 onClick={() => setMode('gallery')}
                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
-                  mode === 'gallery'
-                    ? 'bg-brand-600 text-surface-900'
-                    : 'text-surface-400 hover:text-surface-900'
+                  mode === 'gallery' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
                 }`}
               >
                 <Users className="w-4 h-4" />
                 Gallery
               </button>
               <button
+                type="button"
                 onClick={() => avatarFileInputRef.current?.click()}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm transition-colors text-surface-400 hover:text-surface-900"
               >
@@ -97,11 +196,10 @@ export default function AvatarStudioPage() {
                 }}
               />
               <button
+                type="button"
                 onClick={() => setMode('generate')}
                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
-                  mode === 'generate'
-                    ? 'bg-brand-600 text-surface-900'
-                    : 'text-surface-400 hover:text-surface-900'
+                  mode === 'generate' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
                 }`}
               >
                 <Wand2 className="w-4 h-4" />
@@ -119,12 +217,16 @@ export default function AvatarStudioPage() {
                   <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
                     <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
                     <p>No avatars in gallery</p>
-                    <p className="text-sm mt-1">Generate a new avatar or add images to <code className="bg-surface-100 px-1 rounded">avatars/</code></p>
+                    <p className="text-sm mt-1">
+                      Generate a new avatar or add images to{' '}
+                      <code className="bg-surface-100 px-1 rounded">avatars/</code>
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-5 gap-2 max-h-[300px] overflow-auto">
                     {avatars.map((avatar) => (
                       <button
+                        type="button"
                         key={avatar.filename}
                         onClick={() => {
                           setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
@@ -136,11 +238,7 @@ export default function AvatarStudioPage() {
                             : 'border-transparent hover:border-surface-200'
                         }`}
                       >
-                        <img
-                          src={assetUrl(avatar.url)}
-                          alt={avatar.name}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
                         {selectedAvatar?.filename === avatar.filename && (
                           <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
                             <Check className="w-3 h-3" />
@@ -154,93 +252,52 @@ export default function AvatarStudioPage() {
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-surface-400 mb-2">Gender</label>
-                    <select
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value as AvatarGender)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-brand-500"
-                    >
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-surface-400 mb-2">Age Group</label>
-                    <select
-                      value={ageGroup}
-                      onChange={(e) => setAgeGroup(e.target.value as AvatarAgeGroup)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-brand-500"
-                    >
-                      <option value="young-adult">Young Adult (20s)</option>
-                      <option value="adult">Adult (30s)</option>
-                      <option value="middle-aged">Middle-aged (40-50s)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-surface-400 mb-2">Ethnicity</label>
-                    <select
-                      value={ethnicity}
-                      onChange={(e) => setEthnicity(e.target.value as AvatarEthnicity)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-brand-500"
-                    >
-                      <option value="caucasian">Caucasian</option>
-                      <option value="black">Black / African</option>
-                      <option value="asian">East Asian</option>
-                      <option value="hispanic">Hispanic / Latino</option>
-                      <option value="middle-eastern">Middle Eastern</option>
-                      <option value="south-asian">South Asian</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-surface-400 mb-2">Outfit</label>
-                    <select
-                      value={outfit}
-                      onChange={(e) => setOutfit(e.target.value as AvatarOutfit)}
-                      className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-brand-500"
-                    >
-                      <option value="casual">Casual</option>
-                      <option value="business">Business</option>
-                      <option value="sporty">Sporty</option>
-                      <option value="elegant">Elegant</option>
-                      <option value="streetwear">Streetwear</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm text-surface-400 mb-2">Number of Avatars: {avatarCount}</label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="4"
-                    value={avatarCount}
-                    onChange={(e) => setAvatarCount(Number(e.target.value))}
-                    className="w-full accent-brand-500"
+                  <Select
+                    label="Gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value as AvatarGender)}
+                    options={GENDER_OPTIONS}
                   />
-                  <div className="flex justify-between text-xs text-surface-400 mt-1">
-                    <span>1</span>
-                    <span>2</span>
-                    <span>3</span>
-                    <span>4</span>
-                  </div>
+                  <Select
+                    label="Age Group"
+                    value={ageGroup}
+                    onChange={(e) => setAgeGroup(e.target.value as AvatarAgeGroup)}
+                    options={AGE_OPTIONS}
+                  />
+                  <Select
+                    label="Ethnicity"
+                    value={ethnicity}
+                    onChange={(e) => setEthnicity(e.target.value as AvatarEthnicity)}
+                    options={ETHNICITY_OPTIONS}
+                  />
+                  <Select
+                    label="Outfit"
+                    value={outfit}
+                    onChange={(e) => setOutfit(e.target.value as AvatarOutfit)}
+                    options={OUTFIT_OPTIONS}
+                  />
                 </div>
-                <button
+                <Slider
+                  label="Number of Avatars"
+                  displayValue={avatarCount}
+                  min={1}
+                  max={4}
+                  value={avatarCount}
+                  onChange={(e) => setAvatarCount(Number(e.currentTarget.value))}
+                />
+                <Button
+                  variant="primary"
+                  size="md"
+                  icon={generating ? undefined : <Wand2 className="w-4 h-4" />}
+                  loading={generating}
                   onClick={generateAvatar}
                   disabled={generating}
-                  className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 disabled:bg-surface-200 disabled:from-surface-200 disabled:to-surface-200 disabled:cursor-not-allowed rounded-lg px-4 py-2 font-medium transition-all flex items-center justify-center gap-2"
+                  className="w-full"
                 >
-                  {generating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating {generationProgress}/{avatarCount}...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-4 h-4" />
-                      Generate {avatarCount > 1 ? `${avatarCount} Avatars` : 'Avatar'}
-                    </>
-                  )}
-                </button>
+                  {generating
+                    ? `Generating ${generationProgress}/${avatarCount}...`
+                    : `Generate ${avatarCount > 1 ? `${avatarCount} Avatars` : 'Avatar'}`}
+                </Button>
                 {generatedUrls.length > 0 && (
                   <div className="p-3 bg-success-muted/30 border border-success/40 rounded-lg space-y-3">
                     <p className="text-success text-sm flex items-center gap-2">
@@ -249,7 +306,9 @@ export default function AvatarStudioPage() {
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       {generatedUrls.map((url, index) => (
-                        <div
+                        <button
+                          type="button"
+                          // biome-ignore lint/suspicious/noArrayIndexKey: static list
                           key={index}
                           className={`cursor-pointer transition-all relative rounded-lg overflow-hidden border-2 ${
                             selectedGeneratedIndex === index
@@ -268,10 +327,12 @@ export default function AvatarStudioPage() {
                               <Check className="w-3 h-3" />
                             </div>
                           )}
-                        </div>
+                        </button>
                       ))}
                     </div>
-                    <p className="text-xs text-surface-400 text-center">Click to select, double-click to view full size</p>
+                    <p className="text-xs text-surface-400 text-center">
+                      Click to select, double-click to view full size
+                    </p>
                   </div>
                 )}
               </div>
@@ -281,12 +342,19 @@ export default function AvatarStudioPage() {
               <div className="mt-4 p-3 bg-surface-100 rounded-lg">
                 <p className="text-sm text-surface-400 mb-2">Selected Avatar:</p>
                 <div className="flex items-center gap-3">
-                  <img
-                    src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
-                    alt="Selected avatar"
-                    className="w-16 h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => setFullSizeAvatarUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
-                  />
+                  <button
+                    type="button"
+                    className="w-16 h-24 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() =>
+                      setFullSizeAvatarUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')
+                    }
+                  >
+                    <img
+                      src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
+                      alt="Selected avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
                   <div>
                     <p className="font-medium">
                       {generatedUrls.length > 0
@@ -308,62 +376,41 @@ export default function AvatarStudioPage() {
             </h2>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-surface-400 mb-2">App/Product Concept</label>
-                <input
-                  type="text"
-                  value={scriptConcept}
-                  onChange={(e) => setScriptConcept(e.target.value)}
-                  placeholder="e.g., AI photo transformation app, fitness tracker, dating app..."
-                  className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-brand-500"
+              <Input
+                label="App/Product Concept"
+                value={scriptConcept}
+                onChange={(e) => setScriptConcept(e.target.value)}
+                placeholder="e.g., AI photo transformation app, fitness tracker, dating app..."
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Slider
+                  label="Duration"
+                  displayValue={`${scriptDuration}s`}
+                  min={10}
+                  max={60}
+                  value={scriptDuration}
+                  onChange={(e) => setScriptDuration(Number(e.currentTarget.value))}
+                />
+                <Select
+                  label="Tone"
+                  value={scriptTone}
+                  onChange={(e) => setScriptTone(e.target.value as ScriptTone)}
+                  options={TONE_OPTIONS}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-surface-400 mb-2">Duration: {scriptDuration}s</label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="60"
-                    value={scriptDuration}
-                    onChange={(e) => setScriptDuration(Number(e.target.value))}
-                    className="w-full accent-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-surface-400 mb-2">Tone</label>
-                  <select
-                    value={scriptTone}
-                    onChange={(e) => setScriptTone(e.target.value as ScriptTone)}
-                    className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-brand-500"
-                  >
-                    <option value="energetic">Energetic</option>
-                    <option value="casual">Casual</option>
-                    <option value="professional">Professional</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="dramatic">Dramatic</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                icon={scriptGenerating ? undefined : <MessageSquare className="w-4 h-4" />}
+                loading={scriptGenerating}
                 onClick={generateScript}
                 disabled={scriptGenerating || !scriptConcept.trim()}
-                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 disabled:bg-surface-200 disabled:from-surface-200 disabled:to-surface-200 disabled:cursor-not-allowed rounded-lg px-4 py-2 font-medium transition-all flex items-center justify-center gap-2"
+                className="w-full"
               >
-                {scriptGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating Script...
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare className="w-4 h-4" />
-                    Generate Script
-                  </>
-                )}
-              </button>
+                {scriptGenerating ? 'Generating Script...' : 'Generate Script'}
+              </Button>
               {!scriptGenerating && !scriptConcept.trim() && (
                 <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -379,13 +426,9 @@ export default function AvatarStudioPage() {
                       {scriptWordCount} words (~{scriptEstimatedDuration}s)
                     </span>
                   </div>
-                  <textarea
-                    value={generatedScript}
-                    onChange={(e) => setGeneratedScript(e.target.value)}
-                    rows={4}
-                    className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-brand-500"
-                  />
+                  <Textarea value={generatedScript} onChange={(e) => setGeneratedScript(e.target.value)} rows={4} />
                   <button
+                    type="button"
                     onClick={generateScript}
                     disabled={scriptGenerating}
                     className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1"
@@ -398,8 +441,6 @@ export default function AvatarStudioPage() {
             </div>
           </div>
         </div>
-
-        {/* Right Column: Voice & Video */}
         <div className="space-y-6">
           {/* Step 3: Voice Selection & TTS */}
           <div className="bg-surface-50 rounded-lg p-4">
@@ -410,57 +451,49 @@ export default function AvatarStudioPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-surface-400 mb-2">Select Voice</label>
+                <span className="block text-sm text-surface-400 mb-2">Select Voice</span>
                 {voicesLoading ? (
                   <div className="flex items-center gap-2 text-surface-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Loading voices...
                   </div>
                 ) : (
-                  <select
+                  <Select
                     value={selectedVoice?.id || ''}
-                    onChange={(e) => setSelectedVoice(voices.find(v => v.id === e.target.value) || null)}
-                    className="w-full bg-surface-100 border border-surface-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-brand-500"
-                  >
-                    <option value="">Select a voice...</option>
-                    {voices.map((voice) => (
-                      <option key={voice.id} value={voice.id}>
-                        {voice.name} {voice.category ? `(${voice.category})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(e) => setSelectedVoice(voices.find((v) => v.id === e.target.value) || null)}
+                    options={[
+                      { value: '', label: 'Select a voice...' },
+                      ...voices.map((voice) => ({
+                        value: voice.id,
+                        label: `${voice.name}${voice.category ? ` (${voice.category})` : ''}`,
+                      })),
+                    ]}
+                  />
                 )}
               </div>
 
               {selectedVoice?.previewUrl && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => new Audio(selectedVoice.previewUrl).play()}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-surface-100 hover:bg-surface-200 rounded-lg text-sm"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                    Preview Voice
-                  </button>
-                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Volume2 className="w-4 h-4" />}
+                  onClick={() => new Audio(selectedVoice.previewUrl).play()}
+                >
+                  Preview Voice
+                </Button>
               )}
 
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                icon={ttsGenerating ? undefined : <Mic className="w-4 h-4" />}
+                loading={ttsGenerating}
                 onClick={generateTTS}
                 disabled={ttsGenerating || !generatedScript || !selectedVoice}
-                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 disabled:bg-surface-200 disabled:from-surface-200 disabled:to-surface-200 disabled:cursor-not-allowed rounded-lg px-4 py-2 font-medium transition-all flex items-center justify-center gap-2"
+                className="w-full"
               >
-                {ttsGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating Audio...
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4" />
-                    Generate Audio
-                  </>
-                )}
-              </button>
+                {ttsGenerating ? 'Generating Audio...' : 'Generate Audio'}
+              </Button>
               {!ttsGenerating && (!generatedScript || !selectedVoice) && (
                 <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -474,11 +507,8 @@ export default function AvatarStudioPage() {
                     <CheckCircle className="w-4 h-4" />
                     Audio generated!
                   </p>
-                  <audio
-                    controls
-                    src={assetUrl(generatedAudioUrl)}
-                    className="w-full"
-                  />
+                  {/* biome-ignore lint/a11y/useMediaCaption: AI-generated audio, no captions available */}
+                  <audio controls src={assetUrl(generatedAudioUrl)} className="w-full" />
                 </div>
               )}
             </div>
@@ -493,8 +523,14 @@ export default function AvatarStudioPage() {
 
             <div className="space-y-4">
               <div className="space-y-2 text-sm">
-                <div className={`flex items-center gap-2 ${selectedAvatar || generatedUrls.length > 0 ? 'text-success' : 'text-surface-400'}`}>
-                  {selectedAvatar || generatedUrls.length > 0 ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                <div
+                  className={`flex items-center gap-2 ${selectedAvatar || generatedUrls.length > 0 ? 'text-success' : 'text-surface-400'}`}
+                >
+                  {selectedAvatar || generatedUrls.length > 0 ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
                   Avatar selected
                 </div>
                 <div className={`flex items-center gap-2 ${generatedScript ? 'text-success' : 'text-surface-400'}`}>
@@ -507,24 +543,19 @@ export default function AvatarStudioPage() {
                 </div>
               </div>
 
-              <button
+              <Button
+                variant="success"
+                size="lg"
+                icon={lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
+                loading={lipsyncGenerating}
                 onClick={createLipsync}
                 disabled={lipsyncGenerating || !generatedAudioUrl || (!selectedAvatar && generatedUrls.length === 0)}
-                className="w-full bg-gradient-to-r from-success to-success-hover hover:from-success-hover hover:to-success disabled:bg-surface-200 disabled:from-surface-200 disabled:to-surface-200 disabled:cursor-not-allowed rounded-lg px-4 py-3 font-medium transition-all flex items-center justify-center gap-2"
+                className="w-full"
               >
-                {lipsyncGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Generating Video...
-                    {lipsyncJob?.progress !== undefined && ` (${lipsyncJob.progress}%)`}
-                  </>
-                ) : (
-                  <>
-                    <Video className="w-5 h-5" />
-                    Create Talking Avatar Video
-                  </>
-                )}
-              </button>
+                {lipsyncGenerating
+                  ? `Generating Video...${lipsyncJob?.progress !== undefined ? ` (${lipsyncJob.progress}%)` : ''}`
+                  : 'Create Talking Avatar Video'}
+              </Button>
               {!lipsyncGenerating && (!generatedAudioUrl || (!selectedAvatar && generatedUrls.length === 0)) && (
                 <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -535,20 +566,32 @@ export default function AvatarStudioPage() {
               )}
 
               {lipsyncJob && (
-                <div className={`p-3 rounded-lg ${
-                  lipsyncJob.status === 'complete' ? 'bg-success-muted/30 border border-success/40' :
-                  lipsyncJob.status === 'error' ? 'bg-danger-muted/30 border border-danger/40' :
-                  'bg-warning-muted/30 border border-warning/40'
-                }`}>
+                <div
+                  className={`p-3 rounded-lg ${
+                    lipsyncJob.status === 'complete'
+                      ? 'bg-success-muted/30 border border-success/40'
+                      : lipsyncJob.status === 'error'
+                        ? 'bg-danger-muted/30 border border-danger/40'
+                        : 'bg-warning-muted/30 border border-warning/40'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
-                    <p className={`text-sm flex items-center gap-2 ${
-                      lipsyncJob.status === 'complete' ? 'text-success' :
-                      lipsyncJob.status === 'error' ? 'text-danger' :
-                      'text-warning'
-                    }`}>
-                      {lipsyncJob.status === 'complete' ? <CheckCircle className="w-4 h-4" /> :
-                       lipsyncJob.status === 'error' ? <XCircle className="w-4 h-4" /> :
-                       <Loader2 className="w-4 h-4 animate-spin" />}
+                    <p
+                      className={`text-sm flex items-center gap-2 ${
+                        lipsyncJob.status === 'complete'
+                          ? 'text-success'
+                          : lipsyncJob.status === 'error'
+                            ? 'text-danger'
+                            : 'text-warning'
+                      }`}
+                    >
+                      {lipsyncJob.status === 'complete' ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : lipsyncJob.status === 'error' ? (
+                        <XCircle className="w-4 h-4" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      )}
                       {lipsyncJob.status === 'pending' && 'Queued...'}
                       {lipsyncJob.status === 'processing' && 'Processing video...'}
                       {lipsyncJob.status === 'complete' && 'Video ready!'}
@@ -579,11 +622,8 @@ export default function AvatarStudioPage() {
               </h2>
 
               <div className="space-y-4">
-                <video
-                  controls
-                  src={assetUrl(generatedVideoUrl)}
-                  className="w-full rounded-lg"
-                />
+                {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
+                <video controls src={assetUrl(generatedVideoUrl)} className="w-full rounded-lg" />
 
                 <div className="flex gap-2">
                   <a
@@ -594,7 +634,10 @@ export default function AvatarStudioPage() {
                     <Download className="w-4 h-4" />
                     Download Video
                   </a>
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    icon={<FolderOpen className="w-4 h-4" />}
                     onClick={async () => {
                       const response = await authFetch(apiUrl('/api/generate/open-folder'), {
                         method: 'POST',
@@ -603,21 +646,19 @@ export default function AvatarStudioPage() {
                       })
                       if (!response.ok) {
                         const raw = await response.json().catch(() => ({}))
-                        useAvatarStore.setState({ error: { message: getApiError(raw, 'Failed to open folder'), type: 'error' } })
+                        useAvatarStore.setState({
+                          error: { message: getApiError(raw, 'Failed to open folder'), type: 'error' },
+                        })
                       }
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg"
                   >
-                    <FolderOpen className="w-4 h-4" />
                     Open Folder
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
           )}
         </div>
-
-        {/* Image to Video (Kling AI) */}
         <div className="bg-surface-100/50 rounded-xl border border-surface-200/50 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Video className="w-5 h-5 text-accent" />
@@ -626,31 +667,38 @@ export default function AvatarStudioPage() {
           </div>
 
           {i2vError && (
-            <div className={`rounded-lg p-3 mb-4 flex items-start gap-2 ${
-              i2vError.type === 'warning' ? 'bg-warning-muted/50 border border-warning/40' : 'bg-danger-muted/50 border border-danger/40'
-            }`}>
-              <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${i2vError.type === 'warning' ? 'text-warning' : 'text-danger'}`} />
-              <p className={`text-sm ${i2vError.type === 'warning' ? 'text-warning' : 'text-danger'}`}>{i2vError.message}</p>
+            <div
+              className={`rounded-lg p-3 mb-4 flex items-start gap-2 ${
+                i2vError.type === 'warning'
+                  ? 'bg-warning-muted/50 border border-warning/40'
+                  : 'bg-danger-muted/50 border border-danger/40'
+              }`}
+            >
+              <AlertCircle
+                className={`w-4 h-4 shrink-0 mt-0.5 ${i2vError.type === 'warning' ? 'text-warning' : 'text-danger'}`}
+              />
+              <p className={`text-sm ${i2vError.type === 'warning' ? 'text-warning' : 'text-danger'}`}>
+                {i2vError.message}
+              </p>
             </div>
           )}
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-surface-500 mb-2">Motion Prompt</label>
-              <textarea
-                value={i2vPrompt}
-                onChange={(e) => setI2vPrompt(e.target.value)}
-                placeholder="Describe the motion or scene... e.g., 'Camera slowly zooms in while the subject smiles and waves'"
-                className="w-full px-4 py-3 bg-surface-50/50 border border-surface-200 rounded-lg text-surface-900 placeholder-surface-400 focus:outline-none focus:border-accent transition-colors resize-none h-20"
-              />
-            </div>
+            <Textarea
+              label="Motion Prompt"
+              value={i2vPrompt}
+              onChange={(e) => setI2vPrompt(e.target.value)}
+              placeholder="Describe the motion or scene... e.g., 'Camera slowly zooms in while the subject smiles and waves'"
+              className="h-20"
+            />
 
             <div className="flex items-center gap-4">
               <div>
-                <label className="block text-sm font-medium text-surface-500 mb-2">Duration</label>
+                <span className="block text-sm font-medium text-surface-500 mb-2">Duration</span>
                 <div className="flex gap-2">
                   {(['5', '10'] as const).map((d) => (
                     <button
+                      type="button"
                       key={d}
                       onClick={() => setI2vDuration(d)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -666,33 +714,23 @@ export default function AvatarStudioPage() {
               </div>
 
               <div className="flex-1 flex justify-end">
-                <button
+                <Button
+                  variant="accent"
+                  size="lg"
+                  icon={i2vLoading ? undefined : <Video className="w-5 h-5" />}
+                  loading={i2vLoading}
                   onClick={generateI2V}
                   disabled={i2vLoading || !i2vPrompt.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-accent to-accent-hover text-surface-900 font-medium rounded-lg hover:from-accent-hover hover:to-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                 >
-                  {i2vLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Video className="w-5 h-5" />
-                      Generate Video
-                    </>
-                  )}
-                </button>
+                  {i2vLoading ? 'Generating...' : 'Generate Video'}
+                </Button>
               </div>
             </div>
 
             {i2vVideoUrl && (
               <div className="space-y-3">
-                <video
-                  controls
-                  src={assetUrl(i2vVideoUrl)}
-                  className="w-full rounded-lg"
-                />
+                {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
+                <video controls src={assetUrl(i2vVideoUrl)} className="w-full rounded-lg" />
                 <a
                   href={assetUrl(i2vVideoUrl)}
                   download

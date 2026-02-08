@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
   getServerPort: (): Promise<number> => ipcRenderer.invoke('get-server-port'),
@@ -13,8 +13,8 @@ if (process.contextIsolated) {
   contextBridge.exposeInMainWorld('electron', electronAPI)
   contextBridge.exposeInMainWorld('api', api)
 } else {
-  // @ts-ignore fallback for non-isolated context
+  // @ts-expect-error fallback for non-isolated context
   window.electron = electronAPI
-  // @ts-ignore
+  // @ts-expect-error
   window.api = api
 }
