@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-08 (Session 6: Feature sprint — Img2Video presets, multi-image analysis, avatar dir separation, dev auto-login)
+Last updated: 2026-02-08 (Session 7: Gemini 3 Flash vision, Monster UI overhaul — batch history, zip downloads, reference scroll)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -821,6 +821,59 @@ System model:
 - Files:
   - `src/renderer/stores/img2videoStore.ts`
   - `src/renderer/components/img2video/Img2VideoPage.tsx`
+
+39. Gemini 3 Flash for Image-to-Prompt (Session 7):
+- Replaced GPT-4o with Google Gemini 3 Flash (`gemini-3-flash-preview`) for image analysis in Image-to-Prompt.
+- Rationale: Gemini 3 Flash scores 79.0 on vision benchmarks vs GPT-4o's lower score; produces more detailed and accurate analysis.
+- Installed `@google/genai` SDK. Uses `responseMimeType: 'application/json'` for guaranteed valid JSON output.
+- `systemInstruction` carries the full ANALYSIS_PROMPT, `contents` carries the image as `inlineData` (base64) + user message.
+- Same `AnalyzedPrompt` interface and function signature — drop-in replacement. No route changes needed.
+- Updated UI strings from "GPT-4o Vision" to "Gemini 3 Flash" in PromptFactoryPage.
+- Fallback plan: Claude Opus 4.5 if Gemini quality is unsatisfactory (not needed so far).
+- Files:
+  - `src/server/services/vision.ts`
+  - `src/renderer/components/prompt-factory/PromptFactoryPage.tsx`
+  - `.env` (added `GEMINI_API_KEY`)
+  - `package.json` (added `@google/genai`)
+
+40. Monster UI — auto-select prompts from Image-to-Prompt (Session 7):
+- Fixed: "Asset Monster" button in Image-to-Prompt sub-tab was navigating to Monster without selecting prompts.
+- Added `generationStore.selectAllPrompts(analyzed.length)` and `setImageSource('upload')` to match "Send to Monster" behavior from Concept-to-Prompts.
+- File: `src/renderer/components/prompt-factory/PromptFactoryPage.tsx`
+
+41. Monster UI — generation batch history with colored borders (Session 7):
+- New feature: previous generation batches are preserved in the UI when starting a new generation.
+- Added `CompletedBatch` interface and `completedBatches: CompletedBatch[]` state to generationStore.
+- 8 distinct border colors cycle through batches: brand, emerald, amber, rose, cyan, violet, orange, teal.
+- When `startBatch` is called, current `batchProgress` (if it has completed images) is archived into `completedBatches`.
+- "Previous Generations" section renders below active batch with per-batch download and preview.
+- Arrow key navigation in ImagePreviewOverlay spans across all batches (current + archived).
+- "Clear History" button to remove archived batches.
+- Files:
+  - `src/renderer/stores/generationStore.ts`
+  - `src/renderer/components/asset-monster/AssetMonsterPage.tsx`
+  - `src/renderer/components/layout/ImagePreviewOverlay.tsx`
+  - `src/renderer/hooks/useImagePreviewKeyboard.ts`
+
+42. Monster UI — Download All/Selected bug fix + zip download (Session 7):
+- Bug fix: "Download All" was opening images fullscreen in Electron instead of downloading.
+- Root cause: `document.createElement('a').click()` with HTTP URL navigates Electron renderer to image URL.
+- Fix: fetch as blob → create blob URL → download from blob URL.
+- Enhancement: multi-image downloads now zip automatically using JSZip (client-side).
+  - Single image: downloads directly as file.
+  - Multiple images: zipped with DEFLATE compression, downloaded as `{concept}_images.zip`.
+- "Download All" now auto-selects all images (visual feedback for what's being downloaded).
+- Download button in ImagePreviewOverlay also fixed with blob-based approach.
+- Files:
+  - `src/renderer/components/asset-monster/AssetMonsterPage.tsx`
+  - `src/renderer/components/layout/ImagePreviewOverlay.tsx`
+  - `package.json` (added `jszip`)
+
+43. Monster UI — reference images horizontal scroll (Session 7):
+- Changed reference image thumbnails from `flex-wrap` (multi-row) to `overflow-x-auto` (single-row horizontal scroll).
+- Thumbnails reduced from `w-16 h-16` to `w-14 h-14` with `shrink-0` to prevent flex shrinking.
+- Saves vertical space in the right panel.
+- File: `src/renderer/components/asset-monster/AssetMonsterPage.tsx`
 
 ---
 

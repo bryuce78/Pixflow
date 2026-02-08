@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import {
   AlertCircle,
   Check,
@@ -242,18 +243,39 @@ export default function AssetMonsterPage() {
   }, [loadAvatars])
 
   const downloadImages = async (urls: string[]) => {
-    for (const url of urls) {
-      const res = await fetch(assetUrl(url))
+    if (urls.length === 0) return
+
+    if (urls.length === 1) {
+      const res = await fetch(assetUrl(urls[0]))
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
-      a.download = url.split('/').pop() || 'image.jpg'
+      a.download = urls[0].split('/').pop() || 'image.jpg'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(blobUrl)
+      return
     }
+
+    const zip = new JSZip()
+    await Promise.all(
+      urls.map(async (url) => {
+        const res = await fetch(assetUrl(url))
+        const blob = await res.blob()
+        zip.file(url.split('/').pop() || 'image.jpg', blob)
+      }),
+    )
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
+    const blobUrl = URL.createObjectURL(zipBlob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `${concept || 'generated'}_images.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
   }
 
   const handleBatchGenerate = async () => {
@@ -453,14 +475,14 @@ Examples:
                   Clear All
                 </Button>
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {referencePreviews.map((preview, index) => (
                   <div
                     // biome-ignore lint/suspicious/noArrayIndexKey: static list
                     key={index}
-                    className="relative group"
+                    className="relative group shrink-0"
                   >
-                    <img src={preview} alt={`Reference ${index + 1}`} className="w-16 h-16 object-cover rounded-lg" />
+                    <img src={preview} alt={`Reference ${index + 1}`} className="w-14 h-14 object-cover rounded-lg" />
                     <button
                       type="button"
                       onClick={() => removeReferenceImage(index)}
@@ -474,9 +496,9 @@ Examples:
                   <button
                     type="button"
                     onClick={openFilePicker}
-                    className="w-16 h-16 border-2 border-dashed border-surface-200 rounded-lg flex items-center justify-center text-surface-400 hover:border-brand-500 hover:text-brand-400 transition-colors"
+                    className="w-14 h-14 shrink-0 border-2 border-dashed border-surface-200 rounded-lg flex items-center justify-center text-surface-400 hover:border-brand-500 hover:text-brand-400 transition-colors"
                   >
-                    <ImagePlus className="w-6 h-6" />
+                    <ImagePlus className="w-5 h-5" />
                   </button>
                 )}
               </div>
@@ -748,11 +770,12 @@ Examples:
                     variant="secondary"
                     size="sm"
                     icon={<Download className="w-4 h-4" />}
-                    onClick={() =>
+                    onClick={() => {
+                      selectAllResultImages()
                       downloadImages(
                         batchProgress.images.filter((i) => i.status === 'completed' && i.url).map((i) => i.url!),
                       )
-                    }
+                    }}
                   >
                     Download All
                   </Button>
