@@ -87,7 +87,7 @@ Leaning Stable: body weight fully supported by surface (wall, doorframe, furnitu
 Editorial Grounded: elongated neck with chin level (not strained up), shoulders back but relaxed (not tensed), weight evenly distributed or clearly settled on one hip
 Candid Natural: caught in a comfortable moment, body language that suggests ease and familiarity with the environment, nothing forced or held
 
-AVOID: twisted torsos without support, weight on toes, arms held in mid-air without purpose, head tilted at extreme angles, poses that require muscle tension to maintain, anything that looks like the model is fighting gravity
+AVOID: twisted torsos without support, weight on toes, arms held in mid-air without purpose, head tilted at extreme angles, poses that require muscle tension to maintain, anything that looks like the model is fighting gravity, poses where face is turned away from camera, hair falling across and covering the face, hands covering face or mouth, extreme profile views, any framing that cuts off or obscures more than 10% of the face
 
 ### EXPRESSIONS
 Eyes: smizing (smile with eyes), soft gaze, intense stare, dreamy unfocused, knowing glance, side-eye
@@ -374,6 +374,9 @@ ${CREATIVE_DIRECTOR_KNOWLEDGE}
 9. EVERY LIMB explicitly defined - hands, arms, legs, head position
 10. EXPRESSIONS ARE PRECISE - Never "smiling" or "happy". Use: "subtle smirk, corner of mouth lifted", "genuine open laugh, eyes crinkled"
 
+### Face Visibility - MANDATORY
+10.5. FACE MUST BE FULLY VISIBLE AND RECOGNIZABLE - At least 90% of the face must be unobstructed and oriented toward camera. NEVER: profile views, face turned away, hair covering face, hands obscuring features, extreme angles hiding face. This is Clone AI's core requirement — the user's identity must be clearly recognizable in every output.
+
 ### Outfit & Makeup - FULL DETAIL REQUIRED
 11. OUTFIT: Never "casual wear" or "dress". Specify: fabric type, color, style/cut, fit, length, details
 12. MAKEUP: Specify tone/color, intensity, texture (matte/glossy/dewy), regional application
@@ -435,6 +438,7 @@ BANNED:
 - Vague words: gorgeous, perfect, flawless, stunning, beautiful
 - Generic outfit: "casual wear", "nice dress"
 - Generic expression: "smiling", "happy"
+- Poses where face is hidden, turned away, covered by hair/hands, or more than 10% obscured
 
 Return JSON:
 {
@@ -523,6 +527,7 @@ ${CREATIVE_DIRECTOR_KNOWLEDGE}
 - MAKEUP: Tone, intensity, texture (matte/glossy/dewy), regional application
 - EXPRESSION: Precise (never just "smiling") → "subtle smirk, corner of mouth lifted"
 - POSE: Every limb defined, weight distribution, head angle
+- FACE: Must be fully visible, unobstructed, oriented toward camera. No profiles, no hair/hands covering face. At least 90% visible.
 - LIGHTING: Full setup with key, fill, shadows, direction, mood
 
 ### REALISM

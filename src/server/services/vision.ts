@@ -96,6 +96,11 @@ const ANALYSIS_PROMPT = `You are an expert photography analyst. Analyze this ima
   ✓ "genuine open laugh, eyes crinkled"
   ✓ "neutral gaze with soft intensity"
 
+### Face Visibility - MANDATORY
+- Face MUST be fully visible, unobstructed, and oriented toward camera in the output prompt
+- NEVER produce prompts with profiles, face turned away, or features covered by hair/hands
+- If the source image shows a hidden/turned face, CORRECT the pose to face the camera
+
 ### Outfit - NEVER GENERIC
 - BANNED: "casual wear", "loungewear", "nice dress", "stylish outfit"
 - REQUIRED: Fabric type, color, style/cut, fit (loose/tailored/fitted), length, details
