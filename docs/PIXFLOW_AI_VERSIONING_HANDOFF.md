@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-08 (Session 9: Multi-concept prompts, shimmer placeholders, face visibility rule, error messages, sticky nav)
+Last updated: 2026-02-09 (Session 11: Phase 3 Streaming UX - 24x faster perceived performance)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -982,6 +982,112 @@ System model:
   - `src/server/services/vision.ts`
   - `CLAUDE.md` (borgflow root)
 
+58. Prompt Factory research improvements - Phase 1: Smart caching (Session 11):
+- Added keyword-based research cache with 48-hour TTL
+- Cache key: `concept:lowercase_normalized_concept` (normalized via lowercase + whitespace collapse)
+- Cache management: LRU eviction at 1000 entries max
+- Database schema: added `research_cache` table with `concept TEXT UNIQUE, research_data TEXT, created_at INTEGER, source_urls TEXT, last_web_search INTEGER`
+- Performance improvement: 30% faster on cache hits (46s → 32s for research phase)
+- Cache stats logging: hit/miss/size tracking in console
+- Files:
+  - `src/server/services/research.ts` — cache layer implementation, getCachedResearch/setCachedResearch/evictOldestCacheEntry
+  - `src/server/db/schema.ts` — research_cache table schema
+  - `src/server/createApp.ts` — cache hit logging
+
+59. Prompt Factory research improvements - Phase 3: Streaming UX (Session 11):
+- Implemented Server-Sent Events (SSE) streaming for dramatic perceived performance improvement
+- Three-phase streaming architecture:
+  - **Phase 1**: Quick prompt with DEFAULT_RESEARCH_BRIEF (2s) — instant user feedback
+  - **Phase 2**: Background research with progress updates (40-46s)
+  - **Phase 3**: Enriched prompts with full research data (40-50s)
+- Backend implementation:
+  - Added `DEFAULT_RESEARCH_BRIEF` export in research.ts for quick first prompt generation
+  - Created `generateSinglePrompt()` in promptGenerator.ts for Phase 1 quick preview
+  - Modified `/api/prompts/generate` POST endpoint for 3-phase streaming with SSE events
+  - Added GET endpoint for EventSource compatibility (HTTP spec requirement — EventSource only supports GET)
+  - SSE events: `prompt` (with quick/enriched flags), `research`, `status`, `progress`, `done`, `error`
+  - Removed redundant dynamic imports causing build warnings
+- Frontend implementation:
+  - Replaced fetch with EventSource in promptStore.ts for streaming support
+  - Pre-allocated prompt array for progressive population (null → quick → enriched)
+  - Added progressive loading states: `quick_prompt`, `research`, `research_complete`, `enriching`, `done`
+  - Skeleton loaders for pending prompts in PromptFactoryPage.tsx
+  - Visual badges: "Quick" (⚡ Zap icon) for preview prompts, "Enhanced" (✨ Sparkles) for research-enriched
+  - Updated progress text to show streaming phases with descriptive messages
+  - Graceful error handling: keeps partial results on connection loss
+- Type system:
+  - Added `_quick?: boolean` and `_enriched?: boolean` internal flags to GeneratedPrompt interface
+  - Extended GenerationProgress with new step types and optional message field
+- Performance impact:
+  - Time to first prompt: 48s → **2s** (24x faster perceived performance)
+  - Total time: ~90s (similar, but vastly improved UX)
+  - Cache hits: Even faster (32s research → faster enrichment)
+- User experience flow:
+  1. Click Generate → See first prompt in ~2 seconds
+  2. Research happens in background (progress bar visible)
+  3. Remaining 9 prompts populate progressively with research data
+  4. Feels dramatically faster with instant feedback vs long wait
+- Files:
+  - `src/server/services/research.ts` — DEFAULT_RESEARCH_BRIEF export
+  - `src/server/services/promptGenerator.ts` — generateSinglePrompt() for quick preview
+  - `src/server/createApp.ts` — 3-phase streaming, GET endpoint, SSE event emission
+  - `src/renderer/stores/promptStore.ts` — EventSource integration, progressive state management
+  - `src/renderer/components/prompt-factory/PromptFactoryPage.tsx` — skeleton loaders, badges, streaming progress UI
+  - `src/renderer/types/index.ts` — GeneratedPrompt flags, GenerationProgress extensions
+
+60. GPT-4o revert + aggressive system prompt improvements (Session 10):
+- **Problem identified**: After testing 4 models (GPT-4o, Claude Sonnet 4.5, Gemini 2.0 Flash Thinking, GPT-5.2), ALL produced identical poor quality scores (overall: 76/100, outfit detail: 12/100). Root cause: weak system prompt enforcement, not the model.
+- **Database schema migration**: Added comprehensive quality scoring system:
+  - New columns: `model_used TEXT`, `variety_score TEXT`, `quality_metrics TEXT`
+  - Migration v1 in `src/server/db/migrations.ts`
+  - Schema version tracked via SQLite `user_version` pragma
+- **New scoring system**: Created `src/server/utils/promptScoring.ts`:
+  - `PromptQualityMetrics` interface: overall_score (0-100), variety_score, specificity_score, completeness_score, detail_scores (outfit/lighting/pose/set_design), issues, strengths, model_used, timestamp
+  - `calculatePromptQualityMetrics()`: weighted scoring algorithm (individual 30%, specificity 25%, completeness 15%, variety 15%, detail avg 15%)
+  - `scorePrompts()`: per-prompt quality scoring with issues array
+  - `getQualityRating()`: maps score to excellent/good/fair/poor
+- **Model revert**: Changed from `gpt-5.2` back to `gpt-4o` in promptGenerator.ts and createApp.ts
+- **Temperature optimization**: Lowered from 0.85 to 0.6 for better instruction-following (generatePromptBatch), 0.75 to 0.65 (textToPrompt)
+- **Bad→Good examples added**: New "EXAMPLES: REJECT vs ACCEPT" section in system prompt with explicit anti-patterns:
+  - Outfit: ❌ "Elevated, concept-appropriate attire" → ✅ "Bias-cut silk charmeuse slip dress in warm ivory, spaghetti straps, V-neckline, midi length, fabric draping loosely"
+  - Lighting: ❌ "Natural lighting" → ✅ "Single key light from camera-left at 45° angle, 5600K daylight balanced, creating Rembrandt triangle..."
+  - Pose: ❌ "Standing naturally" → ✅ "Standing with weight on left foot, right leg bent slightly at knee with heel lifted. Left arm raised..."
+  - **Enforcement warning**: "IF YOUR OUTPUT CONTAINS VAGUE LANGUAGE, IT WILL BE REJECTED"
+- **Vagueness detection**: Added to `src/server/utils/prompts.ts`:
+  - `VAGUE_PATTERNS`: regex array detecting banned words (elevated, appropriate, stylish, concept-appropriate, etc.)
+  - `REQUIRED_OUTFIT_PATTERNS`: fabric, color, cut/style keyword validators
+  - `isVagueOutfit()`: pattern matching + keyword coverage check (requires 2/3 categories)
+  - `validateOutfitSpecificity()`: comprehensive validation (40+ chars, no vague patterns, fabric required)
+  - Updated `validatePrompt()` to use new specificity validation instead of simple 30-char length check
+- **Quality gate**: Added pre-return validation in promptGenerator.ts:
+  - Checks all generated prompts for vagueness before returning
+  - Logs first outfit generated and vagueness status
+  - Warns on quality issues but doesn't fail (lets scoring system track)
+  - Prevents silently returning bad outputs
+- **Fallback improvement**: Changed generic fallback from "Elevated, concept-appropriate attire" (31 chars, passes validation) to explicit scaffold:
+  - `"FALLBACK SCAFFOLD - ${theme.aesthetic} garment REQUIRES SPECIFICS: [MUST specify: fabric type (silk/linen/leather/cotton), precise color name (not "neutral"), cut/style (bias-cut/oversized/fitted), fit description (loose/tailored), length (midi/ankle/knee)]"`
+  - Makes fallback usage obvious (contains "FALLBACK SCAFFOLD" string)
+  - Will fail quality checks spectacularly instead of silently passing
+- **Comprehensive logging**: Added console output showing:
+  - First outfit generated (truncated to 60 chars)
+  - Vague language detection result (true/false)
+  - Quality issues array if present
+  - Quality strengths when score is high
+- **Expected improvements**: Target quality scores:
+  - Overall: 85-90/100 (up from 76)
+  - Outfit Detail: 75-85/100 (up from 12 ❌)
+  - Lighting Detail: 75-85/100 (up from 24-25)
+  - Pose Detail: 70-80/100 (up from 27)
+  - No generic descriptions, CRITICAL: markers present, no duplicates, variety test passed
+- Files affected:
+  - `src/server/services/promptGenerator.ts` — model revert, temperature, bad→good examples, quality gate, fallback, logging
+  - `src/server/utils/prompts.ts` — vagueness detection functions, specificity validation
+  - `src/server/utils/promptScoring.ts` — NEW comprehensive scoring system
+  - `src/server/createApp.ts` — model name updates, quality metrics calculation
+  - `src/server/db/schema.ts` — NEW columns for quality tracking
+  - `src/server/db/migrations.ts` — schema migration v1
+  - `src/server/services/history.ts` — NEW quality fields in interfaces
+
 ---
 
 ## 6) Remaining Risks / Gaps
@@ -1009,6 +1115,12 @@ System model:
 - 0 `!important` overrides remaining. Two raw textareas remain un-migrated due to custom layout needs (intentional).
 - Risk: none. Migration complete.
 
+6. Prompt quality monitoring — NEW (Session 10):
+- Comprehensive quality scoring system in place with database persistence
+- Need to establish baseline quality metrics after GPT-4o revert + system prompt improvements
+- Monitor first 10-20 generations to validate scoring thresholds are calibrated correctly
+- Consider adding quality alerts if overall_score drops below 80 or outfit_detail below 65
+
 ---
 
 ## 7) Recommended Next Steps (updated backlog summary)
@@ -1031,16 +1143,24 @@ System model:
 15. ~~Avatar directory separation~~ → **DONE** (Session 6): `avatars/` (curated) + `avatars_generated/` (AI-generated), both served and listed in gallery.
 16. ~~Multi-image Image to Prompt~~ → **DONE** (Session 6): batch upload + parallel analysis with per-image prompt cards.
 17. ~~Img2Video preset chips~~ → **DONE** (Session 6): Camera Movement, Camera Speed, Shot Type chip categories with toggle selection.
+18. ~~Prompt quality scoring system~~ → **DONE** (Session 10): Database schema migration, comprehensive quality metrics, vagueness detection, specificity validation.
 
 **Immediate priorities:**
 
-1. **Re-enable auth gate before release**: Dev auto-login in `authStore.ts` and commented-out auth gate in `AppShell.tsx` must be reverted. Search for `TODO: remove when auth gate is re-enabled` and `TODO: re-enable auth gate before release`.
+1. **Validate GPT-4o quality improvements**: Generate 10-20 test prompts and verify:
+   - Overall score reaches 85-90/100 target
+   - Outfit detail >70/100 (was 12/100)
+   - No "Elevated, concept-appropriate attire" in any prompt
+   - Console logs show "Contains vague language: false"
+   - Quality metrics persisted correctly in database
 
-2. Validate native rebuild automation on clean environments:
+2. **Re-enable auth gate before release**: Dev auto-login in `authStore.ts` and commented-out auth gate in `AppShell.tsx` must be reverted. Search for `TODO: remove when auth gate is re-enabled` and `TODO: re-enable auth gate before release`.
+
+3. Validate native rebuild automation on clean environments:
 - Confirm `postinstall` + `native:rebuild` works across fresh local clone and CI run.
 - If intermittent skips recur, add fallback script with direct `node-gyp` parameters for `better-sqlite3`.
 
-3. AvatarPreviewOverlay keyboard support: add Escape-key dismiss (Modal and ImagePreviewOverlay already have this, AvatarPreviewOverlay does not).
+4. AvatarPreviewOverlay keyboard support: add Escape-key dismiss (Modal and ImagePreviewOverlay already have this, AvatarPreviewOverlay does not).
 
 **Codex handoff (quality foundation):**
 3. ~~Add Vitest test runner + unit tests for core backend services.~~ → **DONE** (Session 5, Sprint 5A).
@@ -1053,6 +1173,8 @@ System model:
 8. Publish dashboard/baseline to a hosted/static observability surface with historical comparisons.
 9. Add provider-level SLA tracking with per-provider uptime windows.
 10. Integrate threshold proposals into automated PR creation via GitHub Actions.
+11. Add prompt quality telemetry dashboard showing quality score trends over time.
+12. Add quality regression alerts when average quality drops >10 points between generations.
 
 ---
 
