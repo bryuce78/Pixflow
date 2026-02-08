@@ -30,6 +30,9 @@ export function createTables(db: Database.Database): void {
       prompts TEXT NOT NULL,
       prompt_count INTEGER NOT NULL,
       source TEXT NOT NULL DEFAULT 'generate',
+      model_used TEXT,
+      variety_score TEXT,
+      quality_metrics TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (product_id) REFERENCES products(id)

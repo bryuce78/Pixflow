@@ -25,6 +25,8 @@ import { analyzeResearchResults, performResearch } from './services/research.js'
 import { createPipelineSpan } from './services/telemetry.js'
 import { analyzeImage } from './services/vision.js'
 import { sendError, sendSuccess } from './utils/http.js'
+import { calculatePromptQualityMetrics } from './utils/promptScoring.js'
+import type { PromptOutput } from './utils/prompts.js'
 
 export interface ServerConfig {
   projectRoot: string
@@ -207,15 +209,28 @@ export function createApp(config: ServerConfig): express.Express {
           console.log(`[Validation] ${invalidCount} prompts have issues`)
         }
 
+        // Calculate comprehensive quality metrics
+        const qualityMetrics = calculatePromptQualityMetrics(prompts as PromptOutput[], 'claude-sonnet-4-5-20250929')
+
         console.log(
-          `[Complete] Generated ${prompts.length} prompts, variety score: ${varietyScore.passed ? 'PASS' : 'FAIL'}`,
+          `[Complete] Generated ${prompts.length} prompts, variety: ${varietyScore.passed ? 'PASS' : 'FAIL'}, quality: ${qualityMetrics.overall_score}/100`,
         )
+
+        if (qualityMetrics.issues.length > 0) {
+          console.log(`[Quality Issues] ${qualityMetrics.issues.join(', ')}`)
+        }
+        if (qualityMetrics.strengths.length > 0) {
+          console.log(`[Quality Strengths] ${qualityMetrics.strengths.join(', ')}`)
+        }
 
         await addToHistory(req.user!.id, {
           concept,
           prompts,
           promptCount: prompts.length,
           source: 'generated',
+          modelUsed: 'claude-sonnet-4-5-20250929',
+          varietyScore,
+          qualityMetrics,
         })
 
         span.success({

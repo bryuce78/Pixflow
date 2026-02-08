@@ -7,6 +7,9 @@ export interface HistoryEntry {
   promptCount: number
   createdAt: string
   source: 'generated' | 'analyzed'
+  modelUsed?: string
+  varietyScore?: Record<string, unknown>
+  qualityMetrics?: Record<string, unknown>
 }
 
 export interface FavoritePrompt {
@@ -24,6 +27,9 @@ interface HistoryRow {
   prompt_count: number
   created_at: string
   source: string
+  model_used: string | null
+  variety_score: string | null
+  quality_metrics: string | null
 }
 
 interface FavoriteRow {
@@ -60,6 +66,9 @@ function mapHistoryRow(row: HistoryRow): HistoryEntry {
     promptCount: row.prompt_count,
     createdAt: row.created_at,
     source: row.source === 'analyzed' ? 'analyzed' : 'generated',
+    modelUsed: row.model_used ?? undefined,
+    varietyScore: row.variety_score ? parsePrompt(row.variety_score) : undefined,
+    qualityMetrics: row.quality_metrics ? parsePrompt(row.quality_metrics) : undefined,
   }
 }
 
@@ -81,7 +90,7 @@ export async function getHistory(userId: number, limit = 50): Promise<HistoryEnt
   const db = getDb()
   const rows = db
     .prepare(`
-    SELECT id, concept, prompts, prompt_count, created_at, source
+    SELECT id, concept, prompts, prompt_count, created_at, source, model_used, variety_score, quality_metrics
     FROM history
     WHERE user_id = ?
     ORDER BY datetime(created_at) DESC
@@ -101,14 +110,23 @@ export async function addToHistory(
   const tx = db.transaction(() => {
     const inserted = db
       .prepare(`
-      INSERT INTO history (user_id, concept, prompts, prompt_count, source)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO history (user_id, concept, prompts, prompt_count, source, model_used, variety_score, quality_metrics)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
-      .run(userId, entry.concept, JSON.stringify(entry.prompts), entry.promptCount, source)
+      .run(
+        userId,
+        entry.concept,
+        JSON.stringify(entry.prompts),
+        entry.promptCount,
+        source,
+        entry.modelUsed ?? null,
+        entry.varietyScore ? JSON.stringify(entry.varietyScore) : null,
+        entry.qualityMetrics ? JSON.stringify(entry.qualityMetrics) : null,
+      )
 
     const row = db
       .prepare(`
-      SELECT id, concept, prompts, prompt_count, created_at, source
+      SELECT id, concept, prompts, prompt_count, created_at, source, model_used, variety_score, quality_metrics
       FROM history
       WHERE id = ?
     `)

@@ -19,9 +19,39 @@ interface LegacyFavorite {
   createdAt: string
 }
 
+export function runSchemaMigrations(db: Database.Database): void {
+  // Get current schema version
+  const currentVersion = db.pragma('user_version', { simple: true }) as number
+
+  console.log(`[DB] Current schema version: ${currentVersion}`)
+
+  // Migration 1: Add scoring columns to history table
+  if (currentVersion < 1) {
+    console.log('[DB] Running migration 1: Add scoring columns')
+
+    try {
+      db.exec(`
+        ALTER TABLE history ADD COLUMN model_used TEXT;
+        ALTER TABLE history ADD COLUMN variety_score TEXT;
+        ALTER TABLE history ADD COLUMN quality_metrics TEXT;
+      `)
+
+      db.pragma('user_version = 1')
+      console.log('[DB] Migration 1 complete')
+    } catch (error) {
+      // Columns might already exist
+      console.log('[DB] Migration 1 skipped (columns may already exist)')
+      db.pragma('user_version = 1')
+    }
+  }
+
+  console.log('[DB] All migrations complete')
+}
+
 export function migrateJsonToSqlite(db: Database.Database, dataDir: string): void {
   migrateHistory(db, dataDir)
   migrateFavorites(db, dataDir)
+  runSchemaMigrations(db)
 }
 
 function migrateHistory(db: Database.Database, dataDir: string): void {
