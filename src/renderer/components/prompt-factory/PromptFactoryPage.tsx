@@ -301,6 +301,8 @@ export default function PromptFactoryPage() {
                     onClick={() => {
                       const analyzed = analyzeEntries.filter((e) => e.prompt).map((e) => e.prompt!)
                       setPrompts(analyzed)
+                      generationStore.selectAllPrompts(analyzed.length)
+                      generationStore.setImageSource('upload')
                       navigate('generate')
                     }}
                     className="flex-1"

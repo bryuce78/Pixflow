@@ -11,10 +11,16 @@ export function ImagePreviewOverlay() {
   const batchProgress = useGenerationStore((s) => s.batchProgress)
   const setPreviewImage = useGenerationStore((s) => s.setPreviewImage)
 
-  useImagePreviewKeyboard(previewImage, batchProgress, setPreviewImage)
+  const completedBatches = useGenerationStore((s) => s.completedBatches)
 
-  const completedImages = batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
-  const currentIndex = previewImage ? completedImages.findIndex((img) => img.url === previewImage) : -1
+  const allCompletedImages = [
+    ...(batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []),
+    ...completedBatches.flatMap((entry) => entry.batch.images.filter((img) => img.status === 'completed' && img.url)),
+  ]
+
+  useImagePreviewKeyboard(previewImage, allCompletedImages, setPreviewImage)
+
+  const currentIndex = previewImage ? allCompletedImages.findIndex((img) => img.url === previewImage) : -1
 
   const sendToImageToPrompt = async (imageUrl: string) => {
     try {
@@ -48,7 +54,7 @@ export function ImagePreviewOverlay() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setPreviewImage(completedImages[currentIndex - 1].url!)
+                setPreviewImage(allCompletedImages[currentIndex - 1].url!)
               }}
               className="absolute left-4 bg-black/50 hover:bg-black/70 rounded-full p-3 transition-colors z-10"
             >
@@ -70,15 +76,26 @@ export function ImagePreviewOverlay() {
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
             <div className="absolute top-4 right-4 flex items-center gap-2">
-              <a
-                href={assetUrl(previewImage)}
-                download
+              <button
+                type="button"
                 className="bg-success hover:bg-success-hover rounded-full p-2 transition-colors text-white"
                 title="Download image"
-                onClick={(e) => e.stopPropagation()}
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const res = await fetch(assetUrl(previewImage))
+                  const blob = await res.blob()
+                  const blobUrl = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = blobUrl
+                  a.download = previewImage.split('/').pop() || 'image.jpg'
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(blobUrl)
+                }}
               >
                 <Download className="w-6 h-6" />
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={() => sendToImageToPrompt(previewImage)}
@@ -97,7 +114,7 @@ export function ImagePreviewOverlay() {
             </div>
             {currentIndex >= 0 ? (
               <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-surface-500 bg-black/50 px-3 py-1 rounded">
-                {currentIndex + 1} / {completedImages.length}
+                {currentIndex + 1} / {allCompletedImages.length}
               </p>
             ) : (
               <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-surface-500 bg-black/50 px-3 py-1 rounded">
@@ -106,12 +123,12 @@ export function ImagePreviewOverlay() {
             )}
           </motion.div>
 
-          {currentIndex >= 0 && currentIndex < completedImages.length - 1 && (
+          {currentIndex >= 0 && currentIndex < allCompletedImages.length - 1 && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setPreviewImage(completedImages[currentIndex + 1].url!)
+                setPreviewImage(allCompletedImages[currentIndex + 1].url!)
               }}
               className="absolute right-4 bg-black/50 hover:bg-black/70 rounded-full p-3 transition-colors z-10"
             >

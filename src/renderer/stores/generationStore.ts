@@ -16,6 +16,22 @@ function rebuildPreviews(files: File[]): string[] {
   return files.map((f) => URL.createObjectURL(f))
 }
 
+const BATCH_COLORS = [
+  'border-brand-400',
+  'border-emerald-400',
+  'border-amber-400',
+  'border-rose-400',
+  'border-cyan-400',
+  'border-violet-400',
+  'border-orange-400',
+  'border-teal-400',
+] as const
+
+interface CompletedBatch {
+  batch: BatchProgress
+  color: string
+}
+
 interface GenerationState {
   selectedPrompts: Set<number>
   referenceImages: File[]
@@ -26,6 +42,7 @@ interface GenerationState {
   uploadError: string | null
   previewImage: string | null
   selectedResultImages: Set<number>
+  completedBatches: CompletedBatch[]
 
   promptSource: 'generated' | 'custom'
   customPromptJson: string
@@ -68,11 +85,13 @@ interface GenerationState {
   selectAvatar: (avatar: Avatar) => Promise<void>
   startBatch: (prompts: GeneratedPrompt[], concept: string) => Promise<void>
   cancelBatch: () => void
+  clearCompletedBatches: () => void
 
   reset: () => void
 }
 
-export { MAX_REFERENCE_IMAGES, ASPECT_RATIOS, RESOLUTIONS, OUTPUT_FORMATS }
+export { MAX_REFERENCE_IMAGES, ASPECT_RATIOS, RESOLUTIONS, OUTPUT_FORMATS, BATCH_COLORS }
+export type { CompletedBatch }
 
 let batchAbort: AbortController | null = null
 
@@ -86,6 +105,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   uploadError: null,
   previewImage: null,
   selectedResultImages: new Set<number>(),
+  completedBatches: [],
 
   promptSource: 'generated',
   customPromptJson: '',
@@ -218,8 +238,18 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
     }
   },
 
+  clearCompletedBatches: () => set({ completedBatches: [] }),
+
   startBatch: async (prompts, concept) => {
-    const { referenceImages, aspectRatio, numImagesPerPrompt, resolution, outputFormat } = get()
+    const {
+      referenceImages,
+      aspectRatio,
+      numImagesPerPrompt,
+      resolution,
+      outputFormat,
+      batchProgress,
+      completedBatches,
+    } = get()
 
     if (referenceImages.length === 0) {
       set({ batchError: { message: 'Please add at least one reference image', type: 'warning' } })
@@ -230,7 +260,20 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
     const controller = new AbortController()
     batchAbort = controller
 
-    set({ batchLoading: true, batchError: null, batchProgress: null })
+    const archived = batchProgress?.images.some((img) => img.status === 'completed')
+      ? [
+          ...completedBatches,
+          { batch: batchProgress, color: BATCH_COLORS[completedBatches.length % BATCH_COLORS.length] },
+        ]
+      : completedBatches
+
+    set({
+      batchLoading: true,
+      batchError: null,
+      batchProgress: null,
+      completedBatches: archived,
+      selectedResultImages: new Set(),
+    })
 
     try {
       const formData = new FormData()
@@ -323,6 +366,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
       previewImage: null,
       customPromptJson: '',
       customPromptError: null,
+      completedBatches: [],
     })
   },
 }))

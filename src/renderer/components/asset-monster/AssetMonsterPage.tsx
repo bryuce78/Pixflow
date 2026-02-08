@@ -212,6 +212,8 @@ export default function AssetMonsterPage() {
     toggleResultImage,
     selectAllResultImages,
     deselectAllResultImages,
+    completedBatches,
+    clearCompletedBatches,
   } = useGenerationStore()
 
   const { prompts, concept } = usePromptStore()
@@ -238,6 +240,21 @@ export default function AssetMonsterPage() {
   useEffect(() => {
     loadAvatars()
   }, [loadAvatars])
+
+  const downloadImages = async (urls: string[]) => {
+    for (const url of urls) {
+      const res = await fetch(assetUrl(url))
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = url.split('/').pop() || 'image.jpg'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    }
+  }
 
   const handleBatchGenerate = async () => {
     if (promptSource === 'custom') {
@@ -731,17 +748,11 @@ Examples:
                     variant="secondary"
                     size="sm"
                     icon={<Download className="w-4 h-4" />}
-                    onClick={async () => {
-                      const urls = batchProgress.images
-                        .filter((i) => i.status === 'completed' && i.url)
-                        .map((i) => i.url!)
-                      for (const url of urls) {
-                        const a = document.createElement('a')
-                        a.href = assetUrl(url)
-                        a.download = url.split('/').pop() || 'image.jpg'
-                        a.click()
-                      }
-                    }}
+                    onClick={() =>
+                      downloadImages(
+                        batchProgress.images.filter((i) => i.status === 'completed' && i.url).map((i) => i.url!),
+                      )
+                    }
                   >
                     Download All
                   </Button>
@@ -750,17 +761,13 @@ Examples:
                     size="sm"
                     icon={<Download className="w-4 h-4" />}
                     disabled={selectedResultImages.size === 0}
-                    onClick={async () => {
-                      const urls = batchProgress.images
-                        .filter((i) => i.status === 'completed' && i.url && selectedResultImages.has(i.index))
-                        .map((i) => i.url!)
-                      for (const url of urls) {
-                        const a = document.createElement('a')
-                        a.href = assetUrl(url)
-                        a.download = url.split('/').pop() || 'image.jpg'
-                        a.click()
-                      }
-                    }}
+                    onClick={() =>
+                      downloadImages(
+                        batchProgress.images
+                          .filter((i) => i.status === 'completed' && i.url && selectedResultImages.has(i.index))
+                          .map((i) => i.url!),
+                      )
+                    }
                   >
                     Download Selected ({selectedResultImages.size})
                   </Button>
@@ -807,6 +814,55 @@ Examples:
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {completedBatches.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-surface-400 uppercase tracking-wider">Previous Generations</h2>
+              <Button variant="ghost-muted" size="xs" onClick={clearCompletedBatches}>
+                Clear History
+              </Button>
+            </div>
+            {[...completedBatches].reverse().map((entry, batchIdx) => {
+              const completed = entry.batch.images.filter((img) => img.status === 'completed' && img.url)
+              if (completed.length === 0) return null
+              return (
+                <div key={entry.batch.jobId} className="bg-surface-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-3 h-3 rounded-full border-2 ${entry.color}`} />
+                    <span className="text-xs text-surface-400">
+                      Batch {completedBatches.length - batchIdx} — {completed.length} images
+                    </span>
+                    <Button
+                      variant="ghost-muted"
+                      size="xs"
+                      icon={<Download className="w-3 h-3" />}
+                      onClick={() => downloadImages(completed.map((img) => img.url!))}
+                    >
+                      Download
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-6 gap-2">
+                    {completed.map((img) => (
+                      <button
+                        type="button"
+                        key={img.index}
+                        onClick={() => img.url && setPreviewImage(img.url)}
+                        className={`relative aspect-[9/16] rounded-lg border-2 ${entry.color} cursor-pointer hover:scale-105 transition-all overflow-hidden`}
+                      >
+                        <img
+                          src={assetUrl(img.url!)}
+                          alt={`Batch ${completedBatches.length - batchIdx} #${img.index + 1}`}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
