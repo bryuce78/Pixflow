@@ -6,6 +6,7 @@ import { ASPECT_RATIOS, DURATIONS, useImg2VideoQueueStore } from '../../stores/i
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Select'
+import { CameraPresetCards } from './CameraPresetCards'
 
 export default function Img2VideoQueuePage() {
   const {
@@ -21,6 +22,7 @@ export default function Img2VideoQueuePage() {
     selectItem,
     setItemPrompt,
     setItemSettings,
+    setItemPresets,
     queueItem,
     queueAll,
     generateQueue,
@@ -273,7 +275,7 @@ export default function Img2VideoQueuePage() {
               </div>
             </div>
 
-            {/* Camera Presets Placeholder */}
+            {/* Camera Presets */}
             <div className="mb-4">
               <button
                 type="button"
@@ -284,9 +286,10 @@ export default function Img2VideoQueuePage() {
                 {presetsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {presetsExpanded && (
-                <div className="text-xs text-surface-400 p-4 bg-surface-100 rounded-lg">
-                  Camera preset cards will be implemented in next sprint
-                </div>
+                <CameraPresetCards
+                  selectedPresets={selectedItem.presets}
+                  onPresetsChange={(presets) => setItemPresets(selectedItem.id, presets)}
+                />
               )}
             </div>
 
