@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
-import type { Avatar, ErrorInfo, LipsyncJob, Voice } from '../types'
+import type { Avatar, AvatarStudioMode, ErrorInfo, LipsyncJob, ReactionAspectRatio, ReactionDuration, ReactionType, Voice } from '../types'
 import { parseError } from '../types'
 
 type AvatarGender = 'female' | 'male'
@@ -30,6 +30,59 @@ const OUTFIT_DESCRIPTIONS: Record<AvatarOutfit, string> = {
   sporty: 'athletic sportswear',
   elegant: 'elegant formal outfit',
   streetwear: 'trendy streetwear',
+}
+
+export const REACTION_DEFINITIONS: Record<ReactionType, { label: string; emoji: string; prompt: string }> = {
+  sad: {
+    label: 'Sad',
+    emoji: '😢',
+    prompt: 'person looking down with sad expression, slight frown, eyes looking downward, subtle head movement showing disappointment',
+  },
+  upset: {
+    label: 'Upset',
+    emoji: '😠',
+    prompt: 'person showing frustration, furrowed brows, tight lips, slight head shake, showing annoyance and displeasure',
+  },
+  angry: {
+    label: 'Angry',
+    emoji: '😡',
+    prompt: 'person with angry expression, intense eyes, clenched jaw, aggressive posture, showing strong anger',
+  },
+  disappointed: {
+    label: 'Disappointed',
+    emoji: '😞',
+    prompt: 'person with disappointed look, lowered gaze, slight head shake, showing letdown and dissatisfaction',
+  },
+  sob: {
+    label: 'Sobbing',
+    emoji: '😭',
+    prompt: 'person crying, tears, face contorted in sorrow, shoulders shaking, hand covering face, deep emotional distress',
+  },
+  excited: {
+    label: 'Excited',
+    emoji: '🤩',
+    prompt: 'person with wide smile, eyes bright, energetic movement, showing enthusiasm and joy',
+  },
+  surprised: {
+    label: 'Surprised',
+    emoji: '😲',
+    prompt: 'person with shocked expression, eyes wide, mouth open, eyebrows raised, showing astonishment',
+  },
+  confused: {
+    label: 'Confused',
+    emoji: '😕',
+    prompt: 'person with puzzled look, tilted head, squinted eyes, furrowed brow, showing bewilderment',
+  },
+  worried: {
+    label: 'Worried',
+    emoji: '😟',
+    prompt: 'person with concerned expression, tense face, anxious eyes, showing nervousness and unease',
+  },
+  happy: {
+    label: 'Happy',
+    emoji: '😊',
+    prompt: 'person with genuine smile, bright eyes, relaxed posture, showing contentment and joy',
+  },
 }
 
 interface AvatarState {
@@ -74,6 +127,14 @@ interface AvatarState {
   i2vVideoUrl: string | null
   i2vError: ErrorInfo | null
 
+  studioMode: AvatarStudioMode
+  selectedReaction: ReactionType | null
+  reactionDuration: ReactionDuration
+  reactionAspectRatio: ReactionAspectRatio
+  reactionGenerating: boolean
+  reactionVideoUrl: string | null
+  reactionError: ErrorInfo | null
+
   setMode: (mode: 'gallery' | 'generate') => void
   setSelectedAvatar: (avatar: Avatar | null) => void
   setFullSizeAvatarUrl: (url: string | null) => void
@@ -90,6 +151,10 @@ interface AvatarState {
   setSelectedVoice: (voice: Voice | null) => void
   setI2vPrompt: (prompt: string) => void
   setI2vDuration: (duration: '5' | '10') => void
+  setStudioMode: (mode: AvatarStudioMode) => void
+  setSelectedReaction: (reaction: ReactionType | null) => void
+  setReactionDuration: (duration: ReactionDuration) => void
+  setReactionAspectRatio: (aspectRatio: ReactionAspectRatio) => void
 
   loadAvatars: () => Promise<void>
   loadVoices: () => Promise<void>
@@ -98,6 +163,7 @@ interface AvatarState {
   generateScript: () => Promise<void>
   generateTTS: () => Promise<void>
   createLipsync: () => Promise<void>
+  generateReactionVideo: () => Promise<void>
   generateI2V: () => Promise<void>
   sendToImageToPrompt: (imageUrl: string) => Promise<File | null>
 }
@@ -146,6 +212,14 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   i2vVideoUrl: null,
   i2vError: null,
 
+  studioMode: 'talking',
+  selectedReaction: null,
+  reactionDuration: '5',
+  reactionAspectRatio: '9:16',
+  reactionGenerating: false,
+  reactionVideoUrl: null,
+  reactionError: null,
+
   setMode: (mode) => set({ mode }),
   setSelectedAvatar: (selectedAvatar) => set({ selectedAvatar }),
   setFullSizeAvatarUrl: (fullSizeAvatarUrl) => set({ fullSizeAvatarUrl }),
@@ -162,6 +236,10 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
   setI2vPrompt: (i2vPrompt) => set({ i2vPrompt }),
   setI2vDuration: (i2vDuration) => set({ i2vDuration }),
+  setStudioMode: (studioMode) => set({ studioMode }),
+  setSelectedReaction: (selectedReaction) => set({ selectedReaction }),
+  setReactionDuration: (reactionDuration) => set({ reactionDuration }),
+  setReactionAspectRatio: (reactionAspectRatio) => set({ reactionAspectRatio }),
 
   loadAvatars: async () => {
     set({ avatarsLoading: true })
@@ -414,6 +492,48 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       set({ i2vError: parseError(err) })
     } finally {
       set({ i2vLoading: false })
+    }
+  },
+
+  generateReactionVideo: async () => {
+    const { generatedUrls, selectedGeneratedIndex, selectedAvatar, selectedReaction, reactionDuration, reactionAspectRatio } = get()
+
+    const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url
+    if (!avatarUrl) {
+      set({ reactionError: { message: 'Please select or generate an avatar', type: 'warning' } })
+      return
+    }
+    if (!selectedReaction) {
+      set({ reactionError: { message: 'Please choose a reaction', type: 'warning' } })
+      return
+    }
+
+    set({ reactionGenerating: true, reactionError: null, reactionVideoUrl: null })
+
+    try {
+      const res = await authFetch(apiUrl('/api/avatars/reaction'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: avatarUrl,
+          reaction: selectedReaction,
+          duration: reactionDuration,
+          aspectRatio: reactionAspectRatio,
+        }),
+      })
+
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to generate reaction video'))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ localPath: string }>(raw)
+      set({ reactionVideoUrl: data.localPath })
+    } catch (err) {
+      set({ reactionError: parseError(err) })
+    } finally {
+      set({ reactionGenerating: false })
     }
   },
 

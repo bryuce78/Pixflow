@@ -41,6 +41,7 @@ const MAX_PROMPT_LENGTH = 2000
 const MAX_TEXT_LENGTH = 5000
 const VALID_ASPECT_RATIOS = ['1:1', '9:16', '16:9']
 const VALID_TONES = ['casual', 'professional', 'energetic', 'friendly', 'dramatic']
+const VALID_REACTIONS = ['sad', 'upset', 'angry', 'disappointed', 'sob', 'excited', 'surprised', 'confused', 'worried', 'happy']
 
 function sanitizePath(basePath: string, userPath: string): string | null {
   const normalizedBase = path.resolve(basePath)
@@ -506,6 +507,109 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         'I2V_FAILED',
         error instanceof Error ? error.message : 'Unknown error',
       )
+    }
+  })
+
+  router.post('/reaction', generationLimiter, async (req: AuthRequest, res) => {
+    req.setTimeout(300_000)
+    res.setTimeout(300_000)
+    let span: ReturnType<typeof createPipelineSpan> | null = null
+
+    try {
+      const { imageUrl, reaction, duration, aspectRatio } = req.body
+
+      // Validation
+      if (!imageUrl || typeof imageUrl !== 'string') {
+        sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL')
+        return
+      }
+      if (!reaction || !VALID_REACTIONS.includes(reaction)) {
+        sendError(res, 400, 'Invalid reaction type', 'INVALID_REACTION')
+        return
+      }
+      if (duration && !['5', '10'].includes(String(duration))) {
+        sendError(res, 400, 'Duration must be 5 or 10', 'INVALID_DURATION')
+        return
+      }
+      if (aspectRatio && !VALID_ASPECT_RATIOS.includes(aspectRatio)) {
+        sendError(res, 400, 'Invalid aspect ratio', 'INVALID_ASPECT_RATIO')
+        return
+      }
+
+      span = createPipelineSpan({
+        pipeline: 'avatars.reaction',
+        userId: req.user?.id,
+        metadata: { reaction, duration: String(duration || '5'), aspectRatio: aspectRatio || '9:16' },
+      })
+
+      // Resolve image path
+      let imagePath: string | null = null
+      if (imageUrl.startsWith('/avatars_generated/')) {
+        imagePath = sanitizePath(generatedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_generated/'.length)))
+      } else if (imageUrl.startsWith('/avatars/')) {
+        imagePath = sanitizePath(avatarsDir, decodeURIComponent(imageUrl.slice('/avatars/'.length)))
+      } else if (imageUrl.startsWith('/outputs/')) {
+        imagePath = sanitizePath(outputsDir, decodeURIComponent(imageUrl.slice('/outputs/'.length)))
+      }
+
+      if (!imagePath) {
+        sendError(res, 400, 'Invalid image path', 'INVALID_IMAGE_PATH')
+        return
+      }
+
+      try {
+        await fs.access(imagePath)
+      } catch {
+        sendError(res, 400, `Image file not found: ${path.basename(imagePath)}`, 'IMAGE_NOT_FOUND')
+        return
+      }
+
+      // Reaction prompts (will be tested and refined)
+      const reactionPrompts: Record<string, string> = {
+        sad: 'person looking down with sad expression, slight frown, eyes looking downward, subtle head movement showing disappointment',
+        upset: 'person showing frustration, furrowed brows, tight lips, slight head shake, showing annoyance and displeasure',
+        angry: 'person with angry expression, intense eyes, clenched jaw, aggressive posture, showing strong anger',
+        disappointed: 'person with disappointed look, lowered gaze, slight head shake, showing letdown and dissatisfaction',
+        sob: 'person crying, tears, face contorted in sorrow, shoulders shaking, hand covering face, deep emotional distress',
+        excited: 'person with wide smile, eyes bright, energetic movement, showing enthusiasm and joy',
+        surprised: 'person with shocked expression, eyes wide, mouth open, eyebrows raised, showing astonishment',
+        confused: 'person with puzzled look, tilted head, squinted eyes, furrowed brow, showing bewilderment',
+        worried: 'person with concerned expression, tense face, anxious eyes, showing nervousness and unease',
+        happy: 'person with genuine smile, bright eyes, relaxed posture, showing contentment and joy',
+      }
+
+      const reactionPrompt = reactionPrompts[reaction]
+      if (!reactionPrompt) {
+        sendError(res, 400, 'Reaction prompt not found', 'REACTION_PROMPT_NOT_FOUND')
+        return
+      }
+
+      console.log(`[Reaction] Generating ${reaction} reaction video with Kling AI...`)
+      const result = await generateKlingVideo({
+        imagePath,
+        prompt: reactionPrompt,
+        duration: String(duration || '5') as '5' | '10',
+        aspectRatio: aspectRatio || '9:16',
+      })
+
+      await fs.mkdir(outputsDir, { recursive: true })
+      const outputFilename = `reaction_${reaction}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
+      await downloadKlingVideo(result.videoUrl, path.join(outputsDir, outputFilename))
+
+      if (req.user?.id) {
+        notify(req.user.id, 'reaction_complete', 'Reaction Video Ready', `Your ${reaction} reaction video is ready`)
+      }
+      span.success({ outputFile: outputFilename, requestId: result.requestId })
+
+      sendSuccess(res, {
+        videoUrl: result.videoUrl,
+        localPath: `/outputs/${outputFilename}`,
+        requestId: result.requestId,
+      })
+    } catch (error) {
+      console.error('[Reaction] Generation failed:', error)
+      span?.error(error)
+      sendError(res, 500, 'Failed to generate reaction video', 'REACTION_FAILED', error instanceof Error ? error.message : 'Unknown error')
     }
   })
 
