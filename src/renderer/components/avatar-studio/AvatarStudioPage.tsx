@@ -509,10 +509,10 @@ export default function AvatarStudioPage() {
                           label="Video URL"
                           value={videoUrl}
                           onChange={(e) => setVideoUrl(e.target.value)}
-                          placeholder="https://example.com/video.mp4"
+                          placeholder="https://facebook.com/ads/library/?id=... or direct .mp4 link"
                         />
                         <p className="text-xs text-surface-400">
-                          Enter a direct link to a video file (.mp4, .mov, etc.). Embedded videos from Facebook, Instagram, etc. won't work - download them first and use Upload.
+                          ✅ Supports: Facebook Ads Library, Instagram, TikTok, YouTube, and direct video links (.mp4, .mov, etc.)
                         </p>
                         <Button
                           variant="primary"

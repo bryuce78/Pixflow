@@ -8,6 +8,7 @@ import http from 'node:http'
 import type { AuthRequest } from '../middleware/auth.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { transcribeVideo } from '../services/wizper.js'
+import { downloadVideoWithYtDlp, detectPlatform } from '../services/ytdlp.js'
 
 interface VideosRouterConfig {
   projectRoot: string
@@ -205,10 +206,27 @@ export function createVideosRouter(config: VideosRouterConfig) {
       const isExternalUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://')
 
       if (isExternalUrl) {
-        // Download from external URL
-        console.log(`[Videos] Downloading video from URL: ${videoUrl}`)
-        videoPath = await downloadVideoFromUrl(videoUrl)
-        tempDownloadPath = videoPath
+        // Check if it's a platform video (Facebook, Instagram, TikTok, etc.)
+        const platform = detectPlatform(videoUrl)
+
+        if (platform) {
+          // Use yt-dlp for platform videos
+          console.log(`[Videos] Detected ${platform} video, using yt-dlp...`)
+          try {
+            const result = await downloadVideoWithYtDlp(videoUrl, outputsDir)
+            videoPath = result.videoPath
+            tempDownloadPath = videoPath
+            console.log(`[Videos] yt-dlp download complete: ${result.title} (${result.platform})`)
+          } catch (error) {
+            console.error('[Videos] yt-dlp download failed:', error)
+            throw new Error(`Failed to download ${platform} video: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          }
+        } else {
+          // Direct URL download for non-platform videos
+          console.log(`[Videos] Downloading video from direct URL: ${videoUrl}`)
+          videoPath = await downloadVideoFromUrl(videoUrl)
+          tempDownloadPath = videoPath
+        }
       } else {
         // Local path - validate it's from outputs directory
         if (!videoUrl.startsWith('/outputs/')) {
