@@ -59,6 +59,21 @@ const TONE_OPTIONS = [
   { value: 'dramatic', label: 'Dramatic' },
 ]
 
+async function downloadVideo(url: string, filename: string) {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(blobUrl)
+  } catch (err) {
+    console.error('Failed to download video:', err)
+  }
+}
+
 export default function AvatarStudioPage() {
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -598,14 +613,14 @@ export default function AvatarStudioPage() {
                       {lipsyncJob.status === 'error' && (lipsyncJob.error || 'Generation failed')}
                     </p>
                     {lipsyncJob.status === 'complete' && generatedVideoUrl && (
-                      <a
-                        href={assetUrl(generatedVideoUrl)}
-                        download
+                      <button
+                        type="button"
+                        onClick={() => downloadVideo(assetUrl(generatedVideoUrl), 'lipsync-video.mp4')}
                         className="bg-gradient-to-r from-success to-success-hover hover:from-success-hover hover:to-success rounded-lg px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1.5"
                       >
                         <Download className="w-3.5 h-3.5" />
                         Download
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -626,14 +641,14 @@ export default function AvatarStudioPage() {
                 <video controls src={assetUrl(generatedVideoUrl)} className="w-full rounded-lg" />
 
                 <div className="flex gap-2">
-                  <a
-                    href={assetUrl(generatedVideoUrl)}
-                    download
+                  <button
+                    type="button"
+                    onClick={() => downloadVideo(assetUrl(generatedVideoUrl), 'avatar-video.mp4')}
                     className="flex-1 bg-gradient-to-r from-success to-success-hover hover:from-success-hover hover:to-success rounded-lg px-4 py-2 font-medium transition-all flex items-center justify-center gap-2"
                   >
                     <Download className="w-4 h-4" />
                     Download Video
-                  </a>
+                  </button>
                   <Button
                     variant="secondary"
                     size="md"
@@ -731,14 +746,14 @@ export default function AvatarStudioPage() {
               <div className="space-y-3">
                 {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
                 <video controls src={assetUrl(i2vVideoUrl)} className="w-full rounded-lg" />
-                <a
-                  href={assetUrl(i2vVideoUrl)}
-                  download
+                <button
+                  type="button"
+                  onClick={() => downloadVideo(assetUrl(i2vVideoUrl), 'image-to-video.mp4')}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-success to-success-hover hover:from-success-hover hover:to-success rounded-lg font-medium transition-all"
                 >
                   <Download className="w-4 h-4" />
                   Download Video
-                </a>
+                </button>
               </div>
             )}
           </div>

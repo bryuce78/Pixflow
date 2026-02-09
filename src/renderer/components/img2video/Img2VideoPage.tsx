@@ -43,16 +43,25 @@ export default function Img2VideoPage() {
   const failedJobs = jobs.filter((j) => j.status === 'failed')
   const allPromptsSet = entries.length > 0 && entries.every((e) => e.prompt.trim())
 
-  const handleDownload = (localPath: string) => {
-    const link = document.createElement('a')
-    link.href = assetUrl(localPath)
-    link.download = localPath.split('/').pop() || 'video.mp4'
-    link.click()
+  const handleDownload = async (localPath: string) => {
+    try {
+      const url = assetUrl(localPath)
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = localPath.split('/').pop() || 'video.mp4'
+      link.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      console.error('Failed to download video:', err)
+    }
   }
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
     for (const job of completedJobs) {
-      if (job.localPath) handleDownload(job.localPath)
+      if (job.localPath) await handleDownload(job.localPath)
     }
   }
 

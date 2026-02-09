@@ -49,6 +49,21 @@ const TONE_OPTIONS = [
   { value: 'dramatic', label: 'Dramatic' },
 ]
 
+async function downloadVideo(url: string, filename: string) {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(blobUrl)
+  } catch (err) {
+    console.error('Failed to download video:', err)
+  }
+}
+
 export default function MachinePage() {
   const machineRefInputRef = useRef<HTMLInputElement>(null)
 
@@ -473,14 +488,14 @@ export default function MachinePage() {
                 <div className="flex gap-4 items-start">
                   {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
                   <video controls src={assetUrl(videoUrl)} className="max-w-sm rounded-lg" />
-                  <a
-                    href={assetUrl(videoUrl)}
-                    download
+                  <button
+                    type="button"
+                    onClick={() => downloadVideo(assetUrl(videoUrl), 'machine-video.mp4')}
                     className="flex items-center gap-2 px-4 py-2 bg-success text-white hover:bg-success-hover rounded-lg font-medium transition-all"
                   >
                     <Download className="w-4 h-4" />
                     Download Video
-                  </a>
+                  </button>
                 </div>
               </div>
             )}
