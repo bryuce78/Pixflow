@@ -945,52 +945,6 @@ export default function AvatarStudioPage() {
                     : 'Generate audio first (Step 3)'}
                 </p>
               )}
-
-              {lipsyncJob && (
-                <div
-                  className={`p-3 rounded-lg ${
-                    lipsyncJob.status === 'complete'
-                      ? 'bg-success-muted/30 border border-success/40'
-                      : lipsyncJob.status === 'error'
-                        ? 'bg-danger-muted/30 border border-danger/40'
-                        : 'bg-warning-muted/30 border border-warning/40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p
-                      className={`text-sm flex items-center gap-2 ${
-                        lipsyncJob.status === 'complete'
-                          ? 'text-success'
-                          : lipsyncJob.status === 'error'
-                            ? 'text-danger'
-                            : 'text-warning'
-                      }`}
-                    >
-                      {lipsyncJob.status === 'complete' ? (
-                        <CheckCircle className="w-4 h-4" />
-                      ) : lipsyncJob.status === 'error' ? (
-                        <XCircle className="w-4 h-4" />
-                      ) : (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      )}
-                      {lipsyncJob.status === 'pending' && 'Queued...'}
-                      {lipsyncJob.status === 'processing' && 'Processing video...'}
-                      {lipsyncJob.status === 'complete' && 'Video ready!'}
-                      {lipsyncJob.status === 'error' && (lipsyncJob.error || 'Generation failed')}
-                    </p>
-                    {lipsyncJob.status === 'complete' && generatedVideoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => downloadVideo(assetUrl(generatedVideoUrl), 'lipsync-video.mp4')}
-                        className="bg-gradient-to-r from-success to-success-hover hover:from-success-hover hover:to-success rounded-lg px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1.5"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Download
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
             )}
           </div>
