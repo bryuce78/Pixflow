@@ -114,14 +114,16 @@ interface AvatarState {
   voices: Voice[]
   voicesLoading: boolean
   selectedVoice: Voice | null
+  audioMode: 'tts' | 'upload'
   ttsGenerating: boolean
+  audioUploading: boolean
   generatedAudioUrl: string | null
 
   lipsyncGenerating: boolean
   lipsyncJob: LipsyncJob | null
   generatedVideoUrl: string | null
 
-  scriptMode: 'existing' | 'fetch' | 'generate'
+  scriptMode: 'existing' | 'audio' | 'fetch' | 'generate'
   transcribingVideo: boolean
   transcriptionError: ErrorInfo | null
   selectedVideoForTranscription: string | null
@@ -148,7 +150,8 @@ interface AvatarState {
   setScriptTone: (tone: ScriptTone) => void
   setGeneratedScript: (script: string) => void
   setSelectedVoice: (voice: Voice | null) => void
-  setScriptMode: (mode: 'existing' | 'fetch' | 'generate') => void
+  setAudioMode: (mode: 'tts' | 'upload') => void
+  setScriptMode: (mode: 'existing' | 'audio' | 'fetch' | 'generate') => void
   setSelectedVideoForTranscription: (url: string | null) => void
   setStudioMode: (mode: AvatarStudioMode) => void
   setSelectedReaction: (reaction: ReactionType | null) => void
@@ -161,6 +164,7 @@ interface AvatarState {
   generateAvatar: () => Promise<void>
   generateScript: () => Promise<void>
   generateTTS: () => Promise<void>
+  uploadAudio: (file: File) => Promise<void>
   createLipsync: () => Promise<void>
   generateReactionVideo: () => Promise<void>
   cancelReactionVideo: () => void
@@ -199,7 +203,9 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   voices: [],
   voicesLoading: false,
   selectedVoice: null,
+  audioMode: 'tts',
   ttsGenerating: false,
+  audioUploading: false,
   generatedAudioUrl: null,
 
   lipsyncGenerating: false,
@@ -233,6 +239,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   setScriptTone: (scriptTone) => set({ scriptTone }),
   setGeneratedScript: (generatedScript) => set({ generatedScript }),
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
+  setAudioMode: (audioMode) => set({ audioMode }),
   setScriptMode: (scriptMode) => set({ scriptMode }),
   setSelectedVideoForTranscription: (selectedVideoForTranscription) => set({ selectedVideoForTranscription }),
   setStudioMode: (studioMode) => set({ studioMode }),
@@ -414,6 +421,33 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       set({ error: parseError(err) })
     } finally {
       set({ ttsGenerating: false })
+    }
+  },
+
+  uploadAudio: async (file: File) => {
+    set({ audioUploading: true, error: null, generatedAudioUrl: null })
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', file)
+
+      const res = await authFetch(apiUrl('/api/avatars/upload-audio'), {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to upload audio'))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ audioUrl: string }>(raw)
+      set({ generatedAudioUrl: data.audioUrl })
+    } catch (err) {
+      set({ error: parseError(err) })
+    } finally {
+      set({ audioUploading: false })
     }
   },
 

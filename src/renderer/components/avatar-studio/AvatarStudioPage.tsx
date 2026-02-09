@@ -108,7 +108,9 @@ export default function AvatarStudioPage() {
     voices,
     voicesLoading,
     selectedVoice,
+    audioMode,
     ttsGenerating,
+    audioUploading,
     generatedAudioUrl,
     lipsyncGenerating,
     lipsyncJob,
@@ -138,6 +140,7 @@ export default function AvatarStudioPage() {
     setScriptTone,
     setGeneratedScript,
     setSelectedVoice,
+    setAudioMode,
     setScriptMode,
     setSelectedVideoForTranscription,
     setStudioMode,
@@ -150,6 +153,7 @@ export default function AvatarStudioPage() {
     generateAvatar,
     generateScript,
     generateTTS,
+    uploadAudio,
     createLipsync,
     transcribeVideo,
     generateReactionVideo,
@@ -422,31 +426,40 @@ export default function AvatarStudioPage() {
               Script
             </h2>
 
-            {/* Mode Switcher */}
-            <div className="flex bg-surface-100 rounded-lg p-1 mb-4">
+            {/* Mode Switcher - 4 modes in 2x2 grid */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
               <button
                 type="button"
                 onClick={() => setScriptMode('existing')}
-                className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  scriptMode === 'existing' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  scriptMode === 'existing' ? 'bg-brand-600 text-surface-900' : 'bg-surface-100 text-surface-400 hover:text-surface-900'
                 }`}
               >
-                Already Have Script
+                Have a Script
+              </button>
+              <button
+                type="button"
+                onClick={() => setScriptMode('audio')}
+                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  scriptMode === 'audio' ? 'bg-brand-600 text-surface-900' : 'bg-surface-100 text-surface-400 hover:text-surface-900'
+                }`}
+              >
+                Have an Audio
               </button>
               <button
                 type="button"
                 onClick={() => setScriptMode('fetch')}
-                className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  scriptMode === 'fetch' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  scriptMode === 'fetch' ? 'bg-brand-600 text-surface-900' : 'bg-surface-100 text-surface-400 hover:text-surface-900'
                 }`}
               >
-                Fetch from Video
+                Transcript a Video
               </button>
               <button
                 type="button"
                 onClick={() => setScriptMode('generate')}
-                className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  scriptMode === 'generate' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  scriptMode === 'generate' ? 'bg-brand-600 text-surface-900' : 'bg-surface-100 text-surface-400 hover:text-surface-900'
                 }`}
               >
                 Generate New
@@ -640,6 +653,57 @@ export default function AvatarStudioPage() {
               </div>
             )}
 
+            {/* Mode: Have an Audio */}
+            {scriptMode === 'audio' && (
+              <div className="space-y-4">
+                <p className="text-sm text-surface-400">
+                  Upload your pre-recorded audio file (from ElevenLabs, Descript, etc.)
+                </p>
+
+                <div className="border-2 border-dashed border-surface-300 rounded-lg p-6 text-center">
+                  <input
+                    type="file"
+                    accept="audio/*,.mp3,.wav,.m4a"
+                    className="hidden"
+                    id="audio-upload-step2"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadAudio(file)
+                    }}
+                  />
+                  <label
+                    htmlFor="audio-upload-step2"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-8 h-8 text-surface-400" />
+                    <p className="text-sm text-surface-300">
+                      Click to upload audio file
+                    </p>
+                    <p className="text-xs text-surface-400">
+                      MP3, WAV, M4A (max 50MB)
+                    </p>
+                  </label>
+                </div>
+
+                {audioUploading && (
+                  <div className="flex items-center gap-2 text-surface-400">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading audio...
+                  </div>
+                )}
+
+                {generatedAudioUrl && (
+                  <div className="p-3 bg-success-muted/30 border border-success/40 rounded-lg">
+                    <p className="text-success text-sm flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Audio uploaded! Ready for lipsync.
+                    </p>
+                    <AudioPlayer src={assetUrl(generatedAudioUrl)} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Mode: Generate New Script */}
             {scriptMode === 'generate' && (
               <div className="space-y-4">
@@ -709,8 +773,9 @@ export default function AvatarStudioPage() {
             )}
           </div>
 
-          {/* Step 3: Voice Selection & TTS */}
-          <div className="bg-surface-50 rounded-lg p-4">
+          {/* Step 3: Voice Selection & TTS (Hidden if "Have an Audio" mode) */}
+          {scriptMode !== 'audio' && (
+            <div className="bg-surface-50 rounded-lg p-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
               Voice & Audio
@@ -718,67 +783,69 @@ export default function AvatarStudioPage() {
 
             <div className="space-y-4">
               <div>
-                <span className="block text-sm text-surface-400 mb-2">Select Voice</span>
-                {voicesLoading ? (
-                  <div className="flex items-center gap-2 text-surface-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading voices...
+                    <span className="block text-sm text-surface-400 mb-2">Select Voice</span>
+                    {voicesLoading ? (
+                      <div className="flex items-center gap-2 text-surface-400">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading voices...
+                      </div>
+                    ) : (
+                      <Select
+                        value={selectedVoice?.id || ''}
+                        onChange={(e) => setSelectedVoice(voices.find((v) => v.id === e.target.value) || null)}
+                        options={[
+                          { value: '', label: 'Select a voice...' },
+                          ...voices.map((voice) => ({
+                            value: voice.id,
+                            label: `${voice.name}${voice.category ? ` (${voice.category})` : ''}`,
+                          })),
+                        ]}
+                      />
+                    )}
                   </div>
-                ) : (
-                  <Select
-                    value={selectedVoice?.id || ''}
-                    onChange={(e) => setSelectedVoice(voices.find((v) => v.id === e.target.value) || null)}
-                    options={[
-                      { value: '', label: 'Select a voice...' },
-                      ...voices.map((voice) => ({
-                        value: voice.id,
-                        label: `${voice.name}${voice.category ? ` (${voice.category})` : ''}`,
-                      })),
-                    ]}
-                  />
-                )}
-              </div>
 
-              {selectedVoice?.previewUrl && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Volume2 className="w-4 h-4" />}
-                  onClick={() => new Audio(selectedVoice.previewUrl).play()}
-                >
-                  Preview Voice
-                </Button>
-              )}
+                  {selectedVoice?.previewUrl && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Volume2 className="w-4 h-4" />}
+                      onClick={() => new Audio(selectedVoice.previewUrl).play()}
+                    >
+                      Preview Voice
+                    </Button>
+                  )}
 
-              <Button
-                variant="primary"
-                size="md"
-                icon={ttsGenerating ? undefined : <Mic className="w-4 h-4" />}
-                loading={ttsGenerating}
-                onClick={generateTTS}
-                disabled={ttsGenerating || !generatedScript || !selectedVoice}
-                className="w-full"
-              >
-                {ttsGenerating ? 'Generating Audio...' : 'Generate Audio'}
-              </Button>
-              {!ttsGenerating && (!generatedScript || !selectedVoice) && (
-                <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
-                  <AlertTriangle className="w-3 h-3 shrink-0" />
-                  {!generatedScript ? 'Generate a script first (Step 2)' : 'Select a voice above'}
-                </p>
-              )}
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={ttsGenerating ? undefined : <Mic className="w-4 h-4" />}
+                    loading={ttsGenerating}
+                    onClick={generateTTS}
+                    disabled={ttsGenerating || !generatedScript || !selectedVoice}
+                    className="w-full"
+                  >
+                    {ttsGenerating ? 'Generating Audio...' : 'Generate Audio'}
+                  </Button>
+                  {!ttsGenerating && (!generatedScript || !selectedVoice) && (
+                    <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      {!generatedScript ? 'Generate a script first (Step 2)' : 'Select a voice above'}
+                    </p>
+                  )}
 
+              {/* Audio Preview */}
               {generatedAudioUrl && (
                 <div className="p-3 bg-success-muted/30 border border-success/40 rounded-lg">
                   <p className="text-success text-sm flex items-center gap-2 mb-2">
                     <CheckCircle className="w-4 h-4" />
-                    Audio generated!
+                    Audio ready!
                   </p>
                   <AudioPlayer src={assetUrl(generatedAudioUrl)} />
                 </div>
               )}
             </div>
           </div>
+          )}
 
           {/* Step 4: Lipsync Video Generation */}
           <div className="bg-surface-50 rounded-lg p-4">
@@ -799,10 +866,12 @@ export default function AvatarStudioPage() {
                   )}
                   Avatar selected
                 </div>
-                <div className={`flex items-center gap-2 ${generatedScript ? 'text-success' : 'text-surface-400'}`}>
-                  {generatedScript ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                  Script generated
-                </div>
+                {scriptMode !== 'audio' && (
+                  <div className={`flex items-center gap-2 ${generatedScript ? 'text-success' : 'text-surface-400'}`}>
+                    {generatedScript ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    Script generated
+                  </div>
+                )}
                 <div className={`flex items-center gap-2 ${generatedAudioUrl ? 'text-success' : 'text-surface-400'}`}>
                   {generatedAudioUrl ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                   Audio generated

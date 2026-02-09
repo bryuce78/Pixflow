@@ -335,6 +335,51 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     }
   })
 
+  const audioUploadStorage = multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      await fs.mkdir(outputsDir, { recursive: true })
+      cb(null, outputsDir)
+    },
+    filename: (_req, file, cb) => {
+      const timestamp = Date.now()
+      const random = Math.random().toString(36).slice(2, 8)
+      const ext = path.extname(file.originalname) || '.mp3'
+      cb(null, `audio_upload_${timestamp}_${random}${ext}`)
+    },
+  })
+
+  const audioUpload = multer({
+    storage: audioUploadStorage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith('audio/') || file.mimetype === 'application/octet-stream') {
+        cb(null, true)
+      } else {
+        cb(new Error('Only audio files are allowed'))
+      }
+    },
+  })
+
+  router.post('/upload-audio', avatarLimiter, audioUpload.single('audio'), (req, res) => {
+    try {
+      const file = req.file
+      if (!file) {
+        sendError(res, 400, 'No audio file uploaded', 'NO_AUDIO_FILE')
+        return
+      }
+
+      console.log(`[Audio Upload] Saved to ${file.filename} (${(file.size / 1024).toFixed(1)}KB)`)
+
+      sendSuccess(res, {
+        audioPath: file.path,
+        audioUrl: `/outputs/${file.filename}`,
+      })
+    } catch (error) {
+      console.error('[Audio Upload] Failed:', error)
+      sendError(res, 500, 'Failed to upload audio', 'AUDIO_UPLOAD_FAILED')
+    }
+  })
+
   router.post('/lipsync', generationLimiter, async (req: AuthRequest, res) => {
     req.setTimeout(660_000)
     res.setTimeout(660_000)
