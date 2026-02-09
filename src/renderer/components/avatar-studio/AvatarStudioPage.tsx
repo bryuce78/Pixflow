@@ -30,7 +30,6 @@ import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { Slider } from '../ui/Slider'
 import { Textarea } from '../ui/Textarea'
-import { ScriptDiffView } from './ScriptDiffView'
 
 const GENDER_OPTIONS = [
   { value: 'female', label: 'Female' },
@@ -407,13 +406,54 @@ export default function AvatarStudioPage() {
                     ? `Generating ${generationProgress}/${avatarCount}...`
                     : `Generate ${avatarCount > 1 ? `${avatarCount} Avatars` : 'Avatar'}`}
                 </Button>
-                {generatedUrls.length > 0 && (
+                {generating && (
+                  <div className="p-3 bg-surface-100 border border-surface-300 rounded-lg space-y-3">
+                    <p className="text-surface-400 text-sm flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating {generationProgress}/{avatarCount}...
+                    </p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {Array.from({ length: avatarCount }).map((_, index) => (
+                        <div
+                          // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                          key={index}
+                          className="relative rounded-lg overflow-hidden bg-surface-200 aspect-[9/16] flex items-center justify-center"
+                        >
+                          {index < generationProgress ? (
+                            generatedUrls[index] ? (
+                              <img
+                                src={assetUrl(generatedUrls[index])}
+                                alt={`Generated avatar ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <CheckCircle className="w-8 h-8 text-success" />
+                            )
+                          ) : index === generationProgress ? (
+                            <>
+                              <div className="absolute inset-0 overflow-hidden rounded-lg">
+                                <div
+                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/20 to-transparent"
+                                  style={{ animation: 'shimmer 1.5s infinite' }}
+                                />
+                              </div>
+                              <Loader2 className="w-8 h-8 text-brand animate-spin" />
+                            </>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full border-2 border-surface-300" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {generatedUrls.length > 0 && !generating && (
                   <div className="p-3 bg-success-muted/30 border border-success/40 rounded-lg space-y-3">
                     <p className="text-success text-sm flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" />
                       {generatedUrls.length} avatar{generatedUrls.length > 1 ? 's' : ''} generated and saved to gallery!
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {generatedUrls.map((url, index) => (
                         <button
                           type="button"
@@ -518,73 +558,73 @@ export default function AvatarStudioPage() {
                   )}
                 </div>
                 {showVariationOptions && generatedScript && (
-                  <div className="flex items-center gap-2 text-xs">
-                    {scriptHistory.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={undoScript}
-                          disabled={scriptHistoryIndex <= 0}
-                          className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Undo"
-                        >
-                          <Undo className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={redoScript}
-                          disabled={scriptHistoryIndex >= scriptHistory.length - 1}
-                          className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Redo"
-                        >
-                          <Redo className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="w-px h-4 bg-surface-300" />
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleRefineScript('improved')}
-                      disabled={scriptGenerating}
-                      className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
-                    >
-                      Improved
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRefineScript('shorter')}
-                      disabled={scriptGenerating}
-                      className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                    >
-                      Shorter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRefineScript('longer')}
-                      disabled={scriptGenerating}
-                      className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                    >
-                      Longer
-                    </button>
-                    <div className="w-px h-4 bg-surface-300" />
-                    <input
-                      type="text"
-                      value={targetDuration ? `${targetDuration}sec` : ''}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '')
-                        setTargetDuration(val ? Number(val) : 30)
-                      }}
-                      placeholder="30sec"
-                      className="w-20 px-2 py-1 rounded bg-surface-200 text-surface-900 border border-surface-300 text-center text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
-                      disabled={scriptGenerating}
-                      className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                    >
-                      Duration
-                    </button>
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRefineScript('improved')}
+                        disabled={scriptGenerating}
+                        className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
+                      >
+                        Improved
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRefineScript('shorter')}
+                        disabled={scriptGenerating}
+                        className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                      >
+                        Shorter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRefineScript('longer')}
+                        disabled={scriptGenerating}
+                        className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                      >
+                        Longer
+                      </button>
+                      <div className="w-px h-4 bg-surface-300" />
+                      <div className="flex items-center gap-1 px-3 py-1.5 rounded bg-surface-200 text-surface-900">
+                        <input
+                          type="number"
+                          value={targetDuration}
+                          onChange={(e) => setTargetDuration(Number(e.target.value))}
+                          min={5}
+                          max={120}
+                          className="w-8 bg-transparent text-surface-900 outline-none"
+                        />
+                        <span>sec.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
+                        disabled={scriptGenerating}
+                        className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                      >
+                        Duration
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={undoScript}
+                        disabled={scriptHistoryIndex <= 0}
+                        className="p-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Undo"
+                      >
+                        <Undo className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={redoScript}
+                        disabled={scriptHistoryIndex >= scriptHistory.length - 1}
+                        className="p-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Redo"
+                      >
+                        <Redo className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
                 <Textarea
@@ -772,73 +812,73 @@ export default function AvatarStudioPage() {
                       </div>
                     </div>
                     {showVariationOptions && (
-                      <div className="flex items-center gap-2 text-xs">
-                        {scriptHistory.length > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={undoScript}
-                              disabled={scriptHistoryIndex <= 0}
-                              className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="Undo"
-                            >
-                              <Undo className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={redoScript}
-                              disabled={scriptHistoryIndex >= scriptHistory.length - 1}
-                              className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="Redo"
-                            >
-                              <Redo className="w-3.5 h-3.5" />
-                            </button>
-                            <div className="w-px h-4 bg-surface-300" />
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('improved')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
-                        >
-                          Improved
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('shorter')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Shorter
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('longer')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Longer
-                        </button>
-                        <div className="w-px h-4 bg-surface-300" />
-                        <input
-                          type="number"
-                          value={targetDuration}
-                          onChange={(e) => setTargetDuration(Number(e.target.value))}
-                          min={5}
-                          max={120}
-                          placeholder="30"
-                          className="w-16 px-2 py-1 rounded bg-surface-200 text-surface-900 border border-surface-300 text-center"
-                        />
-                        <span className="text-surface-400">sec</span>
-                        <button
-                          type="button"
-                          onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Duration
-                        </button>
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('improved')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
+                          >
+                            Improved
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('shorter')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Shorter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('longer')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Longer
+                          </button>
+                          <div className="w-px h-4 bg-surface-300" />
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded bg-surface-200 text-surface-900">
+                            <input
+                              type="number"
+                              value={targetDuration}
+                              onChange={(e) => setTargetDuration(Number(e.target.value))}
+                              min={5}
+                              max={120}
+                              className="w-8 bg-transparent text-surface-900 outline-none"
+                            />
+                            <span>sec.</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Duration
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={undoScript}
+                            disabled={scriptHistoryIndex <= 0}
+                            className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Undo"
+                          >
+                            <Undo className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={redoScript}
+                            disabled={scriptHistoryIndex >= scriptHistory.length - 1}
+                            className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Redo"
+                          >
+                            <Redo className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     <Textarea
@@ -998,73 +1038,73 @@ export default function AvatarStudioPage() {
                       </div>
                     </div>
                     {showVariationOptions && (
-                      <div className="flex items-center gap-2 text-xs">
-                        {scriptHistory.length > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={undoScript}
-                              disabled={scriptHistoryIndex <= 0}
-                              className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="Undo"
-                            >
-                              <Undo className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={redoScript}
-                              disabled={scriptHistoryIndex >= scriptHistory.length - 1}
-                              className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="Redo"
-                            >
-                              <Redo className="w-3.5 h-3.5" />
-                            </button>
-                            <div className="w-px h-4 bg-surface-300" />
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('improved')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
-                        >
-                          Improved
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('shorter')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Shorter
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRefineScript('longer')}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Longer
-                        </button>
-                        <div className="w-px h-4 bg-surface-300" />
-                        <input
-                          type="number"
-                          value={targetDuration}
-                          onChange={(e) => setTargetDuration(Number(e.target.value))}
-                          min={5}
-                          max={120}
-                          placeholder="30"
-                          className="w-16 px-2 py-1 rounded bg-surface-200 text-surface-900 border border-surface-300 text-center"
-                        />
-                        <span className="text-surface-400">sec</span>
-                        <button
-                          type="button"
-                          onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
-                          disabled={scriptGenerating}
-                          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-                        >
-                          Duration
-                        </button>
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('improved')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
+                          >
+                            Improved
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('shorter')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Shorter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRefineScript('longer')}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Longer
+                          </button>
+                          <div className="w-px h-4 bg-surface-300" />
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded bg-surface-200 text-surface-900">
+                            <input
+                              type="number"
+                              value={targetDuration}
+                              onChange={(e) => setTargetDuration(Number(e.target.value))}
+                              min={5}
+                              max={120}
+                              className="w-8 bg-transparent text-surface-900 outline-none"
+                            />
+                            <span>sec.</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
+                            disabled={scriptGenerating}
+                            className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
+                          >
+                            Duration
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={undoScript}
+                            disabled={scriptHistoryIndex <= 0}
+                            className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Undo"
+                          >
+                            <Undo className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={redoScript}
+                            disabled={scriptHistoryIndex >= scriptHistory.length - 1}
+                            className="text-surface-400 hover:text-surface-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Redo"
+                          >
+                            <Redo className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     <Textarea
@@ -1432,13 +1472,54 @@ export default function AvatarStudioPage() {
                       ? `Generating ${generationProgress}/${avatarCount}...`
                       : `Generate ${avatarCount > 1 ? `${avatarCount} Avatars` : 'Avatar'}`}
                   </Button>
-                  {generatedUrls.length > 0 && (
+                  {generating && (
+                    <div className="p-3 bg-surface-100 border border-surface-300 rounded-lg space-y-3">
+                      <p className="text-surface-400 text-sm flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating {generationProgress}/{avatarCount}...
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {Array.from({ length: avatarCount }).map((_, index) => (
+                          <div
+                            // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                            key={index}
+                            className="relative rounded-lg overflow-hidden bg-surface-200 aspect-[9/16] flex items-center justify-center"
+                          >
+                            {index < generationProgress ? (
+                              generatedUrls[index] ? (
+                                <img
+                                  src={assetUrl(generatedUrls[index])}
+                                  alt={`Generated avatar ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <CheckCircle className="w-8 h-8 text-success" />
+                              )
+                            ) : index === generationProgress ? (
+                              <>
+                                <div className="absolute inset-0 overflow-hidden rounded-lg">
+                                  <div
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/20 to-transparent"
+                                    style={{ animation: 'shimmer 1.5s infinite' }}
+                                  />
+                                </div>
+                                <Loader2 className="w-8 h-8 text-brand animate-spin" />
+                              </>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full border-2 border-surface-300" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {generatedUrls.length > 0 && !generating && (
                     <div className="p-3 bg-success-muted/30 border border-success/40 rounded-lg space-y-3">
                       <p className="text-success text-sm flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
                         {generatedUrls.length} avatar{generatedUrls.length > 1 ? 's' : ''} generated and saved to gallery!
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-4 gap-2">
                         {generatedUrls.map((url, index) => (
                           <button
                             type="button"

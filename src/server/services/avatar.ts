@@ -13,6 +13,7 @@ const AVATAR_MODEL = 'fal-ai/nano-banana-pro'
 export interface AvatarGenerationOptions {
   resolution?: '1K' | '2K' | '4K'
   aspectRatio?: '9:16' | '16:9' | '1:1' | '4:3' | '3:4'
+  seed?: number
 }
 
 export interface AvatarGenerationResult {
@@ -47,9 +48,10 @@ export async function generateAvatar(
       fal.subscribe(AVATAR_MODEL, {
         input: {
           prompt,
-          resolution: options.resolution || '2K',
+          resolution: options.resolution || '1K',
           aspect_ratio: options.aspectRatio || '9:16',
           output_format: 'png',
+          ...(options.seed !== undefined && { seed: options.seed }),
         },
         logs: true,
         onQueueUpdate: (update) => {

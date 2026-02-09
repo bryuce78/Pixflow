@@ -124,7 +124,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
   router.post('/generate', generationLimiter, async (req, res) => {
     try {
-      const { prompt, aspectRatio } = req.body
+      const { prompt, aspectRatio, seed } = req.body
       if (!prompt || typeof prompt !== 'string') {
         sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT')
         return
@@ -139,7 +139,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       }
 
       console.log('[Avatar] Generating avatar with prompt...')
-      const result = await generateAvatar(prompt, { aspectRatio })
+      const result = await generateAvatar(prompt, { aspectRatio, seed })
 
       const fileName = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`
       const localPath = path.join(generatedAvatarsDir, fileName)

@@ -24,13 +24,51 @@ const ETHNICITY_DESCRIPTIONS: Record<AvatarEthnicity, string> = {
   'south-asian': 'south asian',
 }
 
-const OUTFIT_DESCRIPTIONS: Record<AvatarOutfit, string> = {
-  casual: 'casual everyday clothes',
-  business: 'professional business attire',
-  sporty: 'athletic sportswear',
-  elegant: 'elegant formal outfit',
-  streetwear: 'trendy streetwear',
+const OUTFIT_VARIATIONS: Record<AvatarOutfit, string[]> = {
+  casual: [
+    'casual everyday t-shirt and jeans',
+    'relaxed casual sweater and pants',
+    'comfortable casual button-up shirt',
+    'casual hoodie and casual pants',
+    'simple casual polo shirt',
+  ],
+  business: [
+    'professional business suit and tie',
+    'formal business blazer and dress shirt',
+    'executive business attire with vest',
+    'crisp business shirt and slacks',
+    'corporate business jacket and trousers',
+  ],
+  sporty: [
+    'athletic track jacket and pants',
+    'sporty gym t-shirt and shorts',
+    'active sportswear hoodie',
+    'performance athletic wear',
+    'modern sports jersey and joggers',
+  ],
+  elegant: [
+    'elegant formal suit',
+    'sophisticated evening wear',
+    'refined formal blazer and dress pants',
+    'classy formal attire',
+    'stylish formal outfit',
+  ],
+  streetwear: [
+    'trendy oversized hoodie and joggers',
+    'urban streetwear jacket and jeans',
+    'modern street style outfit',
+    'hip streetwear bomber jacket',
+    'contemporary street fashion',
+  ],
 }
+
+const EXPRESSION_VARIATIONS = [
+  'friendly warm smile, direct eye contact with camera',
+  'gentle smile, looking straight at viewer',
+  'natural relaxed expression, eyes on camera',
+  'soft smile, confident gaze at camera',
+  'welcoming expression, direct eye contact',
+]
 
 export const REACTION_DEFINITIONS: Record<ReactionType, { label: string; emoji: string; prompt: string }> = {
   sad: {
@@ -350,25 +388,31 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
 
     set({ generating: true, error: null, generatedUrls: [], selectedGeneratedIndex: 0, generationProgress: 0 })
 
-    const prompt = `portrait photo of a ${AGE_DESCRIPTIONS[ageGroup]} ${ETHNICITY_DESCRIPTIONS[ethnicity]} ${gender}
-background: solid green color (1ebf1a)
-outfit: ${OUTFIT_DESCRIPTIONS[outfit]}
-pose: standing straight, body and face directly facing the camera, arms relaxed at sides
-framing: medium shot from waist up
-expression: friendly, warm smile, direct eye contact with camera, looking straight at viewer
-lighting: soft studio lighting, even illumination
-sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, professional photography`
-
     const urls: string[] = []
 
     try {
       for (let i = 0; i < avatarCount; i++) {
         set({ generationProgress: i + 1 })
 
+        const seed = Math.floor(Math.random() * 999999999)
+        const outfitVariations = OUTFIT_VARIATIONS[outfit]
+        const randomOutfit = outfitVariations[Math.floor(Math.random() * outfitVariations.length)]
+        const randomExpression = EXPRESSION_VARIATIONS[Math.floor(Math.random() * EXPRESSION_VARIATIONS.length)]
+
+        console.log(`[Avatar ${i + 1}] seed: ${seed}, outfit: ${randomOutfit}`)
+
+        const prompt = `portrait photo of a ${AGE_DESCRIPTIONS[ageGroup]} ${ETHNICITY_DESCRIPTIONS[ethnicity]} ${gender}
+background: solid green color (#1ebf1a)
+outfit: ${randomOutfit}
+pose: standing straight, body and face directly facing the camera, arms relaxed at sides
+framing: medium shot from waist up
+expression: ${randomExpression}
+lighting: soft studio lighting, even illumination
+sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, professional photography`
         const res = await authFetch(apiUrl('/api/avatars/generate'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, aspectRatio: '9:16' }),
+          body: JSON.stringify({ prompt, aspectRatio: '9:16', seed }),
         })
 
         if (!res.ok) {
@@ -413,8 +457,8 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
 
       const raw = await res.json()
       const data = unwrapApiData<{ script: string; wordCount: number; estimatedDuration: number }>(raw)
+      get().setGeneratedScript(data.script)
       set({
-        generatedScript: data.script,
         scriptWordCount: data.wordCount,
         scriptEstimatedDuration: data.estimatedDuration,
       })
@@ -455,8 +499,8 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
 
       const raw = await res.json()
       const data = unwrapApiData<{ script: string; wordCount: number; estimatedDuration: number }>(raw)
+      get().setGeneratedScript(data.script)
       set({
-        generatedScript: data.script,
         scriptWordCount: data.wordCount,
         scriptEstimatedDuration: data.estimatedDuration,
       })
@@ -592,7 +636,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
 
       const raw = await res.json()
       const data = unwrapApiData<{ transcript: string; duration: number; language?: string }>(raw)
-      set({ generatedScript: data.transcript })
+      get().setGeneratedScript(data.transcript)
     } catch (err) {
       set({ transcriptionError: parseError(err) })
     } finally {
