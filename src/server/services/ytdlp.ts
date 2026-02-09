@@ -30,6 +30,7 @@ export async function downloadVideoWithYtDlp(
       '--output', outputTemplate,
       '--format', 'best[ext=mp4]/best',
       '--no-playlist',
+      '--cookies-from-browser', 'chrome', // Use Chrome cookies for authentication
       '--print', '%(title)s|%(duration)s|%(extractor)s', // Print metadata
     ])
 
