@@ -18,7 +18,8 @@ export async function downloadVideoWithYtDlp(
   outputDir: string,
 ): Promise<YtDlpDownloadResult> {
   const timestamp = Date.now()
-  const sanitizedFilename = `ytdlp_${timestamp}_%(title).50s.%(ext)s`
+  // Use restrictfilenames to avoid emoji/special chars in filename
+  const sanitizedFilename = `ytdlp_${timestamp}.%(ext)s`
   const outputTemplate = path.join(outputDir, sanitizedFilename)
 
   console.log('[yt-dlp] Downloading video from:', url)
@@ -32,6 +33,7 @@ export async function downloadVideoWithYtDlp(
       '--yes-playlist', // Allow playlists (Facebook Ads Library returns playlists)
       '--max-downloads', '1', // Only download first video from playlist
       '--cookies-from-browser', 'chrome', // Use Chrome cookies for authentication
+      '--restrict-filenames', // Sanitize filenames (remove emoji, special chars)
       '--print', '%(title)s|%(duration)s|%(extractor)s', // Print metadata
     ])
 
@@ -67,13 +69,14 @@ export async function downloadVideoWithYtDlp(
       }
 
       try {
-        // Find downloaded file
+        // Find downloaded file (exact timestamp match)
         const files = await fs.readdir(outputDir)
         const downloadedFile = files.find(
-          (f) => f.startsWith(`ytdlp_${timestamp}_`) && (f.endsWith('.mp4') || f.endsWith('.webm') || f.endsWith('.mkv')),
+          (f) => f.startsWith(`ytdlp_${timestamp}.`) && (f.endsWith('.mp4') || f.endsWith('.webm') || f.endsWith('.mkv')),
         )
 
         if (!downloadedFile) {
+          console.error('[yt-dlp] Downloaded file not found. Files in output dir:', files.filter(f => f.startsWith('ytdlp_')).slice(0, 5))
           reject(new Error('Downloaded video file not found'))
           return
         }
