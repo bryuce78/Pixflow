@@ -510,12 +510,7 @@ export default function AvatarStudioPage() {
                   {generatedScript && !scriptGenerating && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowVariationOptions(!showVariationOptions)
-                        if (!showVariationOptions) {
-                          handleRefineScript('improved')
-                        }
-                      }}
+                      onClick={() => setShowVariationOptions(!showVariationOptions)}
                       className="text-xs text-brand-400 hover:text-brand-300"
                     >
                       Improve Script
