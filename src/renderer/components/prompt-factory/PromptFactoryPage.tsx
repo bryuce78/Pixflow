@@ -166,7 +166,7 @@ export default function PromptFactoryPage() {
             <input {...analyzeDropzone.getInputProps()} />
             <ScanSearch className="w-12 h-12 text-surface-300 mx-auto mb-4" />
             <p className="text-surface-400 text-lg mb-2">Drop images here or click to upload</p>
-            <p className="text-surface-300 text-sm">Upload one or more images to extract prompts via Gemini 3 Flash</p>
+            <p className="text-surface-300 text-sm">Upload one or more images to extract prompts via GPT-4o Vision</p>
           </div>
         ) : (
           <>
@@ -299,7 +299,7 @@ export default function PromptFactoryPage() {
                       <p className="text-xs text-surface-500 break-words">{entry.prompt.style || 'Analyzed'}</p>
                     )}
 
-                    {entry.loading && <p className="text-xs text-brand-400">Analyzing with Gemini 3 Flash...</p>}
+                    {entry.loading && <p className="text-xs text-brand-400">Analyzing with GPT-4o Vision...</p>}
 
                     {editingEntry === i && entry.prompt && (
                       <div className="space-y-2">

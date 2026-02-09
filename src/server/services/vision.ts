@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { GoogleGenAI } from '@google/genai'
+import OpenAI from 'openai'
 
-let geminiClient: GoogleGenAI | null = null
+let openaiClient: OpenAI | null = null
 
-function getGemini(): GoogleGenAI {
-  if (!geminiClient) {
-    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   }
-  return geminiClient
+  return openaiClient
 }
 
 export interface AnalyzedPrompt {
@@ -187,29 +187,40 @@ Return a JSON object with this EXACT structure:
 Return ONLY the JSON object, no other text.`
 
 export async function analyzeImage(imagePath: string): Promise<AnalyzedPrompt> {
-  const gemini = getGemini()
+  const openai = getOpenAI()
   const buffer = await fs.readFile(imagePath)
+  const base64Image = buffer.toString('base64')
+  const mimeType = getMimeType(imagePath)
 
-  const response = await gemini.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: [
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: ANALYSIS_PROMPT,
+      },
       {
         role: 'user',
-        parts: [
-          { inlineData: { data: buffer.toString('base64'), mimeType: getMimeType(imagePath) } },
-          { text: 'Analyze this image.' },
+        content: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${mimeType};base64,${base64Image}`,
+            },
+          },
+          {
+            type: 'text',
+            text: 'Analyze this image and return the JSON object.',
+          },
         ],
       },
     ],
-    config: {
-      systemInstruction: ANALYSIS_PROMPT,
-      responseMimeType: 'application/json',
-      maxOutputTokens: 4000,
-      temperature: 0.3,
-    },
+    max_tokens: 4000,
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
   })
 
-  const content = response.text
+  const content = response.choices[0]?.message?.content
   if (!content) {
     throw new Error('No response from vision model')
   }
