@@ -1125,8 +1125,8 @@ export default function AvatarStudioPage() {
               <div className="space-y-4">
                 {reactionGenerating ? (
                   /* Generating State with Thumbnail */
-                  <div className="space-y-4">
-                    <div className="relative">
+                  <div className="space-y-4 flex flex-col items-center">
+                    <div className="relative w-1/2">
                       <img
                         src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
                         alt="Generating reaction"
