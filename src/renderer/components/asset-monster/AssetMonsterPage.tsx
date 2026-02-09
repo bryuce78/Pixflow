@@ -943,7 +943,9 @@ Examples:
                         batchProgress?.images.filter(
                           (img) => img.status === 'completed' && img.url && selectedResultImages.has(img.index),
                         ) ?? []
-                      useImg2VideoStore.getState().setEntries(completed.map((img) => ({ url: img.url!, prompt: '' })))
+                      useImg2VideoStore
+                        .getState()
+                        .setEntries(completed.map((img) => ({ url: img.url!, prompt: '', presets: {} })))
                       navigate('img2video')
                     }}
                   >
