@@ -560,7 +560,134 @@ pixflow/
 
 ---
 
-**Last Updated:** February 9, 2026 - Session 8
+### Session 9: Avatar Studio - Facebook Ads Library Integration 🎯
+**Date:** Feb 9, 2026
+**MAJOR FEATURE:** Competitive intelligence pipeline for analyzing competitor ads!
+
+**Problem:** Need to extract scripts from Facebook Ads Library videos for competitive analysis
+
+**Solution:** Complete video-to-script pipeline with social platform support
+
+**Implementation:**
+
+1. **yt-dlp Integration** (NEW)
+   - System binary: `brew install yt-dlp`
+   - Supports 1000+ platforms: Facebook, Instagram, TikTok, YouTube, etc.
+   - Chrome cookie authentication for private content
+   - Playlist handling for Facebook Ads Library
+
+2. **Video Transcription Service** (NEW)
+   - FFmpeg audio extraction
+   - fal.ai/wizper transcription API
+   - Temp file management with auto-cleanup
+
+3. **Avatar Studio Redesign**
+   - NEW LAYOUT: All inputs left, output right
+   - Removed "Selected Avatar" section (redundant)
+   - Removed Image-to-Video section (disconnected feature)
+   - 3-mode script input:
+     - a) Already Have Script (manual paste/type)
+     - b) Fetch from Video (NEW! URL or upload)
+     - c) Generate New Script (existing AI generation)
+
+4. **Video Input Options** (2 sources)
+   - Video URL: Facebook Ads Library, Instagram, TikTok, YouTube, direct .mp4
+   - Upload File: Local video files (max 500MB)
+
+**Files Created:**
+```
+src/server/services/ytdlp.ts       # yt-dlp video downloader (95 lines)
+src/server/services/wizper.ts      # FFmpeg + fal.ai transcription (156 lines)
+src/server/routes/videos.ts        # API: /upload, /transcribe, /list (259 lines)
+```
+
+**Files Modified:**
+```
+src/server/createApp.ts            # Register videos router
+src/renderer/stores/avatarStore.ts # scriptMode, transcription state, removed i2v
+src/renderer/components/avatar-studio/AvatarStudioPage.tsx # 3-mode UI, layout redesign
+package.json                        # Added @distube/yt-dlp (unused, using system binary)
+```
+
+**API Endpoints:**
+- `POST /api/videos/upload` - Upload video file (multer, 500MB max)
+- `POST /api/videos/transcribe` - Download + extract + transcribe (rate limited: 5 req/min)
+- `GET /api/videos/list` - List .mp4 files in /outputs/
+
+**Technical Challenges & Solutions:**
+
+1. **yt-dlp npm package issues**
+   - Problem: @distube/yt-dlp requires binary installation
+   - Solution: Use system binary via child_process.spawn()
+   - Result: More stable, better error handling
+
+2. **Facebook Ads Library returns playlists**
+   - Problem: `--no-playlist` flag skipped all downloads
+   - Solution: `--yes-playlist` + `--max-downloads 1`
+   - Result: Downloads first video from ad variations
+
+3. **Emoji in filenames**
+   - Problem: Facebook ad titles contain emoji → filesystem issues
+   - Solution: Simplified filename to `ytdlp_{timestamp}.{ext}` + `--restrict-filenames`
+   - Result: Clean, predictable filenames
+
+4. **Authentication for private content**
+   - Problem: Some platforms require login
+   - Solution: `--cookies-from-browser chrome`
+   - Result: Seamless auth using existing Chrome session
+
+**System Requirements:**
+```bash
+# REQUIRED
+brew install yt-dlp    # Video downloader
+brew install ffmpeg    # Audio extraction (already installed)
+
+# Chrome with active Facebook/Instagram session (for authenticated content)
+```
+
+**User Flow:**
+1. Copy Facebook Ads Library link: `https://www.facebook.com/ads/library/?id=2204020190127880`
+2. Avatar Studio → Fetch from Video → Video URL tab
+3. Paste link → "Transcribe from URL"
+4. Backend: Download (yt-dlp) → Extract audio (FFmpeg) → Transcribe (wizper)
+5. Script appears in textarea (editable)
+6. Continue: Select voice → Generate audio → Create lipsync video
+
+**Testing:**
+- ✅ Facebook Ads Library URL
+- ✅ Instagram Reels URL
+- ✅ TikTok video URL
+- ✅ YouTube video URL
+- ✅ Direct .mp4 URL
+- ✅ Local file upload
+- ✅ Transcription accuracy
+- ✅ Full pipeline: Video → Script → TTS → Lipsync
+
+**Commits:**
+- `5d5e316` - Add Avatar Studio redesign with video transcription
+- `13e76db` - Add 3-way video input for transcription: Library, URL, Upload
+- `a13fee5` - Simplify video input: Remove 'From Library', keep URL + Upload
+- `6d1b04e` - Fix video URL validation: Add trim() to handle whitespace
+- `a4c87e7` - Add yt-dlp: Support Facebook Ads Library + social platforms
+- `8477a9e` - Fix yt-dlp: Use system binary instead of npm package
+- `2c3dc89` - Add Chrome cookie support for authenticated platforms
+- `ff9afca` - Fix Facebook Ads Library: Support playlists with max-downloads
+- `cf6a583` - Fix filename issues: Sanitize output, remove emoji/special chars
+
+**Known Issues:**
+- None currently! All major bugs resolved during implementation.
+
+**Future Enhancements:**
+- [ ] Batch processing: Multiple ads → Multiple scripts
+- [ ] Video quality selection (SD/HD)
+- [ ] Subtitle extraction (if available)
+- [ ] Progress bar for long downloads
+- [ ] Cancel download button
+- [ ] Video preview before transcription
+
+---
+
+**Last Updated:** February 9, 2026 - Session 9
 **Active Agent:** Claude Sonnet 4.5
-**Status:** All recent features implemented and tested
-**Next Session:** Ready for new tasks
+**Status:** Facebook Ads Library integration complete and tested
+**Next Session:** Ready for testing and production deployment
