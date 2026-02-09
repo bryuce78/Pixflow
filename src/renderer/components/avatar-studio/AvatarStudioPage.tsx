@@ -149,6 +149,7 @@ export default function AvatarStudioPage() {
     createLipsync,
     generateI2V,
     generateReactionVideo,
+    cancelReactionVideo,
   } = useAvatarStore()
 
   useEffect(() => {
@@ -1122,43 +1123,53 @@ export default function AvatarStudioPage() {
               </h2>
 
               <div className="space-y-4">
-                <div className="space-y-2 text-sm">
-                  <div
-                    className={`flex items-center gap-2 ${selectedAvatar || generatedUrls.length > 0 ? 'text-success' : 'text-surface-400'}`}
-                  >
-                    {selectedAvatar || generatedUrls.length > 0 ? (
-                      <CheckCircle className="w-4 h-4" />
-                    ) : (
-                      <XCircle className="w-4 h-4" />
+                {reactionGenerating ? (
+                  /* Generating State with Thumbnail */
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <img
+                        src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
+                        alt="Generating reaction"
+                        className="w-full aspect-[9/16] object-cover rounded-lg opacity-50"
+                      />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-12 h-12 animate-spin text-brand" />
+                        <p className="text-sm font-medium text-surface-900">Generating {selectedReaction && REACTION_DEFINITIONS[selectedReaction].emoji} reaction...</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      icon={<X className="w-4 h-4" />}
+                      onClick={cancelReactionVideo}
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  /* Ready to Generate */
+                  <>
+                    <Button
+                      variant="success"
+                      size="lg"
+                      icon={<Video className="w-5 h-5" />}
+                      onClick={generateReactionVideo}
+                      disabled={(!selectedAvatar && generatedUrls.length === 0) || !selectedReaction}
+                      className="w-full"
+                    >
+                      Generate Reaction Video
+                    </Button>
+                    {((!selectedAvatar && generatedUrls.length === 0) || !selectedReaction) && (
+                      <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        {!selectedAvatar && generatedUrls.length === 0
+                          ? 'Select an avatar first (Step 1)'
+                          : 'Choose a reaction (Step 2)'}
+                      </p>
                     )}
-                    Avatar selected
-                  </div>
-                  <div className={`flex items-center gap-2 ${selectedReaction ? 'text-success' : 'text-surface-400'}`}>
-                    {selectedReaction ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                    Reaction chosen
-                  </div>
-                </div>
-
-                <Button
-                  variant="success"
-                  size="lg"
-                  icon={reactionGenerating ? undefined : <Video className="w-5 h-5" />}
-                  loading={reactionGenerating}
-                  onClick={generateReactionVideo}
-                  disabled={reactionGenerating || (!selectedAvatar && generatedUrls.length === 0) || !selectedReaction}
-                  className="w-full"
-                >
-                  {reactionGenerating ? 'Generating Reaction Video...' : 'Generate Reaction Video'}
-                </Button>
-                {!reactionGenerating &&
-                  ((!selectedAvatar && generatedUrls.length === 0) || !selectedReaction) && (
-                    <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
-                      <AlertTriangle className="w-3 h-3 shrink-0" />
-                      {!selectedAvatar && generatedUrls.length === 0
-                        ? 'Select an avatar first (Step 1)'
-                        : 'Choose a reaction (Step 2)'}
-                    </p>
-                  )}
+                  </>
+                )}
               </div>
             </div>
 

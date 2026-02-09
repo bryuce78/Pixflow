@@ -164,6 +164,7 @@ interface AvatarState {
   generateTTS: () => Promise<void>
   createLipsync: () => Promise<void>
   generateReactionVideo: () => Promise<void>
+  cancelReactionVideo: () => void
   generateI2V: () => Promise<void>
   sendToImageToPrompt: (imageUrl: string) => Promise<File | null>
 }
@@ -535,6 +536,10 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     } finally {
       set({ reactionGenerating: false })
     }
+  },
+
+  cancelReactionVideo: () => {
+    set({ reactionGenerating: false, reactionError: null })
   },
 
   sendToImageToPrompt: async (imageUrl) => {
