@@ -7,11 +7,11 @@ export const DURATIONS = ['5', '10'] as const
 export const ASPECT_RATIOS = ['9:16', '16:9', '1:1'] as const
 const MAX_CONCURRENCY = 10
 
-export const VIDEO_PRESETS = [
-  {
-    key: 'cameraMovement',
+export const VIDEO_PRESETS: Record<string, { label: string; presets: string[]; multiSelect: boolean }> = {
+  cameraMovement: {
     label: 'Camera Movement',
-    options: [
+    multiSelect: true,
+    presets: [
       'the camera rotates around the subject',
       'the camera is stationary',
       'handheld device filming',
@@ -24,15 +24,15 @@ export const VIDEO_PRESETS = [
       'camera orbits around',
     ],
   },
-  {
-    key: 'cameraSpeed',
+  cameraSpeed: {
     label: 'Camera Speed',
-    options: ['The speed of the camera motion is slow', 'The speed of the camera motion is normal', 'The speed of the camera motion is fast'],
+    multiSelect: false,
+    presets: ['slow', 'normal', 'fast'],
   },
-  {
-    key: 'shotType',
+  shotType: {
     label: 'Shot Type',
-    options: [
+    multiSelect: true,
+    presets: [
       'maintaining a Close Shot',
       'medium shot',
       'positioned at a Long Shot',
@@ -44,7 +44,7 @@ export const VIDEO_PRESETS = [
       'Close-up',
     ],
   },
-] as const
+}
 
 // UUID generation helper
 function generateId(): string {
