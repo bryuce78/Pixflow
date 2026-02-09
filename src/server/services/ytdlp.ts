@@ -1,6 +1,6 @@
-import ytDlp from '@distube/yt-dlp'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 
 export interface YtDlpDownloadResult {
   videoPath: string
@@ -10,7 +10,7 @@ export interface YtDlpDownloadResult {
 }
 
 /**
- * Download video from URL using yt-dlp
+ * Download video from URL using yt-dlp binary
  * Supports: Facebook, Instagram, TikTok, YouTube, and 1000+ sites
  */
 export async function downloadVideoWithYtDlp(
@@ -18,56 +18,80 @@ export async function downloadVideoWithYtDlp(
   outputDir: string,
 ): Promise<YtDlpDownloadResult> {
   const timestamp = Date.now()
-  const outputTemplate = path.join(outputDir, `ytdlp_${timestamp}_%(title)s.%(ext)s`)
+  const sanitizedFilename = `ytdlp_${timestamp}_%(title).50s.%(ext)s`
+  const outputTemplate = path.join(outputDir, sanitizedFilename)
 
   console.log('[yt-dlp] Downloading video from:', url)
 
-  try {
-    // Download video with yt-dlp
-    const result = await ytDlp.exec(url, {
-      output: outputTemplate,
-      format: 'best[ext=mp4]/best', // Prefer MP4, fallback to best quality
-      noPlaylist: true, // Only download single video, not playlist
-      noWarnings: true,
-      quiet: false,
-      printJson: true, // Get metadata as JSON
+  return new Promise((resolve, reject) => {
+    // Spawn yt-dlp process
+    const ytdlp = spawn('yt-dlp', [
+      url,
+      '--output', outputTemplate,
+      '--format', 'best[ext=mp4]/best',
+      '--no-playlist',
+      '--print', '%(title)s|%(duration)s|%(extractor)s', // Print metadata
+    ])
+
+    let stdout = ''
+    let stderr = ''
+    let metadata = { title: 'Downloaded Video', duration: 0, platform: 'unknown' }
+
+    ytdlp.stdout.on('data', (data) => {
+      const output = data.toString()
+      stdout += output
+      console.log('[yt-dlp]', output.trim())
+
+      // Parse metadata from print output
+      const metaMatch = output.match(/^([^|]+)\|([^|]+)\|([^|]+)$/m)
+      if (metaMatch) {
+        metadata = {
+          title: metaMatch[1].trim(),
+          duration: Number.parseFloat(metaMatch[2]) || 0,
+          platform: metaMatch[3].trim(),
+        }
+      }
     })
 
-    // Parse metadata from output
-    let metadata: any = {}
-    try {
-      const jsonMatch = result.stdout.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        metadata = JSON.parse(jsonMatch[0])
+    ytdlp.stderr.on('data', (data) => {
+      stderr += data.toString()
+      console.error('[yt-dlp]', data.toString().trim())
+    })
+
+    ytdlp.on('close', async (code) => {
+      if (code !== 0) {
+        reject(new Error(`yt-dlp failed with code ${code}: ${stderr || 'Unknown error'}`))
+        return
       }
-    } catch {
-      console.warn('[yt-dlp] Failed to parse metadata')
-    }
 
-    // Find downloaded file
-    const files = await fs.readdir(outputDir)
-    const downloadedFile = files.find(
-      (f) => f.startsWith(`ytdlp_${timestamp}_`) && (f.endsWith('.mp4') || f.endsWith('.webm')),
-    )
+      try {
+        // Find downloaded file
+        const files = await fs.readdir(outputDir)
+        const downloadedFile = files.find(
+          (f) => f.startsWith(`ytdlp_${timestamp}_`) && (f.endsWith('.mp4') || f.endsWith('.webm') || f.endsWith('.mkv')),
+        )
 
-    if (!downloadedFile) {
-      throw new Error('Downloaded video file not found')
-    }
+        if (!downloadedFile) {
+          reject(new Error('Downloaded video file not found'))
+          return
+        }
 
-    const videoPath = path.join(outputDir, downloadedFile)
+        const videoPath = path.join(outputDir, downloadedFile)
+        console.log('[yt-dlp] Download complete:', videoPath)
 
-    console.log('[yt-dlp] Download complete:', videoPath)
+        resolve({
+          videoPath,
+          ...metadata,
+        })
+      } catch (error) {
+        reject(error)
+      }
+    })
 
-    return {
-      videoPath,
-      title: metadata.title || 'Downloaded Video',
-      duration: metadata.duration || 0,
-      platform: metadata.extractor || 'unknown',
-    }
-  } catch (error) {
-    console.error('[yt-dlp] Download failed:', error)
-    throw new Error(`Failed to download video: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
+    ytdlp.on('error', (error) => {
+      reject(new Error(`Failed to spawn yt-dlp: ${error.message}`))
+    })
+  })
 }
 
 /**
