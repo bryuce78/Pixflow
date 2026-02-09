@@ -1,4 +1,5 @@
-import { AlertCircle, CheckCircle, Copy, Download, Film, Loader2, Play, Trash2, Upload, X, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Copy, Download, Film, Loader2, Pencil, Play, Trash2, Upload, X, XCircle } from 'lucide-react'
+import React from 'react'
 import { useDropzone } from 'react-dropzone'
 import { assetUrl } from '../../lib/api'
 import { ASPECT_RATIOS, DURATIONS, useImg2VideoStore, VIDEO_PRESETS } from '../../stores/img2videoStore'
@@ -29,6 +30,9 @@ export default function Img2VideoPage() {
     generateAll,
     cancelGenerate,
   } = useImg2VideoStore()
+
+  const [editingIndex, setEditingIndex] = React.useState<number | null>(null)
+  const [editingPrompt, setEditingPrompt] = React.useState('')
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
@@ -221,36 +225,87 @@ export default function Img2VideoPage() {
             </div>
           )}
 
-          {/* Source images row during generation */}
+          {/* Source images with editable prompts after generation */}
           {(generating || jobs.some((j) => j.status === 'completed')) && (
             <div className="bg-surface-50 rounded-xl p-4">
               <h2 className="text-sm font-semibold text-surface-400 uppercase tracking-wider mb-3">
                 Source Images ({entries.length})
               </h2>
-              <div className="grid grid-cols-8 gap-2">
+              <div className="grid grid-cols-4 gap-3">
                 {entries.map((entry, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: static during generation
-                  <div key={i} className="relative aspect-[9/16] rounded-lg overflow-hidden bg-surface-100">
-                    <img src={assetUrl(entry.url)} alt={`Source ${i + 1}`} className="w-full h-full object-cover" />
-                    {jobs[i] && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {jobs[i].status === 'generating' && (
-                          <div className="bg-black/60 rounded-full p-2">
-                            <Loader2 className="w-5 h-5 animate-spin text-brand-400" />
+                  <div key={i} className="bg-surface-0 rounded-lg overflow-hidden border border-surface-100">
+                    <div className="relative aspect-[9/16] bg-surface-100">
+                      <img src={assetUrl(entry.url)} alt={`Source ${i + 1}`} className="w-full h-full object-cover" />
+                      {jobs[i] && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {jobs[i].status === 'generating' && (
+                            <div className="bg-black/60 rounded-full p-2">
+                              <Loader2 className="w-5 h-5 animate-spin text-brand-400" />
+                            </div>
+                          )}
+                          {jobs[i].status === 'completed' && (
+                            <div className="bg-success/80 rounded-full p-2">
+                              <CheckCircle className="w-5 h-5 text-white" />
+                            </div>
+                          )}
+                          {jobs[i].status === 'failed' && (
+                            <div className="bg-danger/80 rounded-full p-2">
+                              <XCircle className="w-5 h-5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 space-y-2">
+                      {editingIndex === i ? (
+                        <>
+                          <textarea
+                            value={editingPrompt}
+                            onChange={(e) => setEditingPrompt(e.target.value)}
+                            className="w-full h-20 text-xs bg-surface-50 border border-surface-200 rounded p-2 resize-none focus:outline-none focus:border-brand-500"
+                            placeholder="Describe the video..."
+                          />
+                          <div className="flex gap-1">
+                            <Button
+                              variant="success"
+                              size="xs"
+                              onClick={() => {
+                                setEntryPrompt(i, editingPrompt)
+                                setEditingIndex(null)
+                              }}
+                              className="flex-1"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setEditingIndex(null)}
+                              className="flex-1"
+                            >
+                              Cancel
+                            </Button>
                           </div>
-                        )}
-                        {jobs[i].status === 'completed' && (
-                          <div className="bg-success/80 rounded-full p-2">
-                            <CheckCircle className="w-5 h-5 text-white" />
-                          </div>
-                        )}
-                        {jobs[i].status === 'failed' && (
-                          <div className="bg-danger/80 rounded-full p-2">
-                            <XCircle className="w-5 h-5 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-surface-500 line-clamp-2">{entry.prompt || 'No prompt'}</p>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            icon={<Pencil className="w-3 h-3" />}
+                            onClick={() => {
+                              setEditingIndex(i)
+                              setEditingPrompt(entry.prompt)
+                            }}
+                            className="w-full"
+                          >
+                            Edit Prompt
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -320,16 +375,31 @@ export default function Img2VideoPage() {
                 <h2 className="text-sm font-semibold text-surface-400 uppercase tracking-wider">
                   Generated Videos ({completedJobs.length})
                 </h2>
-                {completedJobs.length > 1 && (
-                  <Button
-                    variant="success"
-                    size="xs"
-                    icon={<Download className="w-3.5 h-3.5" />}
-                    onClick={handleDownloadAll}
-                  >
-                    Download All
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="xs" icon={<Upload className="w-3.5 h-3.5" />} onClick={openFilePicker}>
+                    Add More
                   </Button>
-                )}
+                  {completedJobs.length > 1 && (
+                    <Button
+                      variant="success"
+                      size="xs"
+                      icon={<Download className="w-3.5 h-3.5" />}
+                      onClick={handleDownloadAll}
+                    >
+                      Download All
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost-danger"
+                    size="xs"
+                    onClick={() => {
+                      clearEntries()
+                      clearPresets()
+                    }}
+                  >
+                    Start Over
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 {completedJobs.map((job) => (
