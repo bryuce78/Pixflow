@@ -2,6 +2,9 @@ import express from 'express'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import rateLimit from 'express-rate-limit'
+import multer from 'multer'
+import https from 'node:https'
+import http from 'node:http'
 import type { AuthRequest } from '../middleware/auth.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { transcribeVideo } from '../services/wizper.js'
@@ -23,6 +26,30 @@ export function createVideosRouter(config: VideosRouterConfig) {
   const router = express.Router()
   const outputsDir = path.join(config.projectRoot, 'outputs')
 
+  // Configure multer for video uploads
+  const storage = multer.diskStorage({
+    destination: outputsDir,
+    filename: (_req, file, cb) => {
+      const timestamp = Date.now()
+      const sanitized = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')
+      cb(null, `uploaded_${timestamp}_${sanitized}`)
+    },
+  })
+
+  const upload = multer({
+    storage,
+    limits: {
+      fileSize: 500 * 1024 * 1024, // 500MB max
+    },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true)
+      } else {
+        cb(new Error('Only video files are allowed'))
+      }
+    },
+  })
+
   /**
    * Sanitize and validate file path to prevent directory traversal.
    * Only allows files from outputs directory.
@@ -40,6 +67,48 @@ export function createVideosRouter(config: VideosRouterConfig) {
     }
 
     return absolutePath
+  }
+
+  /**
+   * Download video from external URL to temp file
+   */
+  async function downloadVideoFromUrl(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const tempPath = path.join(outputsDir, `temp_download_${Date.now()}.mp4`)
+      const file = fs.open(tempPath, 'w')
+
+      const protocol = url.startsWith('https') ? https : http
+
+      file
+        .then((handle) => {
+          const stream = handle.createWriteStream()
+
+          protocol
+            .get(url, (response) => {
+              if (response.statusCode !== 200) {
+                reject(new Error(`Failed to download video: HTTP ${response.statusCode}`))
+                return
+              }
+
+              response.pipe(stream)
+
+              stream.on('finish', () => {
+                stream.close()
+                resolve(tempPath)
+              })
+
+              stream.on('error', (err) => {
+                fs.unlink(tempPath).catch(() => {})
+                reject(err)
+              })
+            })
+            .on('error', (err) => {
+              fs.unlink(tempPath).catch(() => {})
+              reject(err)
+            })
+        })
+        .catch(reject)
+    })
   }
 
   /**
@@ -76,13 +145,42 @@ export function createVideosRouter(config: VideosRouterConfig) {
   })
 
   /**
+   * POST /api/videos/upload
+   * Upload a video file to outputs directory
+   */
+  router.post('/upload', upload.single('video'), async (req: AuthRequest, res) => {
+    try {
+      if (!req.file) {
+        sendError(res, 400, 'No video file provided', 'MISSING_VIDEO_FILE')
+        return
+      }
+
+      const videoUrl = `/outputs/${req.file.filename}`
+
+      console.log(`[Videos] Video uploaded: ${videoUrl}`)
+
+      sendSuccess(res, {
+        url: videoUrl,
+        filename: req.file.filename,
+        size: req.file.size,
+      })
+    } catch (error) {
+      console.error('[Videos] Upload failed:', error)
+      sendError(res, 500, 'Video upload failed', 'VIDEO_UPLOAD_FAILED', error instanceof Error ? error.message : undefined)
+    }
+  })
+
+  /**
    * POST /api/videos/transcribe
    * Extract audio from video and transcribe using fal-ai/wizper
+   * Supports both local paths (/outputs/...) and external URLs (http://...)
    */
   router.post('/transcribe', transcriptionLimiter, async (req: AuthRequest, res) => {
     // Set long timeout for transcription (5 minutes)
     req.setTimeout(300_000)
     res.setTimeout(300_000)
+
+    let tempDownloadPath: string | null = null
 
     try {
       const { videoUrl } = req.body
@@ -93,32 +191,38 @@ export function createVideosRouter(config: VideosRouterConfig) {
         return
       }
 
-      if (!videoUrl.startsWith('/outputs/')) {
-        sendError(res, 400, 'Invalid video URL: must be from outputs directory', 'INVALID_VIDEO_URL')
-        return
-      }
-
-      // Sanitize and resolve path
       let videoPath: string
-      try {
-        videoPath = sanitizePath(videoUrl)
-      } catch (err) {
-        sendError(res, 400, 'Invalid video path', 'INVALID_VIDEO_PATH', err instanceof Error ? err.message : undefined)
-        return
-      }
 
-      // Check file exists
-      try {
-        await fs.access(videoPath)
-      } catch {
-        sendError(res, 404, 'Video file not found', 'VIDEO_NOT_FOUND')
-        return
-      }
+      // Check if it's an external URL or local path
+      const isExternalUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://')
 
-      // Check file extension
-      if (!videoPath.endsWith('.mp4')) {
-        sendError(res, 400, 'Invalid file type: only MP4 videos supported', 'INVALID_FILE_TYPE')
-        return
+      if (isExternalUrl) {
+        // Download from external URL
+        console.log(`[Videos] Downloading video from URL: ${videoUrl}`)
+        videoPath = await downloadVideoFromUrl(videoUrl)
+        tempDownloadPath = videoPath
+      } else {
+        // Local path - validate it's from outputs directory
+        if (!videoUrl.startsWith('/outputs/')) {
+          sendError(res, 400, 'Invalid video URL: must be from outputs directory or external URL', 'INVALID_VIDEO_URL')
+          return
+        }
+
+        // Sanitize and resolve path
+        try {
+          videoPath = sanitizePath(videoUrl)
+        } catch (err) {
+          sendError(res, 400, 'Invalid video path', 'INVALID_VIDEO_PATH', err instanceof Error ? err.message : undefined)
+          return
+        }
+
+        // Check file exists
+        try {
+          await fs.access(videoPath)
+        } catch {
+          sendError(res, 404, 'Video file not found', 'VIDEO_NOT_FOUND')
+          return
+        }
       }
 
       console.log(`[Videos] Transcribing video: ${videoPath}`)
@@ -145,8 +249,17 @@ export function createVideosRouter(config: VideosRouterConfig) {
         sendError(res, 408, 'Transcription timed out. Try a shorter video.', 'TRANSCRIPTION_TIMEOUT')
       } else if (errorMessage.includes('FFmpeg not available')) {
         sendError(res, 500, 'Audio extraction failed. Contact support.', 'FFMPEG_UNAVAILABLE')
+      } else if (errorMessage.includes('Failed to download video')) {
+        sendError(res, 400, 'Failed to download video from URL', 'VIDEO_DOWNLOAD_FAILED', errorMessage)
       } else {
         sendError(res, 500, 'Transcription failed', 'TRANSCRIPTION_FAILED', errorMessage)
+      }
+    } finally {
+      // Clean up temp downloaded file
+      if (tempDownloadPath) {
+        fs.unlink(tempDownloadPath).catch((err) => {
+          console.error('[Videos] Failed to delete temp file:', err)
+        })
       }
     }
   })

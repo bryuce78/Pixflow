@@ -84,8 +84,12 @@ interface VideoFile {
 
 export default function AvatarStudioPage() {
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
+  const videoFileInputRef = useRef<HTMLInputElement>(null)
   const [videos, setVideos] = useState<VideoFile[]>([])
   const [videosLoading, setVideosLoading] = useState(false)
+  const [videoSource, setVideoSource] = useState<'library' | 'url' | 'upload'>('library')
+  const [videoUrl, setVideoUrl] = useState('')
+  const [uploadingVideo, setUploadingVideo] = useState(false)
 
   const {
     mode,
@@ -502,45 +506,167 @@ export default function AvatarStudioPage() {
             {scriptMode === 'fetch' && (
               <div className="space-y-4">
                 <p className="text-sm text-surface-400">
-                  Select a video to transcribe its audio into a script
+                  Select a video source to transcribe its audio into a script
                 </p>
 
-                {/* Video Picker */}
+                {/* Video Source Tabs */}
                 {!transcribingVideo && !generatedScript && (
-                  <div>
-                    <label className="text-sm text-surface-400 mb-2 block">Available Videos</label>
-                    {videosLoading ? (
-                      <div className="flex items-center gap-2 text-surface-400 p-3">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading videos...</span>
-                      </div>
-                    ) : videos.length === 0 ? (
-                      <div className="bg-surface-100 border border-surface-200 rounded-lg p-4 text-center">
-                        <p className="text-sm text-surface-400">No videos found in outputs folder</p>
-                        <p className="text-xs text-surface-400 mt-1">Generate a video first to transcribe it</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-64 overflow-y-auto border border-surface-200 rounded-lg divide-y divide-surface-200">
-                        {videos.map((video) => (
-                          <button
-                            key={video.filename}
-                            type="button"
-                            onClick={() => transcribeVideo(video.url)}
-                            className="w-full p-3 hover:bg-surface-100 flex items-center gap-3 text-left transition-colors"
-                          >
-                            <Video className="w-5 h-5 text-surface-400 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-surface-900 truncate">{video.filename}</p>
-                              <p className="text-xs text-surface-400">
-                                {new Date(video.modifiedAt).toLocaleDateString()} •{' '}
-                                {(video.size / (1024 * 1024)).toFixed(1)} MB
-                              </p>
-                            </div>
-                          </button>
-                        ))}
+                  <>
+                    <div className="flex bg-surface-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setVideoSource('library')}
+                        className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                          videoSource === 'library' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                        }`}
+                      >
+                        From Library
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVideoSource('url')}
+                        className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                          videoSource === 'url' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                        }`}
+                      >
+                        Video URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVideoSource('upload')}
+                        className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                          videoSource === 'upload' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+                        }`}
+                      >
+                        Upload File
+                      </button>
+                    </div>
+
+                    {/* Source: From Library */}
+                    {videoSource === 'library' && (
+                      <div>
+                        <label className="text-sm text-surface-400 mb-2 block">Available Videos</label>
+                        {videosLoading ? (
+                          <div className="flex items-center gap-2 text-surface-400 p-3">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">Loading videos...</span>
+                          </div>
+                        ) : videos.length === 0 ? (
+                          <div className="bg-surface-100 border border-surface-200 rounded-lg p-4 text-center">
+                            <p className="text-sm text-surface-400">No videos found in outputs folder</p>
+                            <p className="text-xs text-surface-400 mt-1">Generate a video first to transcribe it</p>
+                          </div>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto border border-surface-200 rounded-lg divide-y divide-surface-200">
+                            {videos.map((video) => (
+                              <button
+                                key={video.filename}
+                                type="button"
+                                onClick={() => transcribeVideo(video.url)}
+                                className="w-full p-3 hover:bg-surface-100 flex items-center gap-3 text-left transition-colors"
+                              >
+                                <Video className="w-5 h-5 text-surface-400 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-surface-900 truncate">{video.filename}</p>
+                                  <p className="text-xs text-surface-400">
+                                    {new Date(video.modifiedAt).toLocaleDateString()} •{' '}
+                                    {(video.size / (1024 * 1024)).toFixed(1)} MB
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+
+                    {/* Source: Video URL */}
+                    {videoSource === 'url' && (
+                      <div className="space-y-3">
+                        <Input
+                          label="Video URL"
+                          value={videoUrl}
+                          onChange={(e) => setVideoUrl(e.target.value)}
+                          placeholder="https://example.com/video.mp4"
+                        />
+                        <p className="text-xs text-surface-400">
+                          Enter a direct link to a video file (.mp4, .mov, etc.). Embedded videos from Facebook, Instagram, etc. won't work - download them first and use Upload.
+                        </p>
+                        <Button
+                          variant="primary"
+                          size="md"
+                          onClick={() => transcribeVideo(videoUrl)}
+                          disabled={!videoUrl.trim()}
+                          className="w-full"
+                        >
+                          Transcribe from URL
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Source: Upload File */}
+                    {videoSource === 'upload' && (
+                      <div className="space-y-3">
+                        <input
+                          ref={videoFileInputRef}
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+
+                            setUploadingVideo(true)
+                            try {
+                              const formData = new FormData()
+                              formData.append('video', file)
+
+                              const res = await authFetch(apiUrl('/api/videos/upload'), {
+                                method: 'POST',
+                                body: formData,
+                              })
+
+                              if (!res.ok) {
+                                throw new Error('Upload failed')
+                              }
+
+                              const data = await res.json()
+                              if (data.success && data.data?.url) {
+                                // Upload successful, now transcribe
+                                await transcribeVideo(data.data.url)
+                              }
+                            } catch (err) {
+                              useAvatarStore.setState({
+                                transcriptionError: {
+                                  message: err instanceof Error ? err.message : 'Upload failed',
+                                  type: 'error',
+                                },
+                              })
+                            } finally {
+                              setUploadingVideo(false)
+                              if (videoFileInputRef.current) {
+                                videoFileInputRef.current.value = ''
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="primary"
+                          size="md"
+                          icon={uploadingVideo ? undefined : <Upload className="w-4 h-4" />}
+                          loading={uploadingVideo}
+                          onClick={() => videoFileInputRef.current?.click()}
+                          disabled={uploadingVideo}
+                          className="w-full"
+                        >
+                          {uploadingVideo ? 'Uploading...' : 'Choose Video File'}
+                        </Button>
+                        <p className="text-xs text-surface-400">
+                          Supported formats: MP4, MOV, AVI, etc. Max 500MB.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Loading State */}
