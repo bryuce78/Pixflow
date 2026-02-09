@@ -225,29 +225,13 @@ export default function Img2VideoQueuePage() {
       </div>
 
       {/* Workspace - Right 70% */}
-      <div className="flex-1 bg-surface-50 rounded-xl p-6 flex flex-col" {...getRootProps()}>
+      <div className="flex-1 bg-surface-50 rounded-xl p-6 flex flex-col overflow-hidden" {...getRootProps()}>
         <input {...getInputProps()} />
 
         {selectedItem ? (
           <>
-            {/* Image Preview */}
-            <div className="mb-4">
-              <div className="aspect-[9/16] max-h-64 mx-auto rounded-lg overflow-hidden bg-surface-100 relative">
-                <img
-                  src={assetUrl(selectedItem.imageUrl)}
-                  alt="Selected"
-                  className="w-full h-full object-cover"
-                />
-                {selectedItem.status === 'generating' && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Prompt Section */}
-            <div className="mb-4">
+            <div className="mb-3">
               <button
                 type="button"
                 onClick={() => setPromptExpanded(!promptExpanded)}
@@ -261,13 +245,13 @@ export default function Img2VideoQueuePage() {
                   value={selectedItem.prompt}
                   onChange={(e) => setItemPrompt(selectedItem.id, e.target.value)}
                   placeholder="Describe the video motion..."
-                  className="w-full h-24 text-sm bg-surface-0 border border-surface-200 rounded-lg p-3 resize-none focus:outline-none focus:border-brand-500"
+                  className="w-full h-20 text-sm bg-surface-0 border border-surface-200 rounded-lg p-3 resize-none focus:outline-none focus:border-brand-500"
                 />
               )}
             </div>
 
             {/* Settings */}
-            <div className="mb-4 flex gap-4">
+            <div className="mb-3 flex gap-3">
               <div className="flex-1">
                 <label className="text-xs text-surface-400 mb-1 block">Duration</label>
                 <Select
@@ -306,7 +290,7 @@ export default function Img2VideoQueuePage() {
                 {presetsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {presetsExpanded && (
-                <div className="max-h-64 overflow-y-auto overscroll-contain pr-2 -mr-2">
+                <div className="max-h-48 overflow-y-auto overscroll-contain pr-2 -mr-2">
                   <CameraPresetCards
                     selectedPresets={selectedItem.presets}
                     onPresetsChange={(presets) => setItemPresets(selectedItem.id, presets)}
@@ -315,8 +299,82 @@ export default function Img2VideoQueuePage() {
               )}
             </div>
 
+            {/* Videos in Progress */}
+            {queueOrder.filter((id) => queueItems[id].status === 'generating').length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2">Videos in Progress</h3>
+                <div className="space-y-2">
+                  {queueOrder
+                    .filter((id) => queueItems[id].status === 'generating')
+                    .slice(0, 3)
+                    .map((id) => {
+                      const item = queueItems[id]
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-3 p-2 bg-surface-100 rounded-lg"
+                          onClick={() => selectItem(id)}
+                        >
+                          <div className="w-12 h-12 rounded overflow-hidden bg-surface-200 shrink-0">
+                            <img src={assetUrl(item.imageUrl)} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-surface-700 truncate">
+                              {item.prompt || 'No prompt'}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Loader2 className="w-3 h-3 animate-spin text-brand" />
+                              <span className="text-[10px] text-surface-400">Generating...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Generated Videos */}
+            {queueOrder.filter((id) => queueItems[id].status === 'completed').length > 0 && (
+              <div className="mb-4 flex-1 overflow-hidden flex flex-col">
+                <h3 className="text-sm font-semibold mb-2">Generated Videos</h3>
+                <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {queueOrder
+                      .filter((id) => queueItems[id].status === 'completed')
+                      .slice(0, 6)
+                      .map((id) => {
+                        const item = queueItems[id]
+                        return (
+                          <div
+                            key={id}
+                            className="relative aspect-video rounded-lg overflow-hidden bg-surface-100 cursor-pointer group"
+                            onClick={() => selectItem(id)}
+                          >
+                            <video
+                              src={assetUrl(item.result!.videoUrl)}
+                              className="w-full h-full object-cover"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => e.currentTarget.play()}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.pause()
+                                e.currentTarget.currentTime = 0
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Play className="w-6 h-6 text-white" />
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Actions */}
-            <div className="mt-auto flex gap-2">
+            <div className="mt-auto pt-4 border-t border-surface-200 flex gap-2">
               {selectedItem.status === 'draft' && (
                 <Button
                   variant="primary"
@@ -347,23 +405,9 @@ export default function Img2VideoQueuePage() {
               )}
             </div>
 
-            {/* Result Video */}
-            {selectedItem.status === 'completed' && selectedItem.result && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold mb-2">Result</h3>
-                <video
-                  controls
-                  autoPlay
-                  loop
-                  className="w-full rounded-lg border border-surface-200"
-                  src={assetUrl(selectedItem.result.videoUrl)}
-                />
-              </div>
-            )}
-
             {/* Error */}
             {selectedItem.status === 'failed' && selectedItem.error && (
-              <div className="mt-4 p-3 bg-danger/10 border border-danger/30 rounded-lg">
+              <div className="mt-3 p-3 bg-danger/10 border border-danger/30 rounded-lg">
                 <p className="text-sm text-danger">{selectedItem.error}</p>
               </div>
             )}
