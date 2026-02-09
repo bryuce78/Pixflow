@@ -180,8 +180,8 @@ export default function AvatarStudioPage() {
     const instructions = {
       similar: 'Generate a similar variation of this script with the same tone and structure but different wording',
       improved: 'Improve this script to be more engaging, persuasive, and impactful while maintaining the same message',
-      shorter: 'Make this script shorter and more concise while keeping the key message and impact',
-      longer: 'Expand this script with more details, examples, and elaboration while maintaining the tone',
+      shorter: 'Make this script shorter by removing unnecessary words, phrases, or sentences. Keep the core message intact. Do NOT rewrite the entire script - just trim it down.',
+      longer: 'Expand this script by adding relevant details, examples, or elaboration between existing sentences. Keep the original content and flow - just add to it. Do NOT rewrite the entire script.',
     }
     await refineScript(instructions[type])
     setShowVariationOptions(false)
@@ -559,7 +559,7 @@ export default function AvatarStudioPage() {
                       <span className="text-xs text-surface-400">seconds</span>
                       <button
                         type="button"
-                        onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long when read at a natural pace (approximately ${Math.round(targetDuration * 2.5)} words). Maintain the core message and tone.`, targetDuration)}
+                        onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
                         disabled={scriptGenerating}
                         className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 text-xs disabled:opacity-50"
                       >
@@ -802,7 +802,7 @@ export default function AvatarStudioPage() {
                           <span className="text-xs text-surface-400">seconds</span>
                           <button
                             type="button"
-                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long when read at a natural pace (approximately ${Math.round(targetDuration * 2.5)} words). Maintain the core message and tone.`, targetDuration)}
+                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
                             disabled={scriptGenerating}
                             className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 text-xs disabled:opacity-50"
                           >
@@ -1031,7 +1031,7 @@ export default function AvatarStudioPage() {
                           <span className="text-xs text-surface-400">seconds</span>
                           <button
                             type="button"
-                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long when read at a natural pace (approximately ${Math.round(targetDuration * 2.5)} words). Maintain the core message and tone.`, targetDuration)}
+                            onClick={() => refineScript(`Adjust this script to be exactly ${targetDuration} seconds long (approximately ${Math.round(targetDuration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`, targetDuration)}
                             disabled={scriptGenerating}
                             className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 text-xs disabled:opacity-50"
                           >
