@@ -271,14 +271,18 @@ export default function AssetMonsterPage() {
 
   useEffect(() => {
     if (batchProgress?.status === 'completed' && batchProgress.jobId) {
+      console.log('[AssetMonster] Loading image IDs for job:', batchProgress.jobId)
       authFetch(apiUrl(`/api/images?jobId=${batchProgress.jobId}`))
         .then((res) => res.json())
         .then((raw) => {
           const data = unwrapApiData<{ images: GeneratedImageRecord[] }>(raw)
+          console.log('[AssetMonster] Loaded images from DB:', data.images.length)
           const idMap = new Map(data.images.map((img) => [img.batchIndex, img.id]))
           setBatchImageIds(idMap)
         })
-        .catch(console.error)
+        .catch((err) => {
+          console.error('[AssetMonster] Failed to load image IDs:', err)
+        })
     }
   }, [batchProgress?.status, batchProgress?.jobId])
 
@@ -850,16 +854,21 @@ Examples:
                       {selectedResultImages.has(img.index) && <Check className="w-3 h-3 text-white" />}
                     </div>
                   )}
-                  {img.status === 'completed' && img.url && batchImageIds.has(img.index) && (
+                  {img.status === 'completed' && img.url && batchProgress.status === 'completed' && (
                     <div className="absolute bottom-2 right-2 flex gap-1">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (!batchImageIds.has(img.index)) {
+                            console.warn('[AssetMonster] Image not in DB yet, cannot rate')
+                            return
+                          }
                           handleRateImage(img.index, 1)
                         }}
-                        className="w-7 h-7 rounded-full bg-black/60 hover:bg-success/80 flex items-center justify-center transition-colors"
-                        title="Like"
+                        disabled={!batchImageIds.has(img.index)}
+                        className="w-7 h-7 rounded-full bg-black/60 hover:bg-success/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={batchImageIds.has(img.index) ? 'Like' : 'Loading...'}
                       >
                         <ThumbsUp className="w-3.5 h-3.5 text-white" />
                       </button>
@@ -867,10 +876,15 @@ Examples:
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (!batchImageIds.has(img.index)) {
+                            console.warn('[AssetMonster] Image not in DB yet, cannot rate')
+                            return
+                          }
                           handleRateImage(img.index, -1)
                         }}
-                        className="w-7 h-7 rounded-full bg-black/60 hover:bg-danger/80 flex items-center justify-center transition-colors"
-                        title="Dislike"
+                        disabled={!batchImageIds.has(img.index)}
+                        className="w-7 h-7 rounded-full bg-black/60 hover:bg-danger/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={batchImageIds.has(img.index) ? 'Dislike' : 'Loading...'}
                       >
                         <ThumbsDown className="w-3.5 h-3.5 text-white" />
                       </button>
