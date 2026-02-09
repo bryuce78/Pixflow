@@ -574,13 +574,13 @@ export default function AvatarStudioPage() {
                     <div className="w-px h-4 bg-surface-300" />
                     <input
                       type="text"
-                      value={`${targetDuration}sec`}
+                      value={targetDuration ? `${targetDuration}sec` : ''}
                       onChange={(e) => {
                         const val = e.target.value.replace(/[^0-9]/g, '')
-                        if (val) setTargetDuration(Number(val))
+                        setTargetDuration(val ? Number(val) : 30)
                       }}
                       placeholder="30sec"
-                      className="w-20 px-2 py-1 rounded bg-surface-200 text-surface-900 border border-surface-300 text-center"
+                      className="w-20 px-2 py-1 rounded bg-surface-200 text-surface-900 border border-surface-300 text-center text-xs"
                     />
                     <button
                       type="button"
