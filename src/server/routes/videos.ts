@@ -8,7 +8,7 @@ import http from 'node:http'
 import type { AuthRequest } from '../middleware/auth.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { transcribeVideo } from '../services/wizper.js'
-import { downloadVideoWithYtDlp, detectPlatform } from '../services/ytdlp.js'
+import { downloadVideoWithYtDlp, detectPlatform, isFacebookAdsLibraryUrl, extractFacebookAdsVideoUrl } from '../services/ytdlp.js'
 
 interface VideosRouterConfig {
   projectRoot: string
@@ -206,26 +206,44 @@ export function createVideosRouter(config: VideosRouterConfig) {
       const isExternalUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://')
 
       if (isExternalUrl) {
-        // Check if it's a platform video (Facebook, Instagram, TikTok, etc.)
-        const platform = detectPlatform(videoUrl)
-
-        if (platform) {
-          // Use yt-dlp for platform videos
-          console.log(`[Videos] Detected ${platform} video, using yt-dlp...`)
+        // Special handling for Facebook Ads Library
+        if (isFacebookAdsLibraryUrl(videoUrl)) {
+          console.log('[Videos] Detected Facebook Ads Library URL, extracting video URL from page...')
           try {
-            const result = await downloadVideoWithYtDlp(videoUrl, outputsDir)
-            videoPath = result.videoPath
-            tempDownloadPath = videoPath
-            console.log(`[Videos] yt-dlp download complete: ${result.title} (${result.platform})`)
+            const directVideoUrl = await extractFacebookAdsVideoUrl(videoUrl)
+            console.log('[Videos] Extracted direct video URL:', directVideoUrl)
+
+            // Download the direct video URL
+            tempDownloadPath = await downloadVideoFromUrl(directVideoUrl)
+            videoPath = tempDownloadPath
+            console.log('[Videos] Facebook Ads video downloaded successfully')
           } catch (error) {
-            console.error('[Videos] yt-dlp download failed:', error)
-            throw new Error(`Failed to download ${platform} video: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            console.error('[Videos] Facebook Ads extraction failed:', error)
+            throw new Error(`Failed to extract video from Facebook Ads Library: ${error instanceof Error ? error.message : 'Unknown error'}`)
           }
-        } else {
-          // Direct URL download for non-platform videos
-          console.log(`[Videos] Downloading video from direct URL: ${videoUrl}`)
-          videoPath = await downloadVideoFromUrl(videoUrl)
-          tempDownloadPath = videoPath
+        }
+        // Check if it's a platform video (Facebook, Instagram, TikTok, etc.)
+        else {
+          const platform = detectPlatform(videoUrl)
+
+          if (platform) {
+            // Use yt-dlp for platform videos
+            console.log(`[Videos] Detected ${platform} video, using yt-dlp...`)
+            try {
+              const result = await downloadVideoWithYtDlp(videoUrl, outputsDir)
+              videoPath = result.videoPath
+              tempDownloadPath = videoPath
+              console.log(`[Videos] yt-dlp download complete: ${result.title} (${result.platform})`)
+            } catch (error) {
+              console.error('[Videos] yt-dlp download failed:', error)
+              throw new Error(`Failed to download ${platform} video: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            }
+          } else {
+            // Direct URL download for non-platform videos
+            console.log(`[Videos] Downloading video from direct URL: ${videoUrl}`)
+            videoPath = await downloadVideoFromUrl(videoUrl)
+            tempDownloadPath = videoPath
+          }
         }
       } else {
         // Local path - validate it's from outputs directory

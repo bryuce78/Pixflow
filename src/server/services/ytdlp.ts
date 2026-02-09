@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { spawn } from 'node:child_process'
+import puppeteer from 'puppeteer'
 
 export interface YtDlpDownloadResult {
   videoPath: string
@@ -100,6 +101,82 @@ export async function downloadVideoWithYtDlp(
 }
 
 /**
+ * Extract direct video URL from Facebook Ads Library page using Puppeteer
+ * Opens page in headless browser, waits for JavaScript to render, then extracts video URL
+ */
+export async function extractFacebookAdsVideoUrl(pageUrl: string): Promise<string> {
+  console.log('[fb-ads] Launching headless browser for:', pageUrl)
+
+  let browser = null
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    })
+
+    const page = await browser.newPage()
+
+    // Set user agent to avoid bot detection
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+    console.log('[fb-ads] Navigating to page...')
+    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 30000 })
+
+    console.log('[fb-ads] Page loaded, waiting for video element...')
+
+    // Wait for video element or timeout after 10 seconds
+    await page.waitForSelector('video', { timeout: 10000 }).catch(() => {
+      console.log('[fb-ads] No video element found immediately, trying to extract from page content...')
+    })
+
+    // Extract video URL from page
+    const videoUrl = await page.evaluate(() => {
+      // Try to find video element
+      const videoElement = document.querySelector('video')
+      if (videoElement?.src && videoElement.src.startsWith('http')) {
+        return videoElement.src
+      }
+
+      // Try to find video source element
+      const sourceElement = document.querySelector('video source')
+      if (sourceElement?.src && sourceElement.src.startsWith('http')) {
+        return sourceElement.src
+      }
+
+      // Try to parse from page HTML
+      const html = document.documentElement.innerHTML
+
+      // Facebook uses &amp; in HTML, so we need to match that
+      const match = html.match(/https:\/\/video[^\s"'<>]+\.mp4[^\s"'<>]*/)
+      if (match) {
+        let url = match[0]
+        // Unescape HTML entities
+        url = url.replace(/&amp;/g, '&')
+        url = url.replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        return url
+      }
+
+      return null
+    })
+
+    await browser.close()
+
+    if (!videoUrl) {
+      throw new Error('No video URL found in Facebook Ads page. The page may require login or the ad may have been removed.')
+    }
+
+    console.log('[fb-ads] Found video URL:', videoUrl.substring(0, 80) + '...')
+    return videoUrl
+
+  } catch (error) {
+    if (browser) {
+      await browser.close().catch(() => {})
+    }
+    throw new Error(`Failed to extract video from Facebook Ads Library: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
  * Check if URL is supported by yt-dlp
  * Returns platform name if supported, null otherwise
  */
@@ -121,4 +198,11 @@ export function detectPlatform(url: string): string | null {
   }
 
   return null
+}
+
+/**
+ * Check if URL is a Facebook Ads Library page
+ */
+export function isFacebookAdsLibraryUrl(url: string): boolean {
+  return /facebook\.com\/ads\/library/i.test(url)
 }
