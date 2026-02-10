@@ -3,7 +3,7 @@ import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/
 import type { Avatar, BatchProgress, ErrorInfo, GeneratedPrompt } from '../types'
 import { parseError } from '../types'
 
-const MAX_REFERENCE_IMAGES = 4
+const MAX_REFERENCE_IMAGES = 5
 const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:3', '3:4', '4:5', '5:4', '3:2', '2:3', '21:9'] as const
 const RESOLUTIONS = ['1K', '2K', '4K'] as const
 const OUTPUT_FORMATS = ['png', 'jpeg', 'webp'] as const

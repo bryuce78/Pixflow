@@ -15,6 +15,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  Plus,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -536,84 +537,86 @@ Examples:
               }`}
             >
               <FolderOpen className="w-4 h-4" />
-              From Gallery {avatars.length > 0 && `(${avatars.length})`}
+              Gallery {avatars.length > 0 && `(${avatars.length})`}
             </button>
           </div>
 
-          {referencePreviews.length > 0 && (
-            <div className="mb-4 p-3 bg-surface-100 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-success flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  {referencePreviews.length} Image{referencePreviews.length > 1 ? 's' : ''} Selected
-                  {referencePreviews.length > 1 && (
-                    <span className="text-xs text-surface-400 font-normal">(for couple/family)</span>
-                  )}
+          {/* Unified Drag & Drop Zone - Always Visible */}
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-4 min-h-[140px] transition-colors ${
+              isDragActive ? 'border-brand-500 bg-brand-500/10' : 'border-surface-200 hover:border-surface-300'
+            }`}
+          >
+            <input {...getInputProps()} />
+
+            {referencePreviews.length === 0 ? (
+              <div className="text-center py-8">
+                <Upload className="w-8 h-8 mx-auto mb-2 text-surface-400" />
+                <p className="text-surface-400 text-sm">
+                  {isDragActive ? 'Drop images here' : 'Drop images here or use Add Image button'}
                 </p>
-                <Button variant="ghost-danger" size="sm" onClick={clearReferenceImages}>
-                  Clear All
-                </Button>
+                <p className="text-xs text-surface-400 mt-1">JPEG, PNG, WebP • Max 5 images</p>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {referencePreviews.map((preview, index) => (
+            ) : (
+              <div className="grid grid-cols-5 gap-3">
+                {referencePreviews.map((preview, idx) => (
                   <div
                     // biome-ignore lint/suspicious/noArrayIndexKey: static list
-                    key={index}
-                    className="relative group shrink-0"
+                    key={idx}
+                    className="relative aspect-square rounded-lg overflow-hidden border border-surface-200"
                   >
-                    <img src={preview} alt={`Reference ${index + 1}`} className="w-14 h-14 object-cover rounded-lg" />
+                    <img src={preview} alt={`Reference ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => removeReferenceImage(index)}
-                      className="absolute -top-1 -right-1 bg-danger rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeReferenceImage(idx)
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center hover:bg-danger transition-colors"
+                      title="Remove image"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4 text-white" />
                     </button>
                   </div>
                 ))}
-                {referencePreviews.length < MAX_REFERENCE_IMAGES && (
-                  <button
-                    type="button"
-                    onClick={openFilePicker}
-                    className="w-14 h-14 shrink-0 border-2 border-dashed border-surface-200 rounded-lg flex items-center justify-center text-surface-400 hover:border-brand-500 hover:text-brand-400 transition-colors"
-                  >
-                    <ImagePlus className="w-5 h-5" />
-                  </button>
-                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {imageSource === 'upload' && (
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                isDragActive ? 'border-brand-500 bg-brand-500/10' : 'border-surface-200 hover:border-surface-200'
-              }`}
-            >
-              <input {...getInputProps()} />
-              <Upload className="w-10 h-10 mx-auto mb-3 text-surface-400" />
-              <p className="text-surface-400">{isDragActive ? 'Drop image here' : 'Drag & drop or click to upload'}</p>
-              <p className="text-sm text-surface-400 mt-1">JPEG, PNG, WebP up to 10MB</p>
-            </div>
-          )}
+          {/* Add Image Button */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => {
+              if (imageSource === 'upload') {
+                openFilePicker()
+              }
+              // Gallery mode: user picks from gallery grid below
+            }}
+            disabled={referenceImages.length >= MAX_REFERENCE_IMAGES}
+          >
+            Add Image {referenceImages.length >= MAX_REFERENCE_IMAGES && '(Max 5)'}
+          </Button>
 
+          {/* Gallery Grid - Conditionally Shown */}
           {imageSource === 'gallery' && (
-            <div>
+            <div className="border border-surface-200 rounded-lg p-3">
               {avatarsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-surface-400" />
                 </div>
               ) : avatars.length === 0 ? (
-                <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
+                <div className="text-center py-8 text-surface-400">
                   <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                  <p>No avatars in gallery</p>
-                  <p className="text-sm mt-1">
-                    Add images to <code className="bg-surface-100 px-1 rounded">avatars/</code> folder
+                  <p className="text-sm">No avatars in gallery</p>
+                  <p className="text-xs text-surface-400 mt-1">
+                    Add images to <code className="bg-surface-100 px-1 rounded text-xs">avatars/</code> folder
                   </p>
                 </div>
               ) : (
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <div className="grid grid-cols-6 gap-2 max-h-[200px] overflow-y-auto">
                   {avatars.map((avatar) => {
                     const isSelected = referenceImages.some((f) => f.name === avatar.filename)
                     return (
@@ -621,16 +624,17 @@ Examples:
                         type="button"
                         key={avatar.filename}
                         onClick={() => selectAvatar(avatar)}
-                        className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                        disabled={referenceImages.length >= MAX_REFERENCE_IMAGES && !isSelected}
+                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 relative ${
                           isSelected
                             ? 'border-brand-500 ring-2 ring-brand-500/50'
-                            : 'border-transparent hover:border-surface-200'
+                            : 'border-transparent hover:border-surface-300'
                         }`}
                       >
                         <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
                         {isSelected && (
                           <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
-                            <Check className="w-3 h-3" />
+                            <Check className="w-3 h-3 text-white" />
                           </div>
                         )}
                       </button>
