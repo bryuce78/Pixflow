@@ -458,24 +458,60 @@ ${CREATIVE_DIRECTOR_KNOWLEDGE}
 21. NEVER include aspect ratio, resolution, or model settings
 22. Use film photography aesthetics when appropriate, not digital perfection
 
-Return a JSON object with this structure:
+Return a JSON object with this EXACT structure (all fields are nested objects):
 {
   "style": "30-50 word technical description with ONE 'CRITICAL:' hero element",
   "outfit": {
     "main": "Specific fabric, color, garment type, cut, fit, length, details",
-    "accessories": "Jewelry, bags, shoes - specific materials and styles"
+    "accessories": "Jewelry, bags, shoes - specific materials and styles",
+    "styling": "How pieces work together, layering, proportions"
   },
   "makeup": {
-    "face": "Foundation tone, coverage, finish (matte/dewy/satin)",
+    "skin": "Foundation tone, coverage, finish (matte/dewy/satin) with natural skin texture and visible pores",
     "eyes": "Eyeshadow placement and finish, liner style, lashes",
     "lips": "Color family, finish, application style",
     "details": "Blush placement, highlighter, brows, overall intensity"
   },
-  "pose": "Every limb defined: arms, hands, legs, feet, torso, head angle, weight distribution, stable and natural",
-  "expression": "Precise facial expression: eyes, mouth, brow, jaw, mood",
-  "lighting": "Complete setup: key light position and quality, fill light, shadows, highlights, color temperature, mood",
-  "camera": "Lens choice, focal length, aperture effects, camera height and angle, framing",
-  "set_design": "Location type, key props, textures, colors, spatial arrangement, atmosphere"
+  "pose": {
+    "framing": "Shot composition: full body, 3/4 length, waist up, etc.",
+    "body_position": "Overall stance with weight distribution - standing/seated/leaning, must be stable and natural",
+    "arms": "Both arms explicitly defined: left arm position, right arm position, hand placement",
+    "posture": "Spine alignment, shoulder position, head tilt angle, overall body language"
+  },
+  "expression": {
+    "eyes": "Eye direction, intensity, emotion (smizing, soft gaze, intense stare, etc.)",
+    "mouth": "Lip position, smile type, tension (subtle smirk, genuine laugh, relaxed, etc.)",
+    "overall_mood": "Combined facial emotion and character"
+  },
+  "lighting": {
+    "setup": "Overall lighting style and approach (natural, studio, cinematic, etc.)",
+    "key_light": "Main light: position (45° front right, etc.), quality (soft/hard), intensity",
+    "fill_light": "Fill light: position, softness, ratio to key light",
+    "shadows": "Shadow character: soft/hard, placement, depth, contrast",
+    "mood": "Emotional quality created by the lighting (dramatic, dreamy, bright, moody)"
+  },
+  "camera": {
+    "lens": "Focal length and type (35mm, 50mm, 85mm portrait, etc.)",
+    "aperture": "f-stop and depth of field effect (f/1.4 shallow, f/8 sharp, etc.)",
+    "angle": "Camera height and perspective (eye level, slightly above, low angle, etc.)",
+    "framing": "Subject placement in frame, rule of thirds, breathing room, composition"
+  },
+  "set_design": {
+    "backdrop": "Background environment: walls, surfaces, what's behind the subject",
+    "surface": "Floor/ground: what subject stands or sits on, texture and color",
+    "props": ["specific prop 1", "specific prop 2", "specific prop 3"],
+    "atmosphere": "Overall environment feel, depth, spatial quality, ambient details"
+  },
+  "hairstyle": {
+    "style": "Hair arrangement, structure, volume (pulled back, loose waves, updo, etc.)",
+    "texture": "Hair quality, finish, movement (sleek, tousled, windswept, etc.)",
+    "accessories": "Hair accessories if any (clip, scarf, etc.) or 'none'"
+  },
+  "effects": {
+    "color_grade": "Color treatment: tone (warm/cool), saturation level, contrast approach",
+    "film_emulation": "Film stock look if appropriate (Portra 400, Kodak Gold, etc.) or 'digital clean'",
+    "special_effects": "Practical effects if any (smoke, water droplets, etc.) or 'none'"
+  }
 }
 
 CONCEPT: "${concept}"
