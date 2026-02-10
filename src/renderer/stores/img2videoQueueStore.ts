@@ -5,6 +5,12 @@ import type { ErrorInfo } from '../types'
 // Re-export constants from old store for compatibility
 export const DURATIONS = ['5', '10'] as const
 export const ASPECT_RATIOS = ['9:16', '16:9', '1:1'] as const
+
+// Img2Img specific constants
+export const IMG2IMG_ASPECT_RATIOS = ['9:16', '1:1', '4:5'] as const
+export const IMG2IMG_RESOLUTIONS = ['1K', '2K', '4K'] as const
+export const IMG2IMG_FORMATS = ['JPG', 'PNG'] as const
+
 const MAX_CONCURRENCY = 10
 
 export const VIDEO_PRESETS: Record<string, { label: string; presets: string[]; multiSelect: boolean }> = {
@@ -71,8 +77,10 @@ export interface QueueItem {
 
   // Img2Img specific settings
   img2imgSettings?: {
-    strength: number
-    guidance: number
+    aspectRatio: string
+    numberOfOutputs: number
+    resolution: string
+    format: string
   }
 
   // Img2Video specific settings
@@ -144,7 +152,7 @@ interface Img2VideoQueueState {
   applyGlobalSettingsToAll: () => void
 
   // Upload
-  uploadFiles: (files: File[]) => Promise<string[]>  // Returns array of new item IDs
+  uploadFiles: (files: File[], workflowType?: WorkflowType) => Promise<string[]>  // Returns array of new item IDs
 
   // Generation
   generateQueue: () => Promise<void>
@@ -153,8 +161,9 @@ interface Img2VideoQueueState {
   cancelCurrent: () => void
 
   // Img2Img specific methods
-  setImg2ImgSettings: (id: string, settings: Partial<{ strength: number; guidance: number }>) => void
-  transformImage: (id: string) => Promise<void>  // MOCK for now
+  setImg2ImgSettings: (id: string, settings: Partial<{ aspectRatio: string; numberOfOutputs: number; resolution: string; format: string }>) => void
+  transformImage: (id: string) => Promise<void>
+  transformBatch: (ids: string[], prompt: string, settings: { aspectRatio: string; numberOfOutputs: number; resolution: string; format: string }) => Promise<void>
 
   // Utility
   setError: (error: ErrorInfo | null) => void
@@ -191,7 +200,12 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
         duration: get().globalSettings.duration,
         aspectRatio: get().globalSettings.aspectRatio,
       },
-      img2imgSettings: workflowType === 'img2img' ? { strength: 0.75, guidance: 7.5 } : undefined,
+      img2imgSettings: workflowType === 'img2img' ? {
+        aspectRatio: '1:1',
+        numberOfOutputs: 1,
+        resolution: '1K',
+        format: 'PNG'
+      } : undefined,
       status: 'draft',
       createdAt: Date.now(),
     }
@@ -221,7 +235,12 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
             duration: get().globalSettings.duration,
             aspectRatio: get().globalSettings.aspectRatio,
           },
-          img2imgSettings: workflowType === 'img2img' ? { strength: 0.75, guidance: 7.5 } : undefined,
+          img2imgSettings: workflowType === 'img2img' ? {
+        aspectRatio: '1:1',
+        numberOfOutputs: 1,
+        resolution: '1K',
+        format: 'PNG'
+      } : undefined,
           status: 'draft' as const,
           createdAt: Date.now(),
         },
@@ -439,7 +458,7 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
   },
 
   // Upload files
-  uploadFiles: async (files) => {
+  uploadFiles: async (files, workflowType = 'img2video') => {
     set({ uploading: true, error: null })
     const uploadedIds: string[] = []
 
@@ -461,7 +480,7 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
         const raw = await res.json()
         const data = unwrapApiData<{ path: string }>(raw)
 
-        const id = get().addItem(data.path)
+        const id = get().addItem(data.path, workflowType)
         uploadedIds.push(id)
       } catch (err) {
         set({
@@ -629,7 +648,12 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
         [id]: {
           ...state.queueItems[id],
           img2imgSettings: {
-            ...(state.queueItems[id].img2imgSettings || { strength: 0.75, guidance: 7.5 }),
+            ...(state.queueItems[id].img2imgSettings || {
+              aspectRatio: '1:1',
+              numberOfOutputs: 1,
+              resolution: '1K',
+              format: 'PNG'
+            }),
             ...settings,
           },
         },
@@ -637,7 +661,6 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
     }))
   },
 
-  // MOCK implementation (placeholder until backend ready)
   transformImage: async (id) => {
     const item = get().queueItems[id]
     if (!item) return
@@ -650,24 +673,152 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
       },
     }))
 
-    // TODO: Replace with actual API call
-    // For now, simulate 2-second delay and mark as completed
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      const res = await authFetch(apiUrl('/api/generate/img2img/transform'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: item.imageUrl,
+          prompt: item.prompt,
+          aspectRatio: item.img2imgSettings?.aspectRatio || '1:1',
+          numberOfOutputs: item.img2imgSettings?.numberOfOutputs || 1,
+          resolution: item.img2imgSettings?.resolution || '1K',
+          format: item.img2imgSettings?.format || 'PNG',
+        }),
+      })
 
-    set((state) => ({
-      queueItems: {
-        ...state.queueItems,
-        [id]: {
-          ...state.queueItems[id],
-          status: 'completed',
-          result: {
-            imageUrl: item.imageUrl, // Mock: use same image
-            localPath: '/mock/transformed.png',
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, `Transform failed (${res.status})`))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ images: Array<{ url: string; localPath?: string }> }>(raw)
+
+      // Use first image as result (for now)
+      const firstImage = data.images[0]
+      if (!firstImage) {
+        throw new Error('No images returned from API')
+      }
+
+      set((state) => ({
+        queueItems: {
+          ...state.queueItems,
+          [id]: {
+            ...state.queueItems[id],
+            status: 'completed',
+            result: {
+              imageUrl: firstImage.url,
+              localPath: firstImage.localPath || firstImage.url,
+            },
+            completedAt: Date.now(),
           },
-          completedAt: Date.now(),
         },
-      },
+      }))
+    } catch (err) {
+      set((state) => ({
+        queueItems: {
+          ...state.queueItems,
+          [id]: {
+            ...state.queueItems[id],
+            status: 'failed',
+            error: err instanceof Error ? err.message : 'Transform failed',
+          },
+        },
+      }))
+    }
+  },
+
+  transformBatch: async (ids, prompt, settings) => {
+    const items = ids.map((id) => get().queueItems[id]).filter(Boolean)
+    if (items.length === 0) return
+
+    // Mark all as generating
+    set((state) => ({
+      queueItems: Object.fromEntries(
+        Object.entries(state.queueItems).map(([id, item]) =>
+          ids.includes(id) ? [id, { ...item, status: 'generating' as const }] : [id, item]
+        )
+      ),
     }))
+
+    try {
+      const imageUrls = items.map((item) => item.imageUrl)
+
+      const res = await authFetch(apiUrl('/api/generate/img2img/transform'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrls,
+          prompt,
+          aspectRatio: settings.aspectRatio,
+          numberOfOutputs: settings.numberOfOutputs,
+          resolution: settings.resolution,
+          format: settings.format,
+        }),
+      })
+
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, `Transform failed (${res.status})`))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ images: Array<{ url: string; localPath?: string }> }>(raw)
+
+      if (!data.images || data.images.length === 0) {
+        throw new Error('No images returned from API')
+      }
+
+      // Mark first item as completed with all results
+      // Other items will be marked as completed without individual results
+      const firstId = ids[0]
+      const otherIds = ids.slice(1)
+
+      set((state) => ({
+        queueItems: {
+          ...state.queueItems,
+          [firstId]: {
+            ...state.queueItems[firstId],
+            status: 'completed',
+            result: {
+              imageUrl: data.images[0].url,
+              localPath: data.images[0].localPath || data.images[0].url,
+            },
+            completedAt: Date.now(),
+          },
+          ...Object.fromEntries(
+            otherIds.map((id) => [
+              id,
+              {
+                ...state.queueItems[id],
+                status: 'completed',
+                completedAt: Date.now(),
+              },
+            ])
+          ),
+        },
+      }))
+    } catch (err) {
+      console.error('[transformBatch] Error:', err)
+      // Mark all as failed
+      set((state) => ({
+        queueItems: Object.fromEntries(
+          Object.entries(state.queueItems).map(([id, item]) =>
+            ids.includes(id)
+              ? [
+                  id,
+                  {
+                    ...item,
+                    status: 'failed' as const,
+                    error: err instanceof Error ? err.message : 'Transform failed',
+                  },
+                ]
+              : [id, item]
+          )
+        ),
+      }))
+    }
   },
 
   // Utility

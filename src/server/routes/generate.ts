@@ -4,7 +4,7 @@ import { Router } from 'express'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import type { AuthRequest } from '../middleware/auth.js'
-import { createBatchJob, formatPromptForFal, generateBatch, getJob } from '../services/fal.js'
+import { createBatchJob, formatPromptForFal, generateBatch, generateImage, getJob } from '../services/fal.js'
 import { createPipelineSpan, recordPipelineEvent } from '../services/telemetry.js'
 import { analyzeImage } from '../services/vision.js'
 import { sendError, sendSuccess } from '../utils/http.js'
@@ -271,6 +271,106 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         500,
         'Failed to analyze image',
         'IMAGE_ANALYSIS_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
+    }
+  })
+
+  router.post('/img2img/transform', async (req: AuthRequest, res) => {
+    let span: ReturnType<typeof createPipelineSpan> | null = null
+    try {
+      const {
+        imageUrls,
+        prompt,
+        aspectRatio = '1:1',
+        numberOfOutputs = 1,
+        resolution = '1K',
+        format = 'PNG',
+      } = req.body
+
+      if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0 || !prompt) {
+        sendError(res, 400, 'Image URLs array and prompt are required', 'INVALID_IMG2IMG_PAYLOAD')
+        return
+      }
+
+      span = createPipelineSpan({
+        pipeline: 'img2img.transform',
+        userId: req.user?.id,
+        metadata: {
+          aspectRatio,
+          numberOfOutputs,
+          resolution,
+          format,
+          imageCount: imageUrls.length,
+        },
+      })
+
+      console.log(`[Img2Img] Transforming ${imageUrls.length} images with prompt: "${prompt}"`)
+      console.log(`[Img2Img] Input imageUrls:`, imageUrls)
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const outputDir = path.join(outputsDir, `img2img_${timestamp}`)
+      await fs.mkdir(outputDir, { recursive: true })
+
+      // Resolve all imageUrls to full paths
+      const fullImagePaths = imageUrls.map((imageUrl: string) => {
+        let fullImagePath: string
+        if (imageUrl.startsWith('/uploads/')) {
+          fullImagePath = path.join(uploadsDir, path.basename(imageUrl))
+        } else if (imageUrl.startsWith('file://')) {
+          fullImagePath = imageUrl.slice(7)
+        } else {
+          fullImagePath = imageUrl
+        }
+        return fullImagePath.startsWith('file://') ? fullImagePath : `file://${fullImagePath}`
+      })
+
+      console.log(`[Img2Img] Resolved paths:`, fullImagePaths)
+
+      const result = await generateImage(
+        fullImagePaths,
+        prompt,
+        {
+          resolution,
+          aspectRatio,
+          numImages: numberOfOutputs,
+          outputFormat: format.toLowerCase(),
+        },
+      )
+
+      // Download images to local storage
+      const images = await Promise.all(
+        result.urls.map(async (url, index) => {
+          const fileName = `img2img_${timestamp}_${index + 1}.${format.toLowerCase()}`
+          const localPath = path.join(outputDir, fileName)
+
+          try {
+            const response = await fetch(url)
+            const buffer = await response.arrayBuffer()
+            await fs.writeFile(localPath, Buffer.from(buffer))
+
+            return {
+              url,
+              localPath: `/outputs/${path.relative(outputsDir, localPath)}`,
+            }
+          } catch (downloadErr) {
+            console.error(`[Img2Img] Download failed for ${fileName}:`, downloadErr)
+            return { url, localPath: undefined }
+          }
+        }),
+      )
+
+      span.success({ outputDir, imageCount: images.length })
+
+      sendSuccess(res, { images })
+    } catch (error) {
+      console.error('[Img2Img] Error:', error)
+      span?.error(error)
+      sendError(
+        res,
+        500,
+        'Failed to transform image',
+        'IMG2IMG_FAILED',
         error instanceof Error ? error.message : 'Unknown error',
       )
     }

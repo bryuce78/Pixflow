@@ -2,7 +2,7 @@ import { Check, Download, Loader2, Play, Trash2, Upload, X } from 'lucide-react'
 import React, { useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { assetUrl } from '../../lib/api'
-import { ASPECT_RATIOS, DURATIONS, useImg2VideoQueueStore, type WorkflowType } from '../../stores/img2videoQueueStore'
+import { ASPECT_RATIOS, DURATIONS, IMG2IMG_ASPECT_RATIOS, IMG2IMG_RESOLUTIONS, IMG2IMG_FORMATS, useImg2VideoQueueStore, type WorkflowType } from '../../stores/img2videoQueueStore'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Select'
@@ -61,11 +61,19 @@ function Img2ImgContent() {
     setItemPrompt,
     setImg2ImgSettings,
     transformImage,
+    transformBatch,
     removeItem,
     uploadFiles,
   } = useImg2VideoQueueStore()
 
   const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set())
+  const [batchPrompt, setBatchPrompt] = useState('')
+  const [batchSettings, setBatchSettings] = useState({
+    aspectRatio: '1:1',
+    numberOfOutputs: 1,
+    resolution: '1K',
+    format: 'PNG',
+  })
 
   // Filter for img2img items only
   const img2imgItems = queueOrder
@@ -83,17 +91,13 @@ function Img2ImgContent() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
-    disabled: uploading,
+    maxFiles: 4,
+    disabled: uploading || img2imgItems.length >= 4,
     onDrop: async (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        await uploadFiles(acceptedFiles)
-        // Mark uploaded items as img2img
-        const uploadedIds = Object.keys(queueItems).slice(-acceptedFiles.length)
-        uploadedIds.forEach((id) => {
-          if (queueItems[id]) {
-            queueItems[id].workflowType = 'img2img'
-          }
-        })
+      const remainingSlots = 4 - img2imgItems.length
+      const filesToUpload = acceptedFiles.slice(0, remainingSlots)
+      if (filesToUpload.length > 0) {
+        await uploadFiles(filesToUpload, 'img2img')
       }
     },
   })
@@ -164,30 +168,18 @@ function Img2ImgContent() {
                         }`}
                       >
                         <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover" alt="" />
-                        <Badge
-                          variant={
-                            item.status === 'completed'
-                              ? 'success'
-                              : item.status === 'failed'
-                                ? 'danger'
-                                : item.status === 'generating'
-                                  ? 'primary'
-                                  : 'secondary'
-                          }
-                          className="absolute top-1 right-1 text-[10px]"
-                        >
-                          {item.status}
-                        </Badge>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeItem(item.id)
-                          }}
-                          className="absolute top-1 left-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3 text-white" />
-                        </button>
+                        {isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeItem(item.id)
+                            }}
+                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        )}
                       </button>
                     )
                   })}
@@ -213,108 +205,90 @@ function Img2ImgContent() {
           )}
         </div>
 
-        {/* Step 2: Transformation Prompt */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        {/* Step 2: Prompt */}
+        <div className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
               2
             </span>
-            Transformation Prompt
+            Prompt
           </h2>
           <Textarea
-            value={selectedItem?.prompt || ''}
-            onChange={(e) => selectedItem && setItemPrompt(selectedItem.id, e.target.value)}
-            placeholder="Describe how to transform this image... (e.g., 'turn into a watercolor painting', 'make it look like a cartoon')"
+            value={batchPrompt}
+            onChange={(e) => setBatchPrompt(e.target.value)}
+            placeholder="Describe how to transform these images... (e.g., 'photo of the 5 friends in paris. eiffel tower behind them. sunny day, golden hour.')"
             rows={4}
             className="w-full"
           />
         </div>
 
         {/* Step 3: Settings */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        <div className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
               3
             </span>
             Settings
           </h2>
-          <div className="space-y-3">
-            {/* Strength Slider */}
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Aspect Ratio"
+              value={batchSettings.aspectRatio}
+              onChange={(e) => setBatchSettings({ ...batchSettings, aspectRatio: e.target.value })}
+              options={IMG2IMG_ASPECT_RATIOS.map((ar) => ({ value: ar, label: ar }))}
+            />
             <div>
               <label className="text-sm font-medium mb-1 block">
-                Strength{' '}
-                <span className="text-surface-400">{selectedItem?.img2imgSettings?.strength || 0.75}</span>
+                Number of Outputs <span className="text-surface-400">{batchSettings.numberOfOutputs}</span>
               </label>
               <Slider
-                value={selectedItem?.img2imgSettings?.strength || 0.75}
-                onChange={(value) => selectedItem && setImg2ImgSettings(selectedItem.id, { strength: value })}
-                min={0.1}
-                max={1.0}
-                step={0.05}
-              />
-            </div>
-            {/* Guidance Scale Slider */}
-            <div>
-              <label className="text-sm font-medium mb-1 block">
-                Guidance Scale{' '}
-                <span className="text-surface-400">{selectedItem?.img2imgSettings?.guidance || 7.5}</span>
-              </label>
-              <Slider
-                value={selectedItem?.img2imgSettings?.guidance || 7.5}
-                onChange={(value) => selectedItem && setImg2ImgSettings(selectedItem.id, { guidance: value })}
+                value={batchSettings.numberOfOutputs}
+                onChange={(e) => setBatchSettings({ ...batchSettings, numberOfOutputs: Number(e.target.value) })}
                 min={1}
-                max={20}
-                step={0.5}
+                max={4}
+                step={1}
               />
             </div>
+            <Select
+              label="Resolution"
+              value={batchSettings.resolution}
+              onChange={(e) => setBatchSettings({ ...batchSettings, resolution: e.target.value })}
+              options={IMG2IMG_RESOLUTIONS.map((res) => ({ value: res, label: res }))}
+            />
+            <Select
+              label="Format"
+              value={batchSettings.format}
+              onChange={(e) => setBatchSettings({ ...batchSettings, format: e.target.value })}
+              options={IMG2IMG_FORMATS.map((fmt) => ({ value: fmt, label: fmt }))}
+            />
           </div>
         </div>
 
         {/* Step 4: Generate Actions */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        <div className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
               4
             </span>
             Actions
           </h2>
-          {selectedItem?.status === 'draft' && (
+          {generatingCount === 0 && (
             <Button
               variant="success"
               icon={<Play className="w-4 h-4" />}
-              onClick={() => selectedItem && transformImage(selectedItem.id)}
-              disabled={!selectedItem.prompt.trim()}
-              className="w-full"
-            >
-              Transform Image
-            </Button>
-          )}
-          {selectedItem?.status === 'generating' && (
-            <Button variant="secondary" icon={<Loader2 className="w-4 h-4 animate-spin" />} disabled className="w-full">
-              Transforming...
-            </Button>
-          )}
-          {selectedItem?.status === 'completed' && selectedItem.result && (
-            <Button
-              variant="primary"
-              icon={<Download className="w-4 h-4" />}
               onClick={() => {
-                if (selectedItem.result) {
-                  const a = document.createElement('a')
-                  a.href = assetUrl(selectedItem.result.localPath)
-                  a.download = selectedItem.result.localPath.split('/').pop() || 'transformed.png'
-                  a.click()
-                }
+                const ids = img2imgItems.map((item) => item.id)
+                transformBatch(ids, batchPrompt, batchSettings)
               }}
+              disabled={!batchPrompt.trim() || img2imgItems.length === 0}
               className="w-full"
             >
-              Download Result
+              Transform {img2imgItems.length} {img2imgItems.length === 1 ? 'Image' : 'Images'}
+            </Button>
+          )}
+          {generatingCount > 0 && (
+            <Button variant="secondary" icon={<Loader2 className="w-4 h-4 animate-spin" />} disabled className="w-full">
+              Transforming {generatingCount} {generatingCount === 1 ? 'Image' : 'Images'}...
             </Button>
           )}
         </div>
@@ -322,43 +296,6 @@ function Img2ImgContent() {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        {/* Selected Item Preview */}
-        {selectedItem ? (
-          <div className="bg-surface-50 rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">Selected Image</h2>
-            <div className="space-y-3">
-              <div className="aspect-[9/16] max-w-xs mx-auto rounded-lg overflow-hidden border border-surface-200">
-                <img src={assetUrl(selectedItem.imageUrl)} className="w-full h-full object-cover" alt="" />
-              </div>
-              <Badge
-                variant={
-                  selectedItem.status === 'completed'
-                    ? 'success'
-                    : selectedItem.status === 'failed'
-                      ? 'danger'
-                      : selectedItem.status === 'generating'
-                        ? 'primary'
-                        : 'secondary'
-                }
-              >
-                {selectedItem.status}
-              </Badge>
-              <p className="text-xs text-surface-400 line-clamp-2">{selectedItem.prompt || 'No prompt'}</p>
-              <div className="flex gap-2 text-xs text-surface-400">
-                <span>Strength: {selectedItem.img2imgSettings?.strength || 0.75}</span>
-                <span>•</span>
-                <span>Guidance: {selectedItem.img2imgSettings?.guidance || 7.5}</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-surface-50/50 rounded-lg p-8 text-center">
-            <Upload className="w-16 h-16 mx-auto mb-4 text-surface-300 opacity-50" />
-            <p className="text-surface-400">Select an image from Step 2</p>
-            <p className="text-xs text-surface-400 mt-2">Or upload images to get started</p>
-          </div>
-        )}
-
         {/* Images in Progress */}
         {generatingCount > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
@@ -477,17 +414,13 @@ function Img2VideoContent() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
-    disabled: uploading,
+    maxFiles: 4,
+    disabled: uploading || img2videoItems.length >= 4,
     onDrop: async (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        await uploadFiles(acceptedFiles)
-        // Mark uploaded items as img2video
-        const uploadedIds = Object.keys(queueItems).slice(-acceptedFiles.length)
-        uploadedIds.forEach((id) => {
-          if (queueItems[id]) {
-            queueItems[id].workflowType = 'img2video'
-          }
-        })
+      const remainingSlots = 4 - img2videoItems.length
+      const filesToUpload = acceptedFiles.slice(0, remainingSlots)
+      if (filesToUpload.length > 0) {
+        await uploadFiles(filesToUpload, 'img2video')
       }
     },
   })
@@ -558,30 +491,18 @@ function Img2VideoContent() {
                         }`}
                       >
                         <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover" alt="" />
-                        <Badge
-                          variant={
-                            item.status === 'completed'
-                              ? 'success'
-                              : item.status === 'failed'
-                                ? 'danger'
-                                : item.status === 'generating'
-                                  ? 'primary'
-                                  : 'secondary'
-                          }
-                          className="absolute top-1 right-1 text-[10px]"
-                        >
-                          {item.status}
-                        </Badge>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeItem(item.id)
-                          }}
-                          className="absolute top-1 left-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3 text-white" />
-                        </button>
+                        {isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeItem(item.id)
+                            }}
+                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        )}
                       </button>
                     )
                   })}
@@ -630,7 +551,7 @@ function Img2VideoContent() {
           )}
         </div>
 
-        {/* Step 2: Motion Prompt */}
+        {/* Step 2: Prompt */}
         <div
           className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}
         >
@@ -638,7 +559,7 @@ function Img2VideoContent() {
             <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
               2
             </span>
-            Motion Prompt
+            Prompt
           </h2>
           <Textarea
             value={selectedItem?.prompt || ''}
@@ -738,43 +659,6 @@ function Img2VideoContent() {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        {/* Selected Item Preview */}
-        {selectedItem ? (
-          <div className="bg-surface-50 rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">Selected Item</h2>
-            <div className="space-y-3">
-              <div className="aspect-[9/16] max-w-xs mx-auto rounded-lg overflow-hidden border border-surface-200">
-                <img src={assetUrl(selectedItem.imageUrl)} className="w-full h-full object-cover" alt="" />
-              </div>
-              <Badge
-                variant={
-                  selectedItem.status === 'completed'
-                    ? 'success'
-                    : selectedItem.status === 'failed'
-                      ? 'danger'
-                      : selectedItem.status === 'generating'
-                        ? 'primary'
-                        : 'secondary'
-                }
-              >
-                {selectedItem.status}
-              </Badge>
-              <p className="text-xs text-surface-400 line-clamp-2">{selectedItem.prompt || 'No prompt'}</p>
-              <div className="flex gap-2 text-xs text-surface-400">
-                <span>{selectedItem.settings.duration}s</span>
-                <span>•</span>
-                <span>{selectedItem.settings.aspectRatio}</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-surface-50/50 rounded-lg p-8 text-center">
-            <Upload className="w-16 h-16 mx-auto mb-4 text-surface-300 opacity-50" />
-            <p className="text-surface-400">Select an image from Step 2</p>
-            <p className="text-xs text-surface-400 mt-2">Or upload images to get started</p>
-          </div>
-        )}
-
         {/* Videos in Progress */}
         {generatingCount > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
