@@ -48,10 +48,6 @@ async function startEmbeddedServer(): Promise<number> {
   const expressApp = createApp({
     projectRoot,
     dataDir: appDataDir,
-    openFolder: async (p) => {
-      const err = await shell.openPath(p)
-      if (err) throw new Error(err)
-    },
   })
 
   const port = await findAvailablePort(3001)

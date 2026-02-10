@@ -1127,30 +1127,6 @@ Examples:
                     >
                       Send to Img2Video ({selectedResultImages.size})
                     </Button>
-                    <div className="ml-auto">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={<FolderOpen className="w-4 h-4" />}
-                        onClick={async () => {
-                          try {
-                            const response = await authFetch(apiUrl('/api/generate/open-folder'), {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ folderPath: batchProgress.outputDir }),
-                            })
-                            if (!response.ok) {
-                              const raw = await response.json().catch(() => ({}))
-                              setBatchError({ message: getApiError(raw, 'Failed to open folder'), type: 'error' })
-                            }
-                          } catch {
-                            setBatchError({ message: 'Failed to open folder', type: 'error' })
-                          }
-                        }}
-                      >
-                        Open Folder
-                      </Button>
-                    </div>
                   </div>
                 </div>
               )}

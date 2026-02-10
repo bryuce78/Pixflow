@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Router } from 'express'
@@ -23,7 +22,6 @@ function sanitizeConcept(concept: string): string {
 
 interface GenerateRouterConfig {
   projectRoot: string
-  openFolder?: (folderPath: string) => Promise<void>
 }
 
 function resolvePathInsideRoot(root: string, unsafePath: string): string | null {
@@ -275,46 +273,6 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         'IMAGE_ANALYSIS_FAILED',
         error instanceof Error ? error.message : 'Unknown error',
       )
-    }
-  })
-
-  router.post('/open-folder', async (req, res) => {
-    const { folderPath } = req.body
-
-    if (!folderPath || typeof folderPath !== 'string') {
-      sendError(res, 400, 'Folder path is required', 'MISSING_FOLDER_PATH')
-      return
-    }
-
-    const resolvedPath = resolvePathInsideRoot(projectRoot, folderPath)
-    if (!resolvedPath) {
-      sendError(res, 403, 'Access denied: path outside project directory', 'FORBIDDEN_PATH')
-      return
-    }
-
-    try {
-      await fs.access(resolvedPath)
-    } catch {
-      sendError(res, 404, 'Folder not found', 'FOLDER_NOT_FOUND')
-      return
-    }
-
-    if (config.openFolder) {
-      try {
-        await config.openFolder(resolvedPath)
-        sendSuccess(res, { path: resolvedPath })
-      } catch {
-        sendError(res, 500, 'Failed to open folder', 'OPEN_FOLDER_FAILED')
-      }
-    } else {
-      const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
-      execFile(command, [resolvedPath], (err) => {
-        if (err) {
-          sendError(res, 500, 'Failed to open folder', 'OPEN_FOLDER_FAILED')
-          return
-        }
-        sendSuccess(res, { path: resolvedPath })
-      })
     }
   })
 

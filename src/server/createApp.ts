@@ -40,7 +40,6 @@ import { calculateVarietyScore } from './utils/prompts.js'
 export interface ServerConfig {
   projectRoot: string
   dataDir: string
-  openFolder?: (folderPath: string) => Promise<void>
 }
 
 const VALID_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
@@ -692,7 +691,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/api/products', createProductsRouter())
 
   // Protected routes
-  app.use('/api/generate', requireAuth, createGenerateRouter({ projectRoot, openFolder: config.openFolder }))
+  app.use('/api/generate', requireAuth, createGenerateRouter({ projectRoot }))
   app.use('/api/history', requireAuth, createHistoryRouter())
   app.use('/api/avatars', requireAuth, createAvatarsRouter({ projectRoot }))
   app.use('/api/videos', requireAuth, createVideosRouter({ projectRoot }))
