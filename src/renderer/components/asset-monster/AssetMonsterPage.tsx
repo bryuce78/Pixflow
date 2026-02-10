@@ -524,7 +524,7 @@ export default function AssetMonsterPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                {/* Left: Prompt List */}
+                {/* Left: Prompt Cards Grid */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex gap-2">
@@ -539,7 +539,7 @@ export default function AssetMonsterPage() {
                       {selectedPrompts.size}/{prompts.length}
                     </span>
                   </div>
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  <div className="grid grid-cols-5 gap-2 max-h-[400px] overflow-y-auto">
                     {prompts.map((prompt, index) => (
                       <button
                         type="button"
@@ -547,35 +547,13 @@ export default function AssetMonsterPage() {
                         key={index}
                         onClick={() => togglePromptSelection(index)}
                         onMouseEnter={() => setPreviewPrompt(prompt)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
+                        className={`aspect-[2/1] rounded-lg font-medium text-lg flex items-center justify-center transition-colors ${
                           selectedPrompts.has(index)
-                            ? 'bg-brand-600/30 border border-brand-500'
-                            : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
+                            ? 'bg-brand-600 hover:bg-brand-700 text-white'
+                            : 'bg-surface-200 hover:bg-surface-300 text-surface-600'
                         }`}
                       >
-                        <div
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                            selectedPrompts.has(index) ? 'bg-brand-500 border-brand-500' : 'border-surface-200'
-                          }`}
-                        >
-                          {selectedPrompts.has(index) && <Check className="w-3 h-3" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-mono text-xs text-surface-400">#{index + 1}</span>
-                          <p className="text-sm break-words">{prompt.style}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setCustomPromptJson(JSON.stringify(prompt, null, 2))
-                            setPromptSource('custom')
-                          }}
-                          className="shrink-0 p-1 rounded text-surface-400 hover:text-brand-400 hover:bg-surface-200 transition-colors"
-                          title="Edit as custom prompt"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        {index + 1}
                       </button>
                     ))}
                   </div>
