@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { Play, Pause } from 'lucide-react'
+import { Play, Pause, Download } from 'lucide-react'
 
 interface AudioPlayerProps {
   src: string
@@ -107,6 +107,31 @@ export function AudioPlayer({ src, className = '' }: AudioPlayerProps) {
       <span className="text-xs text-surface-400 font-mono min-w-[35px]">
         {formatTime(duration)}
       </span>
+
+      {/* Download Button */}
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            const response = await fetch(src)
+            const blob = await response.blob()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = src.split('/').pop() || 'audio.mp3'
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+          } catch (err) {
+            console.error('Failed to download audio:', err)
+          }
+        }}
+        className="flex-shrink-0 w-8 h-8 rounded-lg bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors"
+        title="Download audio"
+      >
+        <Download className="w-4 h-4 text-surface-600" />
+      </button>
     </div>
   )
 }

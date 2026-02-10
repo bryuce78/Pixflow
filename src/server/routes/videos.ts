@@ -43,10 +43,10 @@ export function createVideosRouter(config: VideosRouterConfig) {
       fileSize: 500 * 1024 * 1024, // 500MB max
     },
     fileFilter: (_req, file, cb) => {
-      if (file.mimetype.startsWith('video/')) {
+      if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/')) {
         cb(null, true)
       } else {
-        cb(new Error('Only video files are allowed'))
+        cb(new Error('Only video and audio files are allowed'))
       }
     },
   })
@@ -147,18 +147,18 @@ export function createVideosRouter(config: VideosRouterConfig) {
 
   /**
    * POST /api/videos/upload
-   * Upload a video file to outputs directory
+   * Upload a video or audio file to outputs directory
    */
   router.post('/upload', upload.single('video'), async (req: AuthRequest, res) => {
     try {
       if (!req.file) {
-        sendError(res, 400, 'No video file provided', 'MISSING_VIDEO_FILE')
+        sendError(res, 400, 'No media file provided', 'MISSING_MEDIA_FILE')
         return
       }
 
       const videoUrl = `/outputs/${req.file.filename}`
 
-      console.log(`[Videos] Video uploaded: ${videoUrl}`)
+      console.log(`[Videos] Media uploaded: ${videoUrl}`)
 
       sendSuccess(res, {
         url: videoUrl,

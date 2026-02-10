@@ -268,6 +268,7 @@ export default function AvatarStudioPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
               Select Avatar
+              <span className="text-xs text-surface-400 font-normal">(Optional)</span>
             </h2>
 
             {/* Mode Toggle */}
@@ -489,19 +490,13 @@ export default function AvatarStudioPage() {
           </div>
 
           {/* Step 2: Script */}
-          <div className={`bg-surface-50 rounded-lg p-4 ${!selectedAvatar && generatedUrls.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className="bg-surface-50 rounded-lg p-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
               Script
             </h2>
 
-            {!selectedAvatar && generatedUrls.length === 0 ? (
-              <p className="text-sm text-warning/80 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" />
-                Please select or generate an avatar first (Step 1)
-              </p>
-            ) : (
-              <>
+            <>
             {/* Mode Switcher - 4 modes in 2x2 grid */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <button
@@ -529,7 +524,7 @@ export default function AvatarStudioPage() {
                   scriptMode === 'fetch' ? 'bg-brand-600 text-surface-900' : 'bg-surface-100 text-surface-400 hover:text-surface-900'
                 }`}
               >
-                Transcript a Video
+                Transcript from Media
               </button>
               <button
                 type="button"
@@ -564,7 +559,7 @@ export default function AvatarStudioPage() {
                         type="button"
                         onClick={() => handleRefineScript('improved')}
                         disabled={scriptGenerating}
-                        className="px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-700 text-surface-900 disabled:opacity-50"
+                        className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
                       >
                         Improved
                       </button>
@@ -704,7 +699,7 @@ export default function AvatarStudioPage() {
                         <input
                           ref={videoFileInputRef}
                           type="file"
-                          accept="video/*"
+                          accept="video/*,audio/*"
                           className="hidden"
                           onChange={async (e) => {
                             const file = e.target.files?.[0]
@@ -753,10 +748,10 @@ export default function AvatarStudioPage() {
                           disabled={uploadingVideo}
                           className="w-full"
                         >
-                          {uploadingVideo ? 'Uploading...' : 'Choose Video File'}
+                          {uploadingVideo ? 'Uploading...' : 'Choose Media File'}
                         </Button>
                         <p className="text-xs text-surface-400">
-                          Supported formats: MP4, MOV, AVI, etc. Max 500MB.
+                          Supported formats: MP4, MOV, AVI, MP3, WAV, M4A, etc. Max 500MB.
                         </p>
                       </div>
                     )}
@@ -1125,8 +1120,7 @@ export default function AvatarStudioPage() {
                 )}
               </div>
             )}
-              </>
-            )}
+            </>
           </div>
 
           {/* Step 3: Voice Selection & TTS (Hidden if "Have an Audio" mode) */}
@@ -1256,19 +1250,25 @@ export default function AvatarStudioPage() {
                 icon={lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
                 loading={lipsyncGenerating}
                 onClick={createLipsync}
-                disabled={lipsyncGenerating || !generatedAudioUrl || (!selectedAvatar && generatedUrls.length === 0)}
+                disabled={lipsyncGenerating || !generatedAudioUrl}
                 className="w-full"
               >
                 {lipsyncGenerating
                   ? `Generating Video...${lipsyncJob?.progress !== undefined ? ` (${lipsyncJob.progress}%)` : ''}`
-                  : 'Create Talking Avatar Video'}
+                  : selectedAvatar || generatedUrls.length > 0
+                    ? 'Create Talking Avatar Video'
+                    : 'Audio Only (No Video)'}
               </Button>
-              {!lipsyncGenerating && (!generatedAudioUrl || (!selectedAvatar && generatedUrls.length === 0)) && (
+              {!lipsyncGenerating && !generatedAudioUrl && (
                 <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                  {!selectedAvatar && generatedUrls.length === 0
-                    ? 'Select an avatar first (Step 1)'
-                    : 'Generate audio first (Step 3)'}
+                  Generate audio first (Step 2)
+                </p>
+              )}
+              {!lipsyncGenerating && generatedAudioUrl && !selectedAvatar && generatedUrls.length === 0 && (
+                <p className="text-xs text-surface-400 flex items-center gap-1.5 mt-1">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  No avatar selected - audio voiceover ready for download
                 </p>
               )}
             </div>

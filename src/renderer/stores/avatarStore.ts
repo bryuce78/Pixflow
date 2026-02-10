@@ -576,12 +576,18 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
   createLipsync: async () => {
     const { generatedUrls, selectedGeneratedIndex, selectedAvatar, generatedAudioUrl } = get()
     const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url
-    if (!avatarUrl) {
-      set({ error: { message: 'Please select or generate an avatar', type: 'warning' } })
-      return
-    }
+
     if (!generatedAudioUrl) {
       set({ error: { message: 'Please generate audio first', type: 'warning' } })
+      return
+    }
+
+    // If no avatar selected, this is audio-only voiceover
+    if (!avatarUrl) {
+      set({
+        error: null,
+        generatedVideoUrl: generatedAudioUrl, // Set audio as the "video" output for download
+      })
       return
     }
 

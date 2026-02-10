@@ -387,14 +387,20 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
     try {
       const { imageUrl, audioUrl } = req.body
-      if (!imageUrl) {
-        sendError(res, 400, 'Image URL is required', 'MISSING_IMAGE_URL')
-        return
-      }
       if (!audioUrl) {
         sendError(res, 400, 'Audio URL is required', 'MISSING_AUDIO_URL')
         return
       }
+
+      // If no imageUrl provided, just return the audio (voiceover only)
+      if (!imageUrl) {
+        sendSuccess(res, {
+          localPath: audioUrl,
+          message: 'Audio voiceover ready (no video generated)',
+        })
+        return
+      }
+
       span = createPipelineSpan({
         pipeline: 'avatars.lipsync',
         userId: req.user?.id,
