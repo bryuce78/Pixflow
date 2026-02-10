@@ -67,6 +67,7 @@ export default function PromptFactoryPage() {
     copied,
     research,
     varietyScore,
+    qualityMetrics,
     promptMode,
     analyzeEntries,
     analyzeTheme,
@@ -572,20 +573,20 @@ export default function PromptFactoryPage() {
               </ul>
             </div>
 
-            {varietyScore && (
+            {qualityMetrics && (
               <div className="p-2 bg-surface-50 rounded text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-surface-400">Variety</span>
+                  <span className="text-surface-400">Quality</span>
                   <span
                     className={`font-bold ${
-                      (varietyScore.score ?? 0) >= 80
+                      (qualityMetrics.overall_score ?? 0) >= 80
                         ? 'text-success'
-                        : (varietyScore.score ?? 0) >= 60
+                        : (qualityMetrics.overall_score ?? 0) >= 60
                           ? 'text-warning'
                           : 'text-danger'
                     }`}
                   >
-                    {varietyScore.score ?? 0}/100
+                    {qualityMetrics.overall_score ?? 0}/100
                   </span>
                 </div>
               </div>

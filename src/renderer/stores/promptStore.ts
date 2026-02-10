@@ -26,6 +26,22 @@ export interface ConceptEntry {
   value: string
 }
 
+export interface QualityMetrics {
+  overall_score: number
+  variety_score: VarietyScore
+  specificity_score: number
+  completeness_score: number
+  detail_scores: {
+    outfit_detail: number
+    lighting_detail: number
+    pose_detail: number
+    set_design_detail: number
+  }
+  individual_scores?: number[]
+  issues: string[]
+  strengths: string[]
+}
+
 interface PromptState {
   concepts: ConceptEntry[]
   count: number
@@ -38,6 +54,7 @@ interface PromptState {
   copied: boolean
   research: ResearchData | null
   varietyScore: VarietyScore | null
+  qualityMetrics: QualityMetrics | null
   generationProgress: GenerationProgress | null
 
   promptMode: 'concept' | 'image'
@@ -92,6 +109,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
   copied: false,
   research: null,
   varietyScore: null,
+  qualityMetrics: null,
   generationProgress: null,
 
   promptMode: 'concept',
@@ -165,6 +183,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
       selectedIndex: null,
       research: null,
       varietyScore: null,
+      qualityMetrics: null,
       generationProgress: { step: 'quick_prompt', completed: 0, total: count, startedAt },
     })
 
@@ -247,10 +266,11 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
       // Handle completion
       eventSource.addEventListener('done', (e: MessageEvent) => {
-        const { varietyScore } = JSON.parse(e.data)
+        const { varietyScore, qualityMetrics } = JSON.parse(e.data)
 
         set({
           varietyScore,
+          qualityMetrics,
           loading: false,
           generationProgress: {
             step: 'done',

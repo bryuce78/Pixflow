@@ -445,6 +445,7 @@ export function createApp(config: ServerConfig): express.Express {
 
       sendSSE('done', {
         varietyScore,
+        qualityMetrics,
         validation: {
           allValid: validation.allValid,
           issues: validation.results.filter((r) => !r.valid),
