@@ -230,6 +230,7 @@ export default function AssetMonsterPage() {
   const { rateImage: rateImageInStore } = useImageRatingsStore()
 
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
+  const [previewPrompt, setPreviewPrompt] = useState<GeneratedPrompt | null>(null)
 
   const {
     getRootProps,
@@ -411,60 +412,116 @@ export default function AssetMonsterPage() {
                 </button>
               </div>
             ) : (
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => selectAllPrompts(prompts.length)}>
-                      Select All
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={deselectAllPrompts}>
-                      Deselect All
-                    </Button>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Left: Prompt List */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => selectAllPrompts(prompts.length)}>
+                        Select All
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={deselectAllPrompts}>
+                        Deselect All
+                      </Button>
+                    </div>
+                    <span className="text-sm text-surface-400">
+                      {selectedPrompts.size}/{prompts.length}
+                    </span>
                   </div>
-                  <span className="text-sm text-surface-400">
-                    {selectedPrompts.size}/{prompts.length}
-                  </span>
-                </div>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                  {prompts.map((prompt, index) => (
-                    <button
-                      type="button"
-                      // biome-ignore lint/suspicious/noArrayIndexKey: static list
-                      key={index}
-                      onClick={() => togglePromptSelection(index)}
-                      className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
-                        selectedPrompts.has(index)
-                          ? 'bg-brand-600/30 border border-brand-500'
-                          : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                          selectedPrompts.has(index) ? 'bg-brand-500 border-brand-500' : 'border-surface-200'
-                        }`}
-                      >
-                        {selectedPrompts.has(index) && <Check className="w-3 h-3" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-xs text-surface-400">#{index + 1}</span>
-                        <p className="text-sm break-words">{prompt.style}</p>
-                      </div>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {prompts.map((prompt, index) => (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setCustomPromptJson(JSON.stringify(prompt, null, 2))
-                          setPromptSource('custom')
-                        }}
-                        className="shrink-0 p-1 rounded text-surface-400 hover:text-brand-400 hover:bg-surface-200 transition-colors"
-                        title="Edit as custom prompt"
+                        // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                        key={index}
+                        onClick={() => togglePromptSelection(index)}
+                        onMouseEnter={() => setPreviewPrompt(prompt)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
+                          selectedPrompts.has(index)
+                            ? 'bg-brand-600/30 border border-brand-500'
+                            : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
+                        }`}
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                            selectedPrompts.has(index) ? 'bg-brand-500 border-brand-500' : 'border-surface-200'
+                          }`}
+                        >
+                          {selectedPrompts.has(index) && <Check className="w-3 h-3" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-mono text-xs text-surface-400">#{index + 1}</span>
+                          <p className="text-sm break-words">{prompt.style}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setCustomPromptJson(JSON.stringify(prompt, null, 2))
+                            setPromptSource('custom')
+                          }}
+                          className="shrink-0 p-1 rounded text-surface-400 hover:text-brand-400 hover:bg-surface-200 transition-colors"
+                          title="Edit as custom prompt"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </button>
-                    </button>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </>
+
+                {/* Right: Preview Panel */}
+                <div className="bg-surface-100 rounded-lg p-4">
+                  {previewPrompt ? (
+                    <div className="space-y-3 text-sm">
+                      <div className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">
+                        Preview
+                      </div>
+                      {previewPrompt.style && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Style</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.style}</p>
+                        </div>
+                      )}
+                      {previewPrompt.camera_movement && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Camera Movement</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.camera_movement}</p>
+                        </div>
+                      )}
+                      {previewPrompt.lighting && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Lighting</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.lighting}</p>
+                        </div>
+                      )}
+                      {previewPrompt.scene_description && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Scene Description</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.scene_description}</p>
+                        </div>
+                      )}
+                      {previewPrompt.mood && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Mood</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.mood}</p>
+                        </div>
+                      )}
+                      {previewPrompt.color_grading && (
+                        <div>
+                          <label className="text-xs font-medium text-surface-500">Color Grading</label>
+                          <p className="text-surface-900 mt-0.5">{previewPrompt.color_grading}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-surface-400">
+                      <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Hover over a prompt to preview</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )
           ) : (
             <div className="space-y-4">
