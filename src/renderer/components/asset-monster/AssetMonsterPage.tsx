@@ -930,7 +930,7 @@ Examples:
                 </div>
               </div>
 
-              <div className="grid grid-cols-6 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 {batchProgress.images.map((img) => (
                   <button
                     type="button"
@@ -1188,7 +1188,7 @@ Examples:
                       Download
                     </Button>
                   </div>
-                  <div className="grid grid-cols-6 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     {completed.map((img) => (
                       <button
                         type="button"
