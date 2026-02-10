@@ -98,12 +98,8 @@ export function createApp(config: ServerConfig): express.Express {
   app.get('/api/avatars', requireAuth, apiLimiter, async (_req, res) => {
     try {
       await fs.mkdir(avatarsDir, { recursive: true })
-      await fs.mkdir(generatedAvatarsDir, { recursive: true })
 
-      const [curatedFiles, generatedFiles] = await Promise.all([
-        fs.readdir(avatarsDir),
-        fs.readdir(generatedAvatarsDir),
-      ])
+      const curatedFiles = await fs.readdir(avatarsDir)
 
       const filterAndSort = (files: string[]) =>
         files
@@ -117,14 +113,7 @@ export function createApp(config: ServerConfig): express.Express {
         source: 'curated' as const,
       }))
 
-      const generated = filterAndSort(generatedFiles).map((file) => ({
-        name: file,
-        filename: file,
-        url: `/avatars_generated/${encodeURIComponent(file)}`,
-        source: 'generated' as const,
-      }))
-
-      sendSuccess(res, { avatars: [...curated, ...generated] })
+      sendSuccess(res, { avatars: curated })
     } catch (error) {
       console.error('[Error] Failed to list avatars:', error)
       sendError(res, 500, 'Failed to list avatars', 'AVATAR_LIST_FAILED')
