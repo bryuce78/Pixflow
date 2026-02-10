@@ -61,18 +61,31 @@ function composePrompt(base: string, presets: Record<string, string[]>): string 
   return `${base}, ${fragments.join(', ')}`
 }
 
+export type WorkflowType = 'img2img' | 'img2video'
+
 export interface QueueItem {
   id: string
   imageUrl: string
   prompt: string
+  workflowType: WorkflowType  // NEW: distinguish between workflows
+
+  // Img2Img specific settings
+  img2imgSettings?: {
+    strength: number
+    guidance: number
+  }
+
+  // Img2Video specific settings
   presets: Record<string, string[]>  // Multi-select: key -> array of selected options
   settings: {
     duration: string
     aspectRatio: string
   }
+
   status: 'draft' | 'queued' | 'generating' | 'completed' | 'failed' | 'paused'
   result?: {
-    videoUrl: string
+    videoUrl?: string     // for img2video
+    imageUrl?: string     // for img2img
     localPath: string
   }
   error?: string
@@ -100,8 +113,8 @@ interface Img2VideoQueueState {
   error: ErrorInfo | null
 
   // Queue operations
-  addItem: (imageUrl: string) => string  // Returns new item ID
-  addItems: (imageUrls: string[]) => string[]  // Returns array of new IDs
+  addItem: (imageUrl: string, workflowType?: WorkflowType) => string  // Returns new item ID
+  addItems: (imageUrls: string[], workflowType?: WorkflowType) => string[]  // Returns array of new IDs
   removeItem: (id: string) => void
   clearQueue: () => void
   selectItem: (id: string | null) => void
@@ -139,6 +152,10 @@ interface Img2VideoQueueState {
   resumeQueue: () => void
   cancelCurrent: () => void
 
+  // Img2Img specific methods
+  setImg2ImgSettings: (id: string, settings: Partial<{ strength: number; guidance: number }>) => void
+  transformImage: (id: string) => Promise<void>  // MOCK for now
+
   // Utility
   setError: (error: ErrorInfo | null) => void
   reset: () => void
@@ -162,17 +179,19 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
   error: null,
 
   // Add single item
-  addItem: (imageUrl) => {
+  addItem: (imageUrl, workflowType = 'img2video') => {
     const id = generateId()
     const item: QueueItem = {
       id,
       imageUrl,
       prompt: '',
+      workflowType,
       presets: {},
       settings: {
         duration: get().globalSettings.duration,
         aspectRatio: get().globalSettings.aspectRatio,
       },
+      img2imgSettings: workflowType === 'img2img' ? { strength: 0.75, guidance: 7.5 } : undefined,
       status: 'draft',
       createdAt: Date.now(),
     }
@@ -187,7 +206,7 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
   },
 
   // Add multiple items
-  addItems: (imageUrls) => {
+  addItems: (imageUrls, workflowType = 'img2video') => {
     const ids = imageUrls.map((url) => {
       const id = generateId()
       return {
@@ -196,11 +215,13 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
           id,
           imageUrl: url,
           prompt: '',
+          workflowType,
           presets: {},
           settings: {
             duration: get().globalSettings.duration,
             aspectRatio: get().globalSettings.aspectRatio,
           },
+          img2imgSettings: workflowType === 'img2img' ? { strength: 0.75, guidance: 7.5 } : undefined,
           status: 'draft' as const,
           createdAt: Date.now(),
         },
@@ -598,6 +619,55 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
         currentJobId: null,
       }))
     }
+  },
+
+  // Img2Img specific methods
+  setImg2ImgSettings: (id, settings) => {
+    set((state) => ({
+      queueItems: {
+        ...state.queueItems,
+        [id]: {
+          ...state.queueItems[id],
+          img2imgSettings: {
+            ...(state.queueItems[id].img2imgSettings || { strength: 0.75, guidance: 7.5 }),
+            ...settings,
+          },
+        },
+      },
+    }))
+  },
+
+  // MOCK implementation (placeholder until backend ready)
+  transformImage: async (id) => {
+    const item = get().queueItems[id]
+    if (!item) return
+
+    // Update to generating
+    set((state) => ({
+      queueItems: {
+        ...state.queueItems,
+        [id]: { ...item, status: 'generating' },
+      },
+    }))
+
+    // TODO: Replace with actual API call
+    // For now, simulate 2-second delay and mark as completed
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    set((state) => ({
+      queueItems: {
+        ...state.queueItems,
+        [id]: {
+          ...state.queueItems[id],
+          status: 'completed',
+          result: {
+            imageUrl: item.imageUrl, // Mock: use same image
+            localPath: '/mock/transformed.png',
+          },
+          completedAt: Date.now(),
+        },
+      },
+    }))
   },
 
   // Utility
