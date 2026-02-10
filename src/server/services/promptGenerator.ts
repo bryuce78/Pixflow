@@ -343,41 +343,42 @@ export async function generatePrompts(
   imageInsights?: AnalyzedPrompt,
 ): Promise<{ prompts: PromptOutput[]; varietyScore: VarietyScore }> {
   const client = await getOpenAI()
-  const prompts: PromptOutput[] = []
   const subThemesToUse = distributeSubThemes(researchBrief.sub_themes, count)
+  const SINGLE_PROMPT_TIMEOUT = 60000 // 60 second timeout per individual prompt
 
-  const batchSize = 2 // Reduced for detailed prompts
-  const BATCH_TIMEOUT = 90000 // 90 second timeout per batch
+  console.log(`[generatePrompts] Starting PARALLEL generation for ${count} prompts`)
 
-  for (let i = 0; i < count; i += batchSize) {
-    const batchCount = Math.min(batchSize, count - i)
-    console.log(
-      `[generatePrompts] Starting batch ${i / batchSize + 1}/${Math.ceil(count / batchSize)} (${batchCount} prompts)`,
-    )
-    const batchThemes = subThemesToUse.slice(i, Math.min(i + batchSize, count))
-
-    // Add manual timeout wrapper
-    const batchPromise = generatePromptBatch(client, concept, batchThemes, researchBrief, i, imageInsights)
-    const timeoutPromise = new Promise<PromptOutput[]>((_, reject) =>
-      setTimeout(() => reject(new Error('Batch generation timeout after 90s')), BATCH_TIMEOUT),
+  // Generate all prompts in parallel
+  const promptPromises = subThemesToUse.map(async (theme, index) => {
+    const singlePromptPromise = generateSinglePromptWithTheme(client, concept, theme, researchBrief, index, imageInsights, count)
+    const timeoutPromise = new Promise<PromptOutput>((_, reject) =>
+      setTimeout(() => reject(new Error(`Prompt ${index + 1} timeout after 60s`)), SINGLE_PROMPT_TIMEOUT),
     )
 
     try {
-      const batchPrompts = await Promise.race([batchPromise, timeoutPromise])
-      console.log(`[generatePrompts] Batch ${i / batchSize + 1} complete, received ${batchPrompts.length} prompts`)
-      prompts.push(...batchPrompts)
-      onBatchDone?.(prompts.length, count)
-    } catch (error) {
-      console.error(`[generatePrompts] Batch ${i / batchSize + 1} failed:`, error)
-      // Use fallback prompts for this batch
-      const fallbackBatch = batchThemes.map((theme) => createFallbackPrompt(theme, concept))
-      console.log(`[generatePrompts] Using ${fallbackBatch.length} fallback prompts for failed batch`)
-      prompts.push(...fallbackBatch)
-      onBatchDone?.(prompts.length, count)
-    }
-  }
+      const prompt = await Promise.race([singlePromptPromise, timeoutPromise])
+      console.log(`[generatePrompts] Prompt ${index + 1}/${count} complete`)
 
-  console.log(`[generatePrompts] All batches complete, total: ${prompts.length} prompts`)
+      // Report progress after each completion
+      onBatchDone?.(index + 1, count)
+
+      return prompt
+    } catch (error) {
+      console.error(`[generatePrompts] Prompt ${index + 1} failed:`, error)
+      // Use fallback prompt for this individual failure
+      const fallbackPrompt = createFallbackPrompt(theme, concept)
+      console.log(`[generatePrompts] Using fallback for prompt ${index + 1}`)
+
+      onBatchDone?.(index + 1, count)
+
+      return fallbackPrompt
+    }
+  })
+
+  // Wait for all prompts to complete
+  const prompts = await Promise.all(promptPromises)
+
+  console.log(`[generatePrompts] PARALLEL generation complete, total: ${prompts.length} prompts`)
   const varietyScore = calculateVarietyScore(prompts)
 
   return { prompts: prompts.slice(0, count), varietyScore }
@@ -391,6 +392,173 @@ function distributeSubThemes(subThemes: SubTheme[], count: number): SubTheme[] {
     idx++
   }
   return result
+}
+
+async function generateSinglePromptWithTheme(
+  client: OpenAI,
+  concept: string,
+  theme: SubTheme,
+  research: ResearchBrief,
+  index: number,
+  imageInsights?: AnalyzedPrompt,
+  totalCount?: number,
+): Promise<PromptOutput> {
+  const fallbackPrompt = createFallbackPrompt(theme, concept)
+
+  try {
+    const themeDescription = `${index + 1}. "${theme.name}" (${theme.aesthetic}, ${theme.mood}) - Key elements: ${theme.key_elements.join(', ')}`
+
+    // Show other sub-themes to encourage variety
+    const otherThemes = research.sub_themes
+      .filter(t => t.name !== theme.name)
+      .slice(0, 3)
+      .map(t => `"${t.name}" (${t.aesthetic})`)
+      .join(', ')
+
+    const systemPrompt = `You are a Creative Director and prompt engineer for Clone AI's image-to-image model. You have deep knowledge of photography, fashion, film, and visual culture. You create prompts that are scroll-stopping, Instagram/Pinterest-worthy, and visually sophisticated.
+
+${CREATIVE_DIRECTOR_KNOWLEDGE}
+
+## CRITICAL RULES - NON-NEGOTIABLE
+
+### Language & Format
+1. All prompts in English - technical direction documents, not creative writing
+2. Aspect ratio/resolution is NEVER in the prompt - set in generation settings
+3. No literary embellishment - be technical and specific
+
+### Physical Appearance & Identity - BANNED
+4. NEVER mention: body type, weight, beauty, skinny, curvy, slim, fit, attractive, perfect body
+5. NEVER mention: age descriptors (young, mature, youthful), skin color, ethnicity, race
+6. NEVER mention hair COLOR - only style/texture (comes from reference photo)
+7. NO gender/appearance sections in JSON
+
+### Pose & Expression
+8. POSES MUST BE NATURAL - Stable, grounded, effortless. Weight clearly supported, comfortable and sustainable
+9. EVERY LIMB explicitly defined - hands, arms, legs, head position
+10. EXPRESSIONS ARE PRECISE - Never "smiling" or "happy". Use: "subtle smirk, corner of mouth lifted", "genuine open laugh, eyes crinkled"
+
+### Face Visibility - MANDATORY
+10.5. FACE MUST BE FULLY VISIBLE AND RECOGNIZABLE - At least 90% of the face must be unobstructed and oriented toward camera. NEVER: profile views, face turned away, hair covering face, hands obscuring features, extreme angles hiding face. This is Clone AI's core requirement — the user's identity must be clearly recognizable in every output.
+
+### Outfit Detail Requirements
+11. OUTFIT MUST BE SPECIFIC - Never use vague descriptors
+12. BANNED: "casual wear", "elegant dress", "stylish outfit", "chic ensemble", "comfortable clothing", "fashionable attire"
+13. REQUIRED: Fabric type + Color + Specific garment + Cut/style + Fit + Length + Details
+14. Good example: "Oversized cream cable-knit cashmere sweater, relaxed fit, dropped shoulders, wide ribbed crew neck, falls mid-thigh"
+15. Bad example: "Cozy sweater" or "Casual knitwear"
+
+### Realism & Quality
+16. INCLUDE imperfections: "Natural skin texture with visible pores, minor imperfections, authentic skin"
+17. FORBIDDEN: Plastic look, airbrushed, CGI perfection, "flawless" skin, "perfect" anything
+18. Good skin: "dewy finish with subtle sheen, natural skin texture visible"
+19. Bad skin: "flawless porcelain skin" or "perfect complexion"
+
+### Technical Requirements
+20. ALWAYS mark ONE hero element with "CRITICAL:" prefix in style field
+21. NEVER include aspect ratio, resolution, or model settings
+22. Use film photography aesthetics when appropriate, not digital perfection
+
+Return a JSON object with this structure:
+{
+  "style": "30-50 word technical description with ONE 'CRITICAL:' hero element",
+  "outfit": {
+    "main": "Specific fabric, color, garment type, cut, fit, length, details",
+    "accessories": "Jewelry, bags, shoes - specific materials and styles"
+  },
+  "makeup": {
+    "face": "Foundation tone, coverage, finish (matte/dewy/satin)",
+    "eyes": "Eyeshadow placement and finish, liner style, lashes",
+    "lips": "Color family, finish, application style",
+    "details": "Blush placement, highlighter, brows, overall intensity"
+  },
+  "pose": "Every limb defined: arms, hands, legs, feet, torso, head angle, weight distribution, stable and natural",
+  "expression": "Precise facial expression: eyes, mouth, brow, jaw, mood",
+  "lighting": "Complete setup: key light position and quality, fill light, shadows, highlights, color temperature, mood",
+  "camera": "Lens choice, focal length, aperture effects, camera height and angle, framing",
+  "set_design": "Location type, key props, textures, colors, spatial arrangement, atmosphere"
+}
+
+CONCEPT: "${concept}"
+
+RESEARCH INSIGHTS:
+- Summary: ${research.summary}
+- Key Themes: ${research.key_themes.join(', ')}
+- Visual Elements: ${research.visual_elements.join(', ')}
+- Mood Keywords: ${research.mood_keywords.join(', ')}
+
+SUB-THEME FOR THIS PROMPT:
+${themeDescription}
+
+${totalCount && totalCount > 1 ? `NOTE: You are generating prompt ${index + 1} of ${totalCount} total prompts for this concept.
+Other sub-themes in this set: ${otherThemes}
+
+VARIETY REQUIREMENT: Ensure MAXIMUM VARIETY across all dimensions:
+- Aesthetics: Mix different visual styles (vintage, modern, editorial, candid, etc.)
+- Emotions: Vary emotional tones significantly (joyful vs. sultry vs. serene vs. mysterious)
+- Lighting: Rotate through different setups (golden hour, studio, neon, natural window, etc.)
+- Color Palettes: Use diverse color schemes (warm vs. cool, monochrome vs. vibrant, etc.)
+- Camera Angles: Mix perspectives (eye-level, slightly above, environmental wide shots, etc.)
+- Outfit Styles: Vary drastically (structured vs. flowing, minimal vs. layered, casual vs. formal)
+
+Your sub-theme provides direction, but push for DISTINCT visual identity that stands apart from the other prompts.` : ''}
+
+${
+      imageInsights
+        ? `REFERENCE IMAGE STYLE (for inspiration only):
+- Lighting: ${JSON.stringify(imageInsights.lighting)}
+- Set Design: ${JSON.stringify(imageInsights.set_design)}
+- Camera: ${JSON.stringify(imageInsights.camera)}
+- Effects: ${JSON.stringify(imageInsights.effects)}
+- Outfit: ${JSON.stringify(imageInsights.outfit)}
+
+Use as stylistic inspiration — match the mood, lighting approach, and camera style.
+Create variations blending this reference style with the concept. Do NOT copy the reference verbatim.`
+        : ''
+    }`
+
+    const userPrompt = `Create ONE highly detailed, visually sophisticated prompt for this sub-theme that brings the concept to life.
+
+${totalCount && totalCount > 1 ? `CRITICAL: This is prompt ${index + 1} of ${totalCount}. Make it VISUALLY DISTINCT from the others by varying aesthetics, emotions, lighting, colors, camera work, and outfit styles. The goal is a diverse, scroll-stopping collection.` : ''}
+
+Focus on scroll-stopping visual appeal with technical precision. Use the research insights and sub-theme to create something Instagram/Pinterest-worthy.
+
+Return as JSON with the exact structure specified in the system prompt.`
+
+    console.log(`[generateSinglePrompt] Calling OpenAI for prompt ${index + 1}...`)
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: userPrompt,
+        },
+      ],
+      temperature: 0.6,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' },
+    })
+    console.log(`[generateSinglePrompt] OpenAI response received for prompt ${index + 1}`)
+
+    const content = response.choices[0]?.message?.content
+    if (!content) return fallbackPrompt
+
+    const parsed = safeJsonParse<PromptOutput>(content, fallbackPrompt)
+
+    // Quality gate: Check for vague language
+    const outfitCheck = validateOutfitSpecificity(parsed.outfit?.main || '')
+    if (!outfitCheck.valid) {
+      console.warn(`[Prompt ${index + 1}] Quality issue: ${outfitCheck.reason}`)
+    }
+
+    return parsed
+  } catch (error) {
+    console.error(`[generateSinglePrompt] Failed for prompt ${index + 1}:`, error)
+    return fallbackPrompt
+  }
 }
 
 async function generatePromptBatch(
