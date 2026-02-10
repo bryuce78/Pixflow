@@ -236,7 +236,6 @@ export default function AssetMonsterPage() {
   const { favorites, loadAll: loadHistory, addToFavorites } = useHistoryStore()
 
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
-  const [previewPrompt, setPreviewPrompt] = useState<GeneratedPrompt | null>(null)
   const [selectedLibraryPrompts, setSelectedLibraryPrompts] = useState<Set<string>>(new Set())
   const [selectedCustomPrompts, setSelectedCustomPrompts] = useState<Set<string>>(new Set())
 
@@ -523,137 +522,36 @@ export default function AssetMonsterPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left: Prompt Cards Grid */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => selectAllPrompts(prompts.length)}>
-                        Select All
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={deselectAllPrompts}>
-                        Deselect All
-                      </Button>
-                    </div>
-                    <span className="text-sm text-surface-400">
-                      {selectedPrompts.size}/{prompts.length}
-                    </span>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => selectAllPrompts(prompts.length)}>
+                      Select All
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={deselectAllPrompts}>
+                      Deselect All
+                    </Button>
                   </div>
-                  <div className="grid grid-cols-5 gap-2 max-h-[400px] overflow-y-auto">
-                    {prompts.map((prompt, index) => (
-                      <button
-                        type="button"
-                        // biome-ignore lint/suspicious/noArrayIndexKey: static list
-                        key={index}
-                        onClick={() => togglePromptSelection(index)}
-                        onMouseEnter={() => setPreviewPrompt(prompt)}
-                        className={`aspect-[2/1] rounded-lg font-medium text-lg flex items-center justify-center transition-colors ${
-                          selectedPrompts.has(index)
-                            ? 'bg-brand-600 hover:bg-brand-700 text-white'
-                            : 'bg-surface-200 hover:bg-surface-300 text-surface-600'
-                        }`}
-                      >
-                        {index + 1}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-sm text-surface-400">
+                    {selectedPrompts.size}/{prompts.length}
+                  </span>
                 </div>
-
-                {/* Right: Preview Panel */}
-                <div className="bg-surface-100 rounded-lg p-4">
-                  {previewPrompt ? (
-                    <div className="space-y-3 text-sm">
-                      <div className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">
-                        Preview
-                      </div>
-                      {previewPrompt.style && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Style</label>
-                          <p className="text-surface-900 mt-0.5">{previewPrompt.style}</p>
-                        </div>
-                      )}
-                      {previewPrompt.camera && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Camera</label>
-                          <p className="text-surface-900 mt-0.5">
-                            {[
-                              previewPrompt.camera.lens,
-                              previewPrompt.camera.aperture,
-                              previewPrompt.camera.angle,
-                              previewPrompt.camera.focus,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </p>
-                        </div>
-                      )}
-                      {previewPrompt.lighting && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Lighting</label>
-                          <p className="text-surface-900 mt-0.5">
-                            {[
-                              previewPrompt.lighting.setup,
-                              previewPrompt.lighting.key_light,
-                              previewPrompt.lighting.fill_light,
-                              previewPrompt.lighting.shadows,
-                              previewPrompt.lighting.mood,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </p>
-                        </div>
-                      )}
-                      {previewPrompt.pose && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Pose</label>
-                          <p className="text-surface-900 mt-0.5">
-                            {[
-                              previewPrompt.pose.framing,
-                              previewPrompt.pose.body_position,
-                              previewPrompt.pose.arms,
-                              previewPrompt.pose.posture,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </p>
-                        </div>
-                      )}
-                      {previewPrompt.set_design && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Set Design</label>
-                          <p className="text-surface-900 mt-0.5">
-                            {[
-                              previewPrompt.set_design.backdrop,
-                              previewPrompt.set_design.surface,
-                              previewPrompt.set_design.atmosphere,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </p>
-                        </div>
-                      )}
-                      {previewPrompt.effects && (
-                        <div>
-                          <label className="text-xs font-medium text-surface-500">Effects</label>
-                          <p className="text-surface-900 mt-0.5">
-                            {[
-                              previewPrompt.effects.color_grade,
-                              previewPrompt.effects.vignette,
-                              previewPrompt.effects.contrast,
-                              previewPrompt.effects.grain,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-surface-400">
-                      <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Hover over a prompt to preview</p>
-                    </div>
-                  )}
+                <div className="grid grid-cols-10 gap-2 max-h-[400px] overflow-y-auto">
+                  {prompts.map((prompt, index) => (
+                    <button
+                      type="button"
+                      // biome-ignore lint/suspicious/noArrayIndexKey: static list
+                      key={index}
+                      onClick={() => togglePromptSelection(index)}
+                      className={`aspect-[2/1] rounded-lg font-medium text-lg flex items-center justify-center transition-colors ${
+                        selectedPrompts.has(index)
+                          ? 'bg-brand-600 hover:bg-brand-700 text-white'
+                          : 'bg-surface-200 hover:bg-surface-300 text-surface-600'
+                      }`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
                 </div>
               </div>
             )
