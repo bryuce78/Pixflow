@@ -694,7 +694,7 @@ export default function AssetMonsterPage() {
                         <button
                           type="button"
                           onClick={async () => {
-                            // Parse and save to library
+                            // Parse, save to library, then add as new card
                             const parsed = await parseCustomPrompt(cp.json, 1, (error) =>
                               setCustomPromptError(cp.id, error),
                             )
@@ -702,6 +702,9 @@ export default function AssetMonsterPage() {
                               const prompt = parsed[0]
                               const name = prompt.style?.split(' ').slice(0, 4).join(' ') || `Custom #${idx + 1}`
                               await addToFavorites(prompt, name, 'custom')
+                              // Clear current textarea and add new empty card
+                              updateCustomPrompt(cp.id, '')
+                              addCustomPrompt()
                             }
                           }}
                           className="text-surface-400 hover:text-brand-500 transition-colors"
