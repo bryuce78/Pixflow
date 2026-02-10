@@ -184,9 +184,7 @@ export default function AssetMonsterPage() {
     batchError,
     uploadError,
     promptSource,
-    customPromptJson,
-    customPromptCount,
-    customPromptError,
+    customPrompts,
     imageSource,
     avatars,
     avatarsLoading,
@@ -199,8 +197,9 @@ export default function AssetMonsterPage() {
     selectAllPrompts,
     deselectAllPrompts,
     setPromptSource,
-    setCustomPromptJson,
-    setCustomPromptCount,
+    addCustomPrompt,
+    updateCustomPrompt,
+    removeCustomPrompt,
     setCustomPromptError,
     setImageSource,
     setAspectRatio,
@@ -342,9 +341,24 @@ export default function AssetMonsterPage() {
 
   const handleBatchGenerate = async () => {
     if (promptSource === 'custom') {
-      const customPrompts = await parseCustomPrompt(customPromptJson, customPromptCount, setCustomPromptError)
-      if (!customPrompts) return
-      startBatch(customPrompts, 'custom')
+      // Parse all custom prompts
+      const parsedPrompts = await Promise.all(
+        customPrompts.map(async (cp, idx) => {
+          const parsed = await parseCustomPrompt(cp.json, 1, (error) =>
+            setCustomPromptError(cp.id, error),
+          )
+          return parsed ? parsed[0] : null
+        }),
+      )
+
+      // Filter out any that failed to parse
+      const validPrompts = parsedPrompts.filter((p): p is GeneratedPrompt => p !== null)
+      if (validPrompts.length === 0) {
+        setBatchError({ message: 'All custom prompts have errors. Please fix them first.', type: 'warning' })
+        return
+      }
+
+      startBatch(validPrompts, 'custom')
     } else {
       if (selectedPrompts.size === 0) {
         setBatchError({ message: 'Please select at least one prompt.', type: 'warning' })
@@ -357,7 +371,7 @@ export default function AssetMonsterPage() {
     }
   }
 
-  const totalImages = promptSource === 'custom' ? customPromptCount : selectedPrompts.size
+  const totalImages = promptSource === 'custom' ? customPrompts.length : selectedPrompts.size
   const completedCount = batchProgress?.completedImages ?? 0
   const totalCount = batchProgress?.totalImages ?? totalImages
   const avgPerImage = completedCount > 0 ? elapsed / completedCount : 0
@@ -524,44 +538,62 @@ export default function AssetMonsterPage() {
               </div>
             )
           ) : (
-            <div className="space-y-4">
-              <div>
-                <span className="block text-sm text-surface-400 mb-2">
-                  Custom Prompt
-                  <span className="text-surface-400 ml-2 font-normal">(JSON or plain text)</span>
-                </span>
-                <textarea
-                  value={customPromptJson}
-                  onChange={(e) => {
-                    setCustomPromptJson(e.target.value)
-                    setCustomPromptError(null)
-                  }}
-                  placeholder={`Describe the scene or paste JSON...
+            <div className="space-y-3">
+              {customPrompts.length === 0 ? (
+                <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
+                  <FileJson className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No custom prompts yet</p>
+                  <p className="text-xs mt-1">Click "Add Custom Prompt" to start</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {customPrompts.map((cp, idx) => (
+                    <div key={cp.id} className="border border-surface-200 rounded-lg p-3 bg-surface-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-surface-400">Custom Prompt #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomPrompt(cp.id)}
+                          className="text-surface-400 hover:text-danger transition-colors"
+                          title="Remove prompt"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <textarea
+                        value={cp.json}
+                        onChange={(e) => updateCustomPrompt(cp.id, e.target.value)}
+                        placeholder={`Describe the scene or paste JSON...
 
 Examples:
 • Black & white editorial photoshoot with dramatic lighting
 • {"style": "Romantic portrait...", "lighting": {...}}`}
-                  className={`w-full h-64 bg-surface-100 rounded-lg p-3 text-sm resize-none border ${
-                    customPromptError
-                      ? 'border-danger focus:border-danger'
-                      : 'border-transparent focus:border-brand-500'
-                  } focus:outline-none`}
-                />
-                {customPromptError && (
-                  <p className="text-danger text-xs mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {customPromptError}
-                  </p>
-                )}
-              </div>
-              <Slider
-                label="Number of Images"
-                displayValue={customPromptCount}
-                min={1}
-                max={4}
-                value={customPromptCount}
-                onChange={(e) => setCustomPromptCount(Number(e.currentTarget.value))}
-              />
+                        className={`w-full h-32 bg-white rounded-lg p-3 text-sm resize-none border ${
+                          cp.error
+                            ? 'border-danger focus:border-danger'
+                            : 'border-surface-200 focus:border-brand-500'
+                        } focus:outline-none`}
+                        rows={8}
+                      />
+                      {cp.error && (
+                        <p className="text-danger text-xs mt-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {cp.error}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={addCustomPrompt}
+              >
+                Add Custom Prompt
+              </Button>
             </div>
           )}
         </div>
@@ -747,7 +779,9 @@ Examples:
           disabled={
             batchLoading ||
             referenceImages.length === 0 ||
-            (promptSource === 'generated' ? selectedPrompts.size === 0 : !customPromptJson.trim())
+            (promptSource === 'generated'
+              ? selectedPrompts.size === 0
+              : customPrompts.length === 0 || customPrompts.some((cp) => cp.error !== null))
           }
           className="w-full"
         >

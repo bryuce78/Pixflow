@@ -45,9 +45,7 @@ interface GenerationState {
   completedBatches: CompletedBatch[]
 
   promptSource: 'generated' | 'custom'
-  customPromptJson: string
-  customPromptCount: number
-  customPromptError: string | null
+  customPrompts: Array<{ id: string; json: string; error: string | null }>
 
   imageSource: 'upload' | 'gallery'
   avatars: Avatar[]
@@ -62,9 +60,10 @@ interface GenerationState {
   selectAllPrompts: (count: number) => void
   deselectAllPrompts: () => void
   setPromptSource: (source: 'generated' | 'custom') => void
-  setCustomPromptJson: (json: string) => void
-  setCustomPromptCount: (count: number) => void
-  setCustomPromptError: (error: string | null) => void
+  addCustomPrompt: () => void
+  updateCustomPrompt: (id: string, json: string) => void
+  removeCustomPrompt: (id: string) => void
+  setCustomPromptError: (id: string, error: string | null) => void
   setImageSource: (source: 'upload' | 'gallery') => void
   setAspectRatio: (ratio: string) => void
   setNumImagesPerPrompt: (count: number) => void
@@ -108,9 +107,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   completedBatches: [],
 
   promptSource: 'generated',
-  customPromptJson: '',
-  customPromptCount: 1,
-  customPromptError: null,
+  customPrompts: [],
 
   imageSource: 'upload',
   avatars: [],
@@ -132,9 +129,32 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   selectAllPrompts: (count) => set({ selectedPrompts: new Set(Array.from({ length: count }, (_, i) => i)) }),
   deselectAllPrompts: () => set({ selectedPrompts: new Set() }),
   setPromptSource: (promptSource) => set({ promptSource }),
-  setCustomPromptJson: (customPromptJson) => set({ customPromptJson }),
-  setCustomPromptCount: (customPromptCount) => set({ customPromptCount }),
-  setCustomPromptError: (customPromptError) => set({ customPromptError }),
+
+  addCustomPrompt: () => {
+    const id = `custom-${Date.now()}`
+    set((state) => ({
+      customPrompts: [...state.customPrompts, { id, json: '', error: null }],
+    }))
+  },
+
+  updateCustomPrompt: (id, json) => {
+    set((state) => ({
+      customPrompts: state.customPrompts.map((cp) => (cp.id === id ? { ...cp, json, error: null } : cp)),
+    }))
+  },
+
+  removeCustomPrompt: (id) => {
+    set((state) => ({
+      customPrompts: state.customPrompts.filter((cp) => cp.id !== id),
+    }))
+  },
+
+  setCustomPromptError: (id, error) => {
+    set((state) => ({
+      customPrompts: state.customPrompts.map((cp) => (cp.id === id ? { ...cp, error } : cp)),
+    }))
+  },
+
   setImageSource: (imageSource) => set({ imageSource }),
   setAspectRatio: (aspectRatio) => set({ aspectRatio }),
   setNumImagesPerPrompt: (numImagesPerPrompt) => set({ numImagesPerPrompt }),
