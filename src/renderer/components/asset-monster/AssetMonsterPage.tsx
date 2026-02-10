@@ -732,25 +732,20 @@ Examples:
                   </div>
                   <div className="grid grid-cols-5 gap-3 max-h-[400px] overflow-y-auto">
                     {savedCustomPrompts.map((sp) => (
-                      <div
-                        key={sp.id}
-                        className="relative border border-surface-200 rounded-lg p-3 bg-surface-100 hover:bg-surface-200 transition-colors"
-                      >
+                      <div key={sp.id} className="relative">
+                        <button
+                          type="button"
+                          className="w-full aspect-[2/1] rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-lg flex items-center justify-center transition-colors"
+                        >
+                          {sp.name}
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeSavedCustomPrompt(sp.id)}
-                          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-surface-900/60 hover:bg-danger flex items-center justify-center transition-colors"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-surface-900 hover:bg-danger flex items-center justify-center transition-colors shadow-lg"
                         >
-                          <X className="w-3 h-3 text-white" />
+                          <X className="w-3.5 h-3.5 text-white" />
                         </button>
-                        <div className="pr-6">
-                          <p className="text-xs font-medium text-surface-900 line-clamp-2">{sp.name}</p>
-                          {sp.prompt.camera && (
-                            <p className="text-xs text-surface-500 mt-1 line-clamp-1">
-                              {sp.prompt.camera.lens || sp.prompt.camera.angle}
-                            </p>
-                          )}
-                        </div>
                       </div>
                     ))}
                   </div>
