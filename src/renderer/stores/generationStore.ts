@@ -44,7 +44,7 @@ interface GenerationState {
   selectedResultImages: Set<number>
   completedBatches: CompletedBatch[]
 
-  promptSource: 'generated' | 'custom'
+  promptSource: 'generated' | 'custom' | 'library'
   customPrompts: Array<{ id: string; json: string; error: string | null }>
 
   imageSource: 'upload' | 'gallery'
@@ -59,7 +59,7 @@ interface GenerationState {
   togglePromptSelection: (index: number) => void
   selectAllPrompts: (count: number) => void
   deselectAllPrompts: () => void
-  setPromptSource: (source: 'generated' | 'custom') => void
+  setPromptSource: (source: 'generated' | 'custom' | 'library') => void
   addCustomPrompt: () => void
   updateCustomPrompt: (id: string, json: string) => void
   removeCustomPrompt: (id: string) => void

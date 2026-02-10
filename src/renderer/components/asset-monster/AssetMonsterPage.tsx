@@ -1,6 +1,7 @@
 import JSZip from 'jszip'
 import {
   AlertCircle,
+  Bookmark,
   Check,
   CheckCircle,
   CheckSquare,
@@ -35,6 +36,7 @@ import {
   RESOLUTIONS,
   useGenerationStore,
 } from '../../stores/generationStore'
+import { useHistoryStore } from '../../stores/historyStore'
 import { useImageRatingsStore } from '../../stores/imageRatingsStore'
 import { useImg2VideoQueueStore } from '../../stores/img2videoQueueStore'
 import { useNavigationStore } from '../../stores/navigationStore'
@@ -227,9 +229,11 @@ export default function AssetMonsterPage() {
   const concept = concepts.find((c) => c.value.trim())?.value || ''
   const { navigate } = useNavigationStore()
   const { rateImage: rateImageInStore } = useImageRatingsStore()
+  const { favorites, loadAll: loadHistory } = useHistoryStore()
 
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
   const [previewPrompt, setPreviewPrompt] = useState<GeneratedPrompt | null>(null)
+  const [selectedLibraryPrompts, setSelectedLibraryPrompts] = useState<Set<string>>(new Set())
 
   const {
     getRootProps,
@@ -270,6 +274,10 @@ export default function AssetMonsterPage() {
   useEffect(() => {
     loadAvatars()
   }, [loadAvatars])
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
 
   useEffect(() => {
     if (batchProgress?.status === 'completed' && batchProgress.jobId) {
@@ -359,6 +367,21 @@ export default function AssetMonsterPage() {
       }
 
       startBatch(validPrompts, 'custom')
+    } else if (promptSource === 'library') {
+      if (selectedLibraryPrompts.size === 0) {
+        setBatchError({ message: 'Please select at least one prompt from library.', type: 'warning' })
+        return
+      }
+      const libraryPrompts = Array.from(selectedLibraryPrompts)
+        .map((id) => favorites.find((f) => f.id === id)?.prompt)
+        .filter((p): p is GeneratedPrompt => p !== undefined)
+
+      if (libraryPrompts.length === 0) {
+        setBatchError({ message: 'No valid prompts found in selection.', type: 'warning' })
+        return
+      }
+
+      startBatch(libraryPrompts, 'library')
     } else {
       if (selectedPrompts.size === 0) {
         setBatchError({ message: 'Please select at least one prompt.', type: 'warning' })
@@ -371,7 +394,12 @@ export default function AssetMonsterPage() {
     }
   }
 
-  const totalImages = promptSource === 'custom' ? customPrompts.length : selectedPrompts.size
+  const totalImages =
+    promptSource === 'custom'
+      ? customPrompts.length
+      : promptSource === 'library'
+        ? selectedLibraryPrompts.size
+        : selectedPrompts.size
   const completedCount = batchProgress?.completedImages ?? 0
   const totalCount = batchProgress?.totalImages ?? totalImages
   const avgPerImage = completedCount > 0 ? elapsed / completedCount : 0
@@ -410,9 +438,80 @@ export default function AssetMonsterPage() {
               <FileJson className="w-4 h-4" />
               Custom Prompt
             </button>
+            <button
+              type="button"
+              onClick={() => setPromptSource('library')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm transition-colors ${
+                promptSource === 'library' ? 'bg-brand-600 text-surface-900' : 'text-surface-400 hover:text-surface-900'
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              Library
+            </button>
           </div>
 
-          {promptSource === 'generated' ? (
+          {promptSource === 'library' ? (
+            <div className="space-y-3">
+              {favorites.length === 0 ? (
+                <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
+                  <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No favorited prompts yet</p>
+                  <p className="text-xs mt-1">Favorite prompts from Library to use them here</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setSelectedLibraryPrompts(new Set(favorites.map((f) => f.id)))}
+                      >
+                        Select All
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedLibraryPrompts(new Set())}>
+                        Deselect All
+                      </Button>
+                    </div>
+                    <span className="text-sm text-surface-400">
+                      {selectedLibraryPrompts.size}/{favorites.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {favorites.map((fav) => (
+                      <button
+                        type="button"
+                        key={fav.id}
+                        onClick={() => {
+                          const next = new Set(selectedLibraryPrompts)
+                          if (next.has(fav.id)) next.delete(fav.id)
+                          else next.add(fav.id)
+                          setSelectedLibraryPrompts(next)
+                        }}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 ${
+                          selectedLibraryPrompts.has(fav.id)
+                            ? 'bg-brand-600/30 border border-brand-500'
+                            : 'bg-surface-100 hover:bg-surface-200 border border-transparent'
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                            selectedLibraryPrompts.has(fav.id) ? 'bg-brand-500 border-brand-500' : 'border-surface-200'
+                          }`}
+                        >
+                          {selectedLibraryPrompts.has(fav.id) && <Check className="w-3 h-3" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{fav.name}</div>
+                          {fav.concept && <div className="text-xs text-surface-400 mt-0.5">{fav.concept}</div>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : promptSource === 'generated' ? (
             prompts.length === 0 ? (
               <div className="text-center py-8 text-surface-400">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -537,7 +636,7 @@ export default function AssetMonsterPage() {
                 </div>
               </div>
             )
-          ) : (
+          ) : promptSource === 'custom' ? (
             <div className="space-y-3">
               {customPrompts.length === 0 ? (
                 <div className="text-center py-8 text-surface-400 border-2 border-dashed border-surface-200 rounded-lg">
@@ -595,7 +694,7 @@ Examples:
                 Add Custom Prompt
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Step 2: Reference Images (Optional) */}
@@ -781,7 +880,9 @@ Examples:
             referenceImages.length === 0 ||
             (promptSource === 'generated'
               ? selectedPrompts.size === 0
-              : customPrompts.length === 0 || customPrompts.some((cp) => cp.error !== null))
+              : promptSource === 'custom'
+                ? customPrompts.length === 0 || customPrompts.some((cp) => cp.error !== null)
+                : selectedLibraryPrompts.size === 0)
           }
           className="w-full"
         >
