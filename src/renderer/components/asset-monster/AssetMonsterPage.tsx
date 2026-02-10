@@ -536,7 +536,7 @@ export default function AssetMonsterPage() {
                     {selectedPrompts.size}/{prompts.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-10 gap-2 max-h-[400px] overflow-y-auto">
+                <div className="grid grid-cols-5 gap-2 max-h-[400px] overflow-y-auto">
                   {prompts.map((prompt, index) => (
                     <button
                       type="button"
