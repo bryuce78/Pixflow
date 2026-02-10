@@ -685,21 +685,13 @@ export default function PromptFactoryPage() {
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-semibold text-surface-900">Prompt #{selectedIndex + 1}</h3>
               {prompts[selectedIndex].quality_score !== undefined && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xl font-bold ${
-                      prompts[selectedIndex].quality_score >= 80
-                        ? 'text-success'
-                        : prompts[selectedIndex].quality_score >= 60
-                          ? 'text-warning'
-                          : 'text-danger'
-                    }`}
-                  >
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                  <span className="text-xl font-bold text-brand-500">
                     {prompts[selectedIndex].quality_score}
                   </span>
-                  <span className="text-xs text-surface-400">/100</span>
+                  <span className="text-xs text-brand-400">/100</span>
                   {prompts[selectedIndex]._enriched && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-success/20 text-success">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-success/20 text-success ml-1">
                       Enhanced
                     </span>
                   )}
