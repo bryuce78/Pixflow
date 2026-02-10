@@ -687,7 +687,7 @@ export default function AssetMonsterPage() {
                       const parsed = await parseCustomPrompt(currentCustomPromptInput, 1, setCurrentCustomPromptError)
                       if (parsed && parsed[0]) {
                         const prompt = parsed[0]
-                        const name = prompt.style?.split(' ').slice(0, 4).join(' ') || 'Custom Prompt'
+                        const name = `${savedCustomPrompts.length + 1}`
                         await addToFavorites(prompt, name, 'custom')
                         saveCurrentCustomPrompt(prompt, name)
                       }
@@ -944,7 +944,7 @@ Examples:
             (promptSource === 'generated'
               ? selectedPrompts.size === 0
               : promptSource === 'custom'
-                ? customPrompts.length === 0 || customPrompts.some((cp) => cp.error !== null)
+                ? savedCustomPrompts.length === 0
                 : selectedLibraryPrompts.size === 0)
           }
           className="w-full"
