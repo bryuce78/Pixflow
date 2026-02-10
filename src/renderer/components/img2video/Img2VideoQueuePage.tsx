@@ -169,16 +169,15 @@ function Img2ImgContent() {
                       >
                         <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover" alt="" />
                         {isSelected && (
-                          <button
-                            type="button"
+                          <div
                             onClick={(e) => {
                               e.stopPropagation()
                               removeItem(item.id)
                             }}
-                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors"
+                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors cursor-pointer"
                           >
                             <X className="w-3 h-3 text-white" />
-                          </button>
+                          </div>
                         )}
                       </button>
                     )
@@ -492,16 +491,15 @@ function Img2VideoContent() {
                       >
                         <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover" alt="" />
                         {isSelected && (
-                          <button
-                            type="button"
+                          <div
                             onClick={(e) => {
                               e.stopPropagation()
                               removeItem(item.id)
                             }}
-                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors"
+                            className="absolute top-1 right-1 w-5 h-5 bg-surface-900/80 hover:bg-danger rounded-full flex items-center justify-center transition-colors cursor-pointer"
                           >
                             <X className="w-3 h-3 text-white" />
-                          </button>
+                          </div>
                         )}
                       </button>
                     )
