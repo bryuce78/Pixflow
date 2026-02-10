@@ -238,6 +238,7 @@ export default function AssetMonsterPage() {
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
   const [previewPrompt, setPreviewPrompt] = useState<GeneratedPrompt | null>(null)
   const [selectedLibraryPrompts, setSelectedLibraryPrompts] = useState<Set<string>>(new Set())
+  const [selectedCustomPrompts, setSelectedCustomPrompts] = useState<Set<string>>(new Set())
 
   const {
     getRootProps,
@@ -353,13 +354,16 @@ export default function AssetMonsterPage() {
 
   const handleBatchGenerate = async () => {
     if (promptSource === 'custom') {
-      if (savedCustomPrompts.length === 0) {
-        setBatchError({ message: 'Please save at least one custom prompt first.', type: 'warning' })
+      if (selectedCustomPrompts.size === 0) {
+        setBatchError({ message: 'Please select at least one custom prompt.', type: 'warning' })
         return
       }
 
-      // Use saved custom prompts directly
-      const validPrompts = savedCustomPrompts.map((sp) => sp.prompt)
+      // Use only selected custom prompts
+      const validPrompts = Array.from(selectedCustomPrompts)
+        .map((id) => savedCustomPrompts.find((sp) => sp.id === id)?.prompt)
+        .filter((p): p is GeneratedPrompt => p !== undefined)
+
       startBatch(validPrompts, 'custom')
     } else if (promptSource === 'library') {
       if (selectedLibraryPrompts.size === 0) {
@@ -390,7 +394,7 @@ export default function AssetMonsterPage() {
 
   const totalImages =
     promptSource === 'custom'
-      ? savedCustomPrompts.length
+      ? selectedCustomPrompts.size
       : promptSource === 'library'
         ? selectedLibraryPrompts.size
         : selectedPrompts.size
@@ -732,21 +736,26 @@ Examples:
                   </div>
                   <div className="grid grid-cols-5 gap-3 max-h-[400px] overflow-y-auto">
                     {savedCustomPrompts.map((sp) => (
-                      <div key={sp.id} className="relative">
-                        <button
-                          type="button"
-                          className="w-full aspect-[2/1] rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-lg flex items-center justify-center transition-colors"
-                        >
-                          {sp.name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeSavedCustomPrompt(sp.id)}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-surface-900 hover:bg-danger flex items-center justify-center transition-colors shadow-lg"
-                        >
-                          <X className="w-3.5 h-3.5 text-white" />
-                        </button>
-                      </div>
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => {
+                          const next = new Set(selectedCustomPrompts)
+                          if (next.has(sp.id)) {
+                            next.delete(sp.id)
+                          } else {
+                            next.add(sp.id)
+                          }
+                          setSelectedCustomPrompts(next)
+                        }}
+                        className={`w-full aspect-[2/1] rounded-lg font-medium text-lg flex items-center justify-center transition-colors ${
+                          selectedCustomPrompts.has(sp.id)
+                            ? 'bg-brand-600 hover:bg-brand-700 text-white'
+                            : 'bg-surface-200 hover:bg-surface-300 text-surface-600'
+                        }`}
+                      >
+                        {sp.name}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -939,7 +948,7 @@ Examples:
             (promptSource === 'generated'
               ? selectedPrompts.size === 0
               : promptSource === 'custom'
-                ? savedCustomPrompts.length === 0
+                ? selectedCustomPrompts.size === 0
                 : selectedLibraryPrompts.size === 0)
           }
           className="w-full"
