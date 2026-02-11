@@ -50,6 +50,7 @@ interface PromptState {
   selectedIndex: number | null
   editingPromptText: string
   promptSaving: boolean
+  promptSaved: boolean
   error: ErrorInfo | null
   copied: boolean
   research: ResearchData | null
@@ -105,6 +106,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
   selectedIndex: null,
   editingPromptText: '',
   promptSaving: false,
+  promptSaved: false,
   error: null,
   copied: false,
   research: null,
@@ -377,6 +379,10 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
       // Re-select to ensure UI updates and card becomes active
       get().setSelectedIndex(selectedIndex)
+
+      // Show success state for 2 seconds
+      set({ promptSaved: true })
+      setTimeout(() => set({ promptSaved: false }), 2000)
     } catch (err) {
       set({ error: parseError(err) })
     } finally {

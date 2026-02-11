@@ -63,6 +63,7 @@ export default function PromptFactoryPage() {
     selectedIndex,
     editingPromptText,
     promptSaving,
+    promptSaved,
     error,
     copied,
     research,
@@ -746,13 +747,14 @@ export default function PromptFactoryPage() {
                 Send to Monster
               </Button>
               <Button
-                variant="primary"
+                variant={promptSaved ? 'primary' : 'lime'}
                 size="sm"
-                icon={promptSaving ? undefined : <Check className="w-3.5 h-3.5" />}
+                icon={promptSaving ? undefined : promptSaved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
                 loading={promptSaving}
+                disabled={promptSaving || promptSaved}
                 onClick={() => saveEdit(editingPromptText)}
               >
-                Save
+                {promptSaved ? 'Saved!' : 'Save'}
               </Button>
             </div>
           </div>

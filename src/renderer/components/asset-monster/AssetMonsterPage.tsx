@@ -244,6 +244,7 @@ export default function AssetMonsterPage() {
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
   const [selectedLibraryPrompts, setSelectedLibraryPrompts] = useState<Set<string>>(new Set())
   const [selectedCustomPrompts, setSelectedCustomPrompts] = useState<Set<string>>(new Set())
+  const [customPromptSaved, setCustomPromptSaved] = useState(false)
 
   const {
     getRootProps,
@@ -567,13 +568,17 @@ export default function AssetMonsterPage() {
                         const name = `${savedCustomPrompts.length + 1}`
                         await addToFavorites(prompt, name, 'custom')
                         saveCurrentCustomPrompt(prompt, name)
+                        setCustomPromptSaved(true)
+                        setTimeout(() => setCustomPromptSaved(false), 2000)
                       }
                     }}
-                    disabled={!currentCustomPromptInput.trim()}
-                    className="text-surface-400 hover:text-brand-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    disabled={!currentCustomPromptInput.trim() || customPromptSaved}
+                    className={customPromptSaved
+                      ? "text-brand-500 transition-colors disabled:opacity-100"
+                      : "text-secondary-600 hover:text-secondary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"}
                     title="Save to Library & Add Card"
                   >
-                    <Save className="w-5 h-5" />
+                    {customPromptSaved ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
                   </button>
                 </div>
                 <textarea
