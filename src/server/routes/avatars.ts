@@ -615,18 +615,19 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         return
       }
 
-      // Reaction prompts (will be tested and refined)
+      // Reaction prompts - Optimized for Kling AI (Feb 2026)
+      // Based on Kling AI best practices: descriptive micro-expressions, emotive language, cinematic details
       const reactionPrompts: Record<string, string> = {
-        sad: 'person looking down with sad expression, slight frown, eyes looking downward, subtle head movement showing disappointment',
-        upset: 'person showing frustration, furrowed brows, tight lips, slight head shake, showing annoyance and displeasure',
-        angry: 'person with angry expression, intense eyes, clenched jaw, aggressive posture, showing strong anger',
-        disappointed: 'person with disappointed look, lowered gaze, slight head shake, showing letdown and dissatisfaction',
-        sob: 'person crying, tears, face contorted in sorrow, shoulders shaking, hand covering face, deep emotional distress',
-        excited: 'person with wide smile, eyes bright, energetic movement, showing enthusiasm and joy',
-        surprised: 'person with shocked expression, eyes wide, mouth open, eyebrows raised, showing astonishment',
-        confused: 'person with puzzled look, tilted head, squinted eyes, furrowed brow, showing bewilderment',
-        worried: 'person with concerned expression, tense face, anxious eyes, showing nervousness and unease',
-        happy: 'person with genuine smile, bright eyes, relaxed posture, showing contentment and joy',
+        sad: 'person looks directly at camera with melancholy expression, eyes glistening with sadness, subtle frown, shoulders slightly slumped, slow deliberate blink, heavy and somber mood',
+        upset: 'person with tense frustrated expression, jaw tight, nostrils slightly flared, furrowed brows creating deep lines, eyes narrowed with irritation, slight head shake showing annoyance',
+        angry: 'person with fierce intense expression, eyes burning with rage, clenched jaw creating tension, flared nostrils, rigid posture, face flushed with anger, breathing heavy',
+        disappointed: 'person with deflated expression, gaze lowered with resignation, soft sigh visible, eyebrows slightly raised in disbelief, mouth corners turned down, subtle head shake of disappointment',
+        sob: 'person with face contorted in deep sorrow, tears streaming down cheeks, eyes red and swollen, shoulders shaking with sobs, hand trembling as it covers face, raw emotional breakdown',
+        excited: 'person with radiant beaming smile, eyes sparkling with pure joy, eyebrows raised in delight, face lit up with enthusiasm, energetic head movements, infectious happiness and thrill',
+        surprised: 'person with jaw dropped in shock, eyes wide open in astonishment, eyebrows shot up high, slight gasp visible, frozen moment of disbelief, startled and amazed',
+        confused: 'person with perplexed bewildered look, head tilted to side in question, eyes squinting in thought, one eyebrow raised quizzically, lips pursed in puzzlement, searching for understanding',
+        worried: 'person with anxious tense expression, eyes darting nervously, brows knitted together with concern, lips pressed thin, slight tremor visible, uneasy and apprehensive mood',
+        happy: 'person with warm genuine smile reaching eyes, face glowing with contentment, relaxed joyful expression, soft laugh lines visible, peaceful and serene happiness radiating outward',
       }
 
       const reactionPrompt = reactionPrompts[reaction]
