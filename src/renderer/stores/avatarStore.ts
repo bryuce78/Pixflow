@@ -626,7 +626,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       return
     }
 
-    set({ transcribingVideo: true, transcriptionError: null })
+    set({ transcribingVideo: true, transcriptionError: null, generatedScript: '' })
 
     try {
       const res = await authFetch(apiUrl('/api/videos/transcribe'), {
