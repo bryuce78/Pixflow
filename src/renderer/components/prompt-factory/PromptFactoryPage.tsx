@@ -417,7 +417,7 @@ export default function PromptFactoryPage() {
                     icon={<Layers className="w-4 h-4" />}
                     onClick={() => {
                       const analyzed = analyzeEntries.filter((e) => e.prompt).map((e) => e.prompt!)
-                      setPrompts(analyzed)
+                      setPrompts(analyzed, analyzed.length - 1)
                       setPromptMode('concept')
                     }}
                     className="flex-1"
@@ -430,7 +430,7 @@ export default function PromptFactoryPage() {
                     icon={<ArrowRight className="w-4 h-4" />}
                     onClick={() => {
                       const analyzed = analyzeEntries.filter((e) => e.prompt).map((e) => e.prompt!)
-                      setPrompts(analyzed)
+                      setPrompts(analyzed, analyzed.length - 1)
                       generationStore.selectAllPrompts(analyzed.length)
                       generationStore.setImageSource('upload')
                       navigate('generate')
