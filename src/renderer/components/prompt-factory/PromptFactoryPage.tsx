@@ -342,7 +342,7 @@ export default function PromptFactoryPage() {
                           </p>
                         )}
                         <Button
-                          variant="success"
+                          variant="lime"
                           size="xs"
                           icon={editSaving ? undefined : <Save className="w-3 h-3" />}
                           loading={editSaving}
