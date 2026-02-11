@@ -374,6 +374,9 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
       const updated = [...prompts]
       updated[selectedIndex] = parsed
       set({ prompts: updated, editingPromptText: JSON.stringify(parsed, null, 2) })
+
+      // Re-select to ensure UI updates and card becomes active
+      get().setSelectedIndex(selectedIndex)
     } catch (err) {
       set({ error: parseError(err) })
     } finally {
