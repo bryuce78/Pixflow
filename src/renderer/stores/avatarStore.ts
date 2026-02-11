@@ -153,7 +153,7 @@ interface AvatarState {
 
   voices: Voice[]
   voicesLoading: boolean
-  selectedVoice: Voice | null
+  selectedVoice: string | null
   audioMode: 'tts' | 'upload'
   ttsGenerating: boolean
   audioUploading: boolean
@@ -191,7 +191,7 @@ interface AvatarState {
   setGeneratedScript: (script: string) => void
   undoScript: () => void
   redoScript: () => void
-  setSelectedVoice: (voice: Voice | null) => void
+  setSelectedVoice: (voiceId: string | null) => void
   setAudioMode: (mode: 'tts' | 'upload') => void
   setScriptMode: (mode: 'existing' | 'audio' | 'fetch' | 'generate') => void
   setSelectedVideoForTranscription: (url: string | null) => void
@@ -354,7 +354,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
       const loadedVoices = data.voices || []
       set({
         voices: loadedVoices,
-        selectedVoice: get().selectedVoice || loadedVoices[0] || null,
+        selectedVoice: get().selectedVoice || loadedVoices[0]?.id || null,
       })
     } catch (err) {
       console.error('Failed to load voices:', err)
@@ -528,7 +528,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       const res = await authFetch(apiUrl('/api/avatars/tts'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: generatedScript, voiceId: selectedVoice.id }),
+        body: JSON.stringify({ text: generatedScript, voiceId: selectedVoice }),
       })
 
       if (!res.ok) {
