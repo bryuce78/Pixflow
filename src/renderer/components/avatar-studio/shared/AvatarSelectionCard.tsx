@@ -1,5 +1,5 @@
 import { Check, Loader2, Upload, Users, Wand2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { assetUrl } from '../../../lib/api'
 import type { AvatarAgeGroup, AvatarEthnicity, AvatarGender, AvatarOutfit } from '../../../stores/avatarStore'
 import { useAvatarStore } from '../../../stores/avatarStore'
@@ -54,6 +54,7 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
     selectedGeneratedIndex,
     setSelectedGeneratedIndex,
     generateAvatar,
+    loadAvatars,
   } = useAvatarStore()
 
   const [mode, setMode] = useState<'gallery' | 'generate'>('gallery')
@@ -64,6 +65,10 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
   const [avatarCount, setAvatarCount] = useState(1)
 
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    loadAvatars()
+  }, [loadAvatars])
 
   const handleGenerate = async () => {
     await generateAvatar({ gender, ageGroup, ethnicity, outfit, count: avatarCount })
