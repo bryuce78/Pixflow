@@ -105,8 +105,9 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
 
   return (
     <div className="grid grid-cols-2 gap-6">
-      {/* Left Column: Avatar Selection */}
+      {/* Left Column: Inputs (Avatar + Script + TTS) */}
       <div className="space-y-6">
+        {/* Step 1: Avatar Selection */}
         <AvatarSelectionCard stepNumber={1} subtitle="(Optional)" showGenerateOptions={true} />
 
         {/* Selected Avatar Display */}
@@ -138,10 +139,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
             </div>
           </div>
         )}
-      </div>
 
-      {/* Right Column: Script & TTS Workflow */}
-      <div className="space-y-6">
         {/* Step 2: Script */}
         <div className="bg-surface-50 rounded-lg p-4">
           <StepHeader stepNumber={2} title="Script" />
@@ -638,7 +636,10 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
             </div>
           </div>
         )}
+      </div>
 
+      {/* Right Column: Output (Lipsync Video) */}
+      <div className="space-y-6">
         {/* Step 4: Lipsync Video */}
         {generatedAudioUrl && (
           <div className="bg-surface-50 rounded-lg p-4">
