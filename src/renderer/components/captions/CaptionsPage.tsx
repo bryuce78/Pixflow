@@ -160,6 +160,7 @@ export default function CaptionsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [renderingSelection, setRenderingSelection] = useState(false)
   const [segmentLoading, setSegmentLoading] = useState(false)
+  const [selectionRevision, setSelectionRevision] = useState(0)
   const [outputUrl, setOutputUrl] = useState<string | null>(null)
   const [transcription, setTranscription] = useState<string | null>(null)
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null)
@@ -196,7 +197,6 @@ export default function CaptionsPage() {
   const canSubmit = Boolean(videoFile || videoUrl.trim())
   const enabledSegments = useMemo(() => sentenceSegments.filter((segment) => segment.enabled), [sentenceSegments])
   const hasSegmentSelection = sentenceSegments.length > 0
-  const hasExcludedSegments = hasSegmentSelection && enabledSegments.length < sentenceSegments.length
   const canRenderFromSelection = Boolean(sourceVideoUrl && enabledSegments.length > 0)
   const resolvedLanguage = undefined
   const directVideoUrl =
@@ -437,6 +437,7 @@ export default function CaptionsPage() {
   const clearSelectedVideo = () => {
     segmentRequestIdRef.current += 1
     setSegmentLoading(false)
+    setSelectionRevision(0)
     setVideoFile(null)
     setVideoUrl('')
     setInputVideoMeta(null)
@@ -495,11 +496,13 @@ export default function CaptionsPage() {
       setSourceVideoUrl(resolvedVideoUrl)
       setTranscription(nextTranscript || null)
       setSentenceSegments(nextSegments)
+      setSelectionRevision(0)
     } catch (error) {
       if (segmentRequestIdRef.current !== requestId) return
       setSentenceSegments([])
       setTranscription(null)
       setSourceVideoUrl(null)
+      setSelectionRevision(0)
       notify.error(error instanceof Error ? error.message : 'Failed to prepare sentence selection')
     } finally {
       if (segmentRequestIdRef.current === requestId) {
@@ -684,6 +687,7 @@ export default function CaptionsPage() {
           enabled: previousEnabled.get(`${index}:${segment.text.toLowerCase()}`) ?? true,
         }))
       })
+      setSelectionRevision(0)
       notify.success('Captions generated')
     } catch (err) {
       notify.error(err instanceof Error ? err.message : 'Failed to generate captions')
@@ -693,59 +697,91 @@ export default function CaptionsPage() {
   }
 
   const toggleSentenceSegment = (segmentId: string) => {
+    setSelectionRevision((prev) => prev + 1)
     setSentenceSegments((prev) =>
       prev.map((segment) => (segment.id === segmentId ? { ...segment, enabled: !segment.enabled } : segment)),
     )
   }
 
   const setAllSentenceSegmentsEnabled = (enabled: boolean) => {
+    setSelectionRevision((prev) => prev + 1)
     setSentenceSegments((prev) => prev.map((segment) => ({ ...segment, enabled })))
   }
 
-  const handleRenderSelected = async () => {
-    if (!canRenderFromSelection || renderingSelection || !sourceVideoUrl) return
-    setRenderingSelection(true)
-    try {
-      const response = await authFetch(apiUrl('/api/captions/render-selected'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoUrl: sourceVideoUrl,
-          segments: enabledSegments.map((segment) => ({
-            start: segment.start,
-            end: segment.end,
-            text: segment.text,
-          })),
-          fontName,
-          fontSize,
-          fontWeight,
-          fontColor,
-          strokeWidth,
-          strokeColor,
-          backgroundColor,
-          backgroundOpacity,
-          position,
-          xOffset: Math.round(xOffset),
-          yOffset: Math.round(yOffset),
-        }),
-      })
+  const handleRenderSelected = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!canRenderFromSelection || renderingSelection || !sourceVideoUrl) return
+      setRenderingSelection(true)
+      try {
+        const response = await authFetch(apiUrl('/api/captions/render-selected'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoUrl: sourceVideoUrl,
+            segments: enabledSegments.map((segment) => ({
+              start: segment.start,
+              end: segment.end,
+              text: segment.text,
+            })),
+            fontName,
+            fontSize,
+            fontWeight,
+            fontColor,
+            strokeWidth,
+            strokeColor,
+            backgroundColor,
+            backgroundOpacity,
+            position,
+            xOffset: Math.round(xOffset),
+            yOffset: Math.round(yOffset),
+          }),
+        })
 
-      if (!response.ok) {
-        const raw = await response.json().catch(() => ({}))
-        throw new Error(getApiError(raw, 'Failed to render selected captions'))
+        if (!response.ok) {
+          const raw = await response.json().catch(() => ({}))
+          throw new Error(getApiError(raw, 'Failed to render selected captions'))
+        }
+
+        const raw = await response.json()
+        const data = unwrapApiData<{ videoUrl: string }>(raw)
+        setOutputUrl(data.videoUrl)
+        setTranscription(enabledSegments.map((segment) => segment.text).join(' '))
+        if (!options?.silent) {
+          notify.success('Rendered with selected sentences')
+        }
+      } catch (error) {
+        notify.error(error instanceof Error ? error.message : 'Failed to render selected captions')
+      } finally {
+        setRenderingSelection(false)
       }
+    },
+    [
+      backgroundColor,
+      backgroundOpacity,
+      canRenderFromSelection,
+      enabledSegments,
+      fontColor,
+      fontName,
+      fontSize,
+      fontWeight,
+      position,
+      renderingSelection,
+      sourceVideoUrl,
+      strokeColor,
+      strokeWidth,
+      xOffset,
+      yOffset,
+    ],
+  )
 
-      const raw = await response.json()
-      const data = unwrapApiData<{ videoUrl: string }>(raw)
-      setOutputUrl(data.videoUrl)
-      setTranscription(enabledSegments.map((segment) => segment.text).join(' '))
-      notify.success('Rendered with selected sentences')
-    } catch (error) {
-      notify.error(error instanceof Error ? error.message : 'Failed to render selected captions')
-    } finally {
-      setRenderingSelection(false)
-    }
-  }
+  useEffect(() => {
+    if (selectionRevision <= 0) return
+    if (!canRenderFromSelection || renderingSelection) return
+    const timer = window.setTimeout(() => {
+      void handleRenderSelected({ silent: true })
+    }, 450)
+    return () => window.clearTimeout(timer)
+  }, [canRenderFromSelection, handleRenderSelected, renderingSelection, selectionRevision])
 
   return (
     <div className="space-y-6">
@@ -841,6 +877,7 @@ export default function CaptionsPage() {
                           if (!file) return
                           segmentRequestIdRef.current += 1
                           setSegmentLoading(false)
+                          setSelectionRevision(0)
                           setVideoFile(file)
                           setVideoUrl('')
                           setInputVideoMeta(null)
@@ -871,6 +908,7 @@ export default function CaptionsPage() {
                           if (e.target.value.trim()) {
                             segmentRequestIdRef.current += 1
                             setSegmentLoading(false)
+                            setSelectionRevision(0)
                             setVideoFile(null)
                             setYOffsetTouched(false)
                             setSourceVideoUrl(null)
@@ -888,6 +926,7 @@ export default function CaptionsPage() {
                           if (!videoUrl.trim()) return
                           segmentRequestIdRef.current += 1
                           setSegmentLoading(false)
+                          setSelectionRevision(0)
                           setVideoFile(null)
                           setInputVideoMeta(null)
                           setYOffsetTouched(false)
@@ -1117,6 +1156,12 @@ export default function CaptionsPage() {
                     </Button>
                   </div>
                 </div>
+                {enabledSegments.length === 0 && (
+                  <p className="text-xs text-warning">Enable at least one sentence to apply caption output.</p>
+                )}
+                {renderingSelection && (
+                  <p className="text-xs text-surface-400">Applying sentence changes to output...</p>
+                )}
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {sentenceSegments.map((segment) => (
                     <button
@@ -1151,16 +1196,6 @@ export default function CaptionsPage() {
             loading={submitting}
           >
             {submitting ? 'Generating...' : 'Generate Captioned Video'}
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            className="w-full"
-            onClick={handleRenderSelected}
-            disabled={!canRenderFromSelection || !hasExcludedSegments || renderingSelection}
-            loading={renderingSelection}
-          >
-            {renderingSelection ? 'Applying Selection...' : 'Apply Selected Sentences'}
           </Button>
         </div>
 
