@@ -7,14 +7,14 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-09 (Session 11: Desktop launcher + Img2Video improvements + Video download fixes)
+Last updated: 2026-02-13 (Web-first migration + login-disabled-by-default + release gate cleanup)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
 
 ## 0) Executive Snapshot
 
-- Product: Pixflow (Electron desktop app with embedded Express API + React renderer).
+- Product: Pixflow (web-first app: React + Vite frontend with Node/Express API).
 - Current operational state: release gate chain is green locally; preflight typically reports `CONDITIONAL` until baseline sample count matures.
 - Best single verification command:
   - `npm run gate:release`
@@ -26,11 +26,30 @@ Project root: `/Users/pixery/Projects/pixflow`
 - Key automation/workflow files:
   - `/Users/pixery/Projects/pixflow/.github/workflows/ci.yml`
   - `/Users/pixery/Projects/pixflow/.github/workflows/nightly-real-smoke.yml`
-- Unit tests: 86 tests via Vitest (`npm run test`), integrated into `gate:release`.
+- Unit tests: 94 tests via Vitest (`npm run test`), integrated into `gate:release`.
 - Static analysis: Biome v2.3.14 linter + formatter (`npm run lint:biome`), integrated into `gate:release` as first check. All rules at `"error"` severity (0 warnings).
 - High-priority residual risk:
-  - native module rebuild path is automated, but should be validated on clean environments to confirm `@electron/rebuild` consistently rebuilds `better-sqlite3`.
-  - `better-sqlite3` requires dual-build: system Node for tests, Electron for app. Rebuild sequence: `node-gyp rebuild` → `npm run test` → `npm run native:rebuild`.
+  - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
+  - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.1) Latest Delta (2026-02-13)
+
+- Migrated to web-first runtime:
+  - removed `src/main`, `src/preload`, `electron.vite.config.ts`
+  - added `vite.web.config.ts`
+  - scripts now centered on `dev:web`, `build:web`, `preview:web`
+- Auth/login behavior:
+  - server default `PIXFLOW_AUTH_MODE=disabled`
+  - renderer login bypass enabled by default for trusted internal usage
+- Smoke/gate updates:
+  - replaced `smoke:desktop` with `smoke:journey`
+  - `gate:release` now runs `smoke:journey`
+  - CI artifact path fixed to include `logs/gate-run/pipeline-events.jsonl`
+- Current local verification:
+  - `npm run lint:biome` ✅
+  - `npm run lint` ✅
+  - `npm test` (94/94) ✅
+  - `npm run gate:release` ✅
 
 ---
 
@@ -119,15 +138,21 @@ Behavior:
 
 Active code paths:
 
-- Electron main/preload: `src/main`, `src/preload`
 - Renderer/UI: `src/renderer`
-- Embedded API: `src/server`
+- API server: `src/server`
+- Web build config: `vite.web.config.ts`
 
 System model:
-- Electron desktop app
-- Express API embedded in Electron main process
+- Web frontend served by Vite/static hosting
+- Node/Express API process (default local port `3002`)
 - React + Zustand frontend
 - Local filesystem outputs + SQLite (`data/pixflow.db`)
+
+Recent architecture migration (2026-02-13):
+- Removed Electron runtime files (`src/main`, `src/preload`, `electron.vite.config.ts`).
+- Switched scripts to web-only (`dev:web`, `build:web`, `preview:web`).
+- Replaced `smoke:desktop` with `smoke:journey`.
+- Default auth mode now disabled for trusted internal environments (`PIXFLOW_AUTH_MODE=disabled`).
 
 ---
 

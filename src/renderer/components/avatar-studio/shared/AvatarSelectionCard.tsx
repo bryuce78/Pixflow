@@ -1,6 +1,7 @@
-import { Check, Upload, Users, Wand2 } from 'lucide-react'
+import { Check, Trash2, Upload, Users, Wand2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { assetUrl } from '../../../lib/api'
+import { notify } from '../../../lib/toast'
 import type { AvatarAgeGroup, AvatarEthnicity, AvatarGender, AvatarOutfit } from '../../../stores/avatarStore'
 import { useAvatarStore } from '../../../stores/avatarStore'
 import { StepHeader } from '../../asset-monster/StepHeader'
@@ -51,6 +52,7 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
     selectedAvatar,
     setSelectedAvatar,
     uploadAvatars,
+    deleteUploadedAvatar,
     generating,
     generationProgress,
     generatedUrls,
@@ -66,6 +68,8 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
   const [ethnicity, setEthnicity] = useState<AvatarEthnicity>('caucasian')
   const [outfit, setOutfit] = useState<AvatarOutfit>('business')
   const [avatarCount, setAvatarCount] = useState(1)
+  const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState<Set<string>>(new Set())
 
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -88,6 +92,15 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
     modeTabs.push({ id: 'generate', label: 'Generate New', icon: <Wand2 className="w-4 h-4" /> })
   }
   const isGenerateMode = mode === 'generate' && showGenerateOptions
+  const isUploaded = (avatar: { source?: string; url: string }) =>
+    avatar.source === 'uploaded' || avatar.url.startsWith('/avatars_uploads/')
+  const isCurated = (avatar: { source?: string; url: string }) =>
+    avatar.source === 'curated' || avatar.url.startsWith('/avatars/')
+  const isGenerated = (avatar: { source?: string; url: string }) =>
+    avatar.source === 'generated' || avatar.url.startsWith('/avatars_generated/')
+  const curatedAvatars = avatars.filter((avatar) => isCurated(avatar))
+  const generatedAvatars = avatars.filter((avatar) => isGenerated(avatar))
+  const uploadedAvatars = avatars.filter((avatar) => isUploaded(avatar))
 
   return (
     <div className="bg-surface-50 rounded-lg p-4">
@@ -106,10 +119,12 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
         <Button
           variant="ghost-muted"
           size="sm"
-          icon={<Upload className="w-4 h-4" />}
+          icon={uploading ? undefined : <Upload className="w-4 h-4" />}
+          loading={uploading}
+          disabled={uploading}
           onClick={() => avatarFileInputRef.current?.click()}
         >
-          Upload
+          {uploading ? 'Uploading...' : 'Upload'}
         </Button>
         <input
           ref={avatarFileInputRef}
@@ -117,9 +132,18 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
           accept="image/jpeg,image/png,image/webp"
           multiple
           className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              uploadAvatars(e.target.files)
+          onChange={async (e) => {
+            if (!e.target.files || e.target.files.length === 0) return
+            const { files } = e.target
+            setUploading(true)
+            try {
+              await uploadAvatars(files)
+              notify.success(`Uploaded ${files.length} avatar${files.length === 1 ? '' : 's'}`)
+            } catch (err) {
+              const message = err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Upload failed'
+              notify.error(message)
+            } finally {
+              setUploading(false)
               e.target.value = ''
             }
           }}
@@ -137,29 +161,193 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
               icon={<Users className="w-10 h-10" />}
             />
           ) : (
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {avatars.map((avatar) => (
-                <button
-                  type="button"
-                  key={avatar.filename}
-                  onClick={() => {
-                    setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
-                    useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
-                  }}
-                  className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
-                    selectedAvatar?.filename === avatar.filename
-                      ? 'border-brand-500 ring-2 ring-brand-500/50'
-                      : 'border-transparent hover:border-surface-200'
-                  }`}
-                >
-                  <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
-                  {selectedAvatar?.filename === avatar.filename && (
-                    <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
-                      <Check className="w-3 h-3" />
-                    </div>
-                  )}
-                </button>
-              ))}
+            <div className="space-y-3">
+              {curatedAvatars.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Gallery</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {curatedAvatars.map((avatar) => {
+                      const canDelete = !isCurated(avatar)
+                      return (
+                        <button
+                          type="button"
+                          key={avatar.filename}
+                          onClick={() => {
+                            setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
+                            useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
+                          }}
+                          className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                            selectedAvatar?.filename === avatar.filename
+                              ? 'border-brand-500 ring-2 ring-brand-500/50'
+                              : 'border-transparent hover:border-surface-200'
+                          }`}
+                        >
+                          <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
+                          {selectedAvatar?.filename === avatar.filename && (
+                            <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
+                              <Check className="w-3 h-3" />
+                            </div>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (deleting.has(avatar.filename)) return
+                                setDeleting((prev) => new Set(prev).add(avatar.filename))
+                                try {
+                                  if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
+                                  await deleteUploadedAvatar(avatar.filename)
+                                  notify.success('Avatar removed')
+                                } catch (err) {
+                                  const message =
+                                    err && typeof err === 'object' && 'message' in err
+                                      ? String(err.message)
+                                      : 'Failed to delete avatar'
+                                  notify.error(message)
+                                } finally {
+                                  setDeleting((prev) => {
+                                    const next = new Set(prev)
+                                    next.delete(avatar.filename)
+                                    return next
+                                  })
+                                }
+                              }}
+                              className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
+                              title="Delete avatar"
+                            >
+                              <Trash2 className="w-3 h-3 text-white" />
+                            </button>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {generatedAvatars.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Generated</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {generatedAvatars.map((avatar) => {
+                      const canDelete = !isCurated(avatar)
+                      return (
+                        <button
+                          type="button"
+                          key={avatar.filename}
+                          onClick={() => {
+                            setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
+                            useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
+                          }}
+                          className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                            selectedAvatar?.filename === avatar.filename
+                              ? 'border-brand-500 ring-2 ring-brand-500/50'
+                              : 'border-transparent hover:border-surface-200'
+                          }`}
+                        >
+                          <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
+                          {selectedAvatar?.filename === avatar.filename && (
+                            <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
+                              <Check className="w-3 h-3" />
+                            </div>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (deleting.has(avatar.filename)) return
+                                setDeleting((prev) => new Set(prev).add(avatar.filename))
+                                try {
+                                  if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
+                                  await deleteUploadedAvatar(avatar.filename)
+                                  notify.success('Avatar removed')
+                                } catch (err) {
+                                  const message =
+                                    err && typeof err === 'object' && 'message' in err
+                                      ? String(err.message)
+                                      : 'Failed to delete avatar'
+                                  notify.error(message)
+                                } finally {
+                                  setDeleting((prev) => {
+                                    const next = new Set(prev)
+                                    next.delete(avatar.filename)
+                                    return next
+                                  })
+                                }
+                              }}
+                              className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
+                              title="Delete avatar"
+                            >
+                              <Trash2 className="w-3 h-3 text-white" />
+                            </button>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {uploadedAvatars.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+                    Uploaded Images
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {uploadedAvatars.map((avatar) => (
+                      <button
+                        type="button"
+                        key={avatar.filename}
+                        onClick={() => {
+                          setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
+                          useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
+                        }}
+                        className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                          selectedAvatar?.filename === avatar.filename
+                            ? 'border-brand-500 ring-2 ring-brand-500/50'
+                            : 'border-transparent hover:border-surface-200'
+                        }`}
+                      >
+                        <img src={assetUrl(avatar.url)} alt={avatar.name} className="w-full h-full object-cover" />
+                        {selectedAvatar?.filename === avatar.filename && (
+                          <div className="absolute top-1 right-1 bg-brand-500 rounded-full p-0.5">
+                            <Check className="w-3 h-3" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (deleting.has(avatar.filename)) return
+                            setDeleting((prev) => new Set(prev).add(avatar.filename))
+                            try {
+                              if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
+                              await deleteUploadedAvatar(avatar.filename)
+                              notify.success('Uploaded avatar removed')
+                            } catch (err) {
+                              const message =
+                                err && typeof err === 'object' && 'message' in err
+                                  ? String(err.message)
+                                  : 'Failed to delete uploaded avatar'
+                              notify.error(message)
+                            } finally {
+                              setDeleting((prev) => {
+                                const next = new Set(prev)
+                                next.delete(avatar.filename)
+                                return next
+                              })
+                            }
+                          }}
+                          className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
+                          title="Delete uploaded avatar"
+                        >
+                          <Trash2 className="w-3 h-3 text-white" />
+                        </button>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -224,6 +412,17 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
             selectedIndex={selectedGeneratedIndex}
             onSelect={setSelectedGeneratedIndex}
           />
+        </div>
+      )}
+
+      {(selectedAvatar || generatedUrls.length > 0) && (
+        <div className="mt-4 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2 text-xs text-surface-500 flex items-center justify-between">
+          <span className="font-medium text-surface-600">Selected</span>
+          <span className="truncate">
+            {generatedUrls.length > 0
+              ? `Generated Avatar ${selectedGeneratedIndex + 1}/${generatedUrls.length}`
+              : selectedAvatar?.name || 'None'}
+          </span>
         </div>
       )}
     </div>

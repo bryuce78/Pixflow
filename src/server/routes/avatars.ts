@@ -8,9 +8,15 @@ import { generateAvatar, generateAvatarFromReference } from '../services/avatar.
 import { createHedraVideo, downloadHedraVideo } from '../services/hedra.js'
 import { downloadKlingVideo, generateKlingVideo } from '../services/kling.js'
 import { notify } from '../services/notifications.js'
+import { isMockProvidersEnabled } from '../services/providerRuntime.js'
 import { createPipelineSpan } from '../services/telemetry.js'
 import { getAvailableModels, listVoices, textToSpeech } from '../services/tts.js'
-import { generateVoiceoverScript, refineScript } from '../services/voiceover.js'
+import {
+  detectScriptLanguage,
+  generateVoiceoverScript,
+  refineScript,
+  translateVoiceoverScript,
+} from '../services/voiceover.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 interface AvatarsRouterConfig {
@@ -37,10 +43,31 @@ const generationLimiter = rateLimit({
   },
 })
 
+const ttsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 429, 'Too many TTS requests, please wait before trying again', 'RATE_LIMITED')
+  },
+})
+
+const lipsyncLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 429, 'Too many lipsync requests, please wait before trying again', 'RATE_LIMITED')
+  },
+})
+
 const MAX_PROMPT_LENGTH = 2000
 const MAX_TEXT_LENGTH = 5000
 const VALID_ASPECT_RATIOS = ['1:1', '9:16', '16:9']
 const VALID_AVATAR_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+const MIN_AVATAR_BYTES = 10 * 1024
 const VALID_TONES = ['casual', 'professional', 'energetic', 'friendly', 'dramatic']
 const VALID_REACTIONS = [
   'sad',
@@ -69,9 +96,21 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
   const outputsDir = path.join(projectRoot, 'outputs')
   const avatarsDir = path.join(projectRoot, 'avatars')
   const generatedAvatarsDir = path.join(projectRoot, 'avatars_generated')
+  const uploadedAvatarsDir = path.join(projectRoot, 'avatars_uploads')
   const uploadsDir = path.join(projectRoot, 'uploads')
+  const mockProvidersEnabled = isMockProvidersEnabled()
 
   const router = express.Router()
+
+  void (async () => {
+    try {
+      await fs.mkdir(uploadedAvatarsDir, { recursive: true })
+      const files = await fs.readdir(uploadedAvatarsDir)
+      await Promise.all(files.map((file) => fs.unlink(path.join(uploadedAvatarsDir, file))))
+    } catch (err) {
+      console.warn('[Avatar] Failed to clear uploaded avatars:', err)
+    }
+  })()
 
   const storage = multer.diskStorage({
     destination: async (_req, _file, cb) => {
@@ -98,12 +137,12 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
   const avatarUploadStorage = multer.diskStorage({
     destination: async (_req, _file, cb) => {
-      await fs.mkdir(generatedAvatarsDir, { recursive: true })
-      cb(null, generatedAvatarsDir)
+      await fs.mkdir(uploadedAvatarsDir, { recursive: true })
+      cb(null, uploadedAvatarsDir)
     },
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase()
-      cb(null, `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`)
+      cb(null, `upload_avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`)
     },
   })
 
@@ -122,9 +161,13 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
   router.get('/', avatarLimiter, async (_req, res) => {
     try {
       await fs.mkdir(avatarsDir, { recursive: true })
+      await fs.mkdir(generatedAvatarsDir, { recursive: true })
+      await fs.mkdir(uploadedAvatarsDir, { recursive: true })
       const curatedFiles = await fs.readdir(avatarsDir)
+      const generatedFiles = await fs.readdir(generatedAvatarsDir)
+      const uploadedFiles = await fs.readdir(uploadedAvatarsDir)
 
-      const avatars = curatedFiles
+      const curated = curatedFiles
         .filter((file) => VALID_AVATAR_EXTENSIONS.includes(path.extname(file).toLowerCase()))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
         .map((file) => ({
@@ -133,6 +176,45 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
           url: `/avatars/${encodeURIComponent(file)}`,
           source: 'curated' as const,
         }))
+
+      const generatedCandidates = generatedFiles
+        .filter((file) => VALID_AVATAR_EXTENSIONS.includes(path.extname(file).toLowerCase()))
+        .filter((file) => file.startsWith('avatar_') || file.startsWith('generated_avatar_'))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+
+      const generated = (
+        await Promise.all(
+          generatedCandidates.map(async (file) => {
+            try {
+              const stats = await fs.stat(path.join(generatedAvatarsDir, file))
+              if (!mockProvidersEnabled && stats.size < MIN_AVATAR_BYTES) {
+                await fs.unlink(path.join(generatedAvatarsDir, file)).catch(() => {})
+                return null
+              }
+              return {
+                name: file,
+                filename: file,
+                url: `/avatars_generated/${encodeURIComponent(file)}`,
+                source: 'generated' as const,
+              }
+            } catch {
+              return null
+            }
+          }),
+        )
+      ).filter(Boolean) as Array<{ name: string; filename: string; url: string; source: 'generated' }>
+
+      const uploaded = uploadedFiles
+        .filter((file) => VALID_AVATAR_EXTENSIONS.includes(path.extname(file).toLowerCase()))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+        .map((file) => ({
+          name: file,
+          filename: file,
+          url: `/avatars_uploads/${encodeURIComponent(file)}`,
+          source: 'uploaded' as const,
+        }))
+
+      const avatars = [...curated, ...generated, ...uploaded]
 
       sendSuccess(res, { avatars })
     } catch (error) {
@@ -150,10 +232,50 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     const uploaded = files.map((f) => ({
       name: f.filename,
       filename: f.filename,
-      url: `/avatars_generated/${encodeURIComponent(f.filename)}`,
+      url: `/avatars_uploads/${encodeURIComponent(f.filename)}`,
+      source: 'uploaded' as const,
     }))
     console.log(`[Avatar] Uploaded ${files.length} file(s) to gallery`)
     sendSuccess(res, { avatars: uploaded })
+  })
+
+  router.delete('/upload/:filename', avatarLimiter, async (req, res) => {
+    const { filename } = req.params
+    if (!filename || !VALID_AVATAR_EXTENSIONS.includes(path.extname(filename).toLowerCase())) {
+      sendError(res, 400, 'Invalid avatar filename', 'INVALID_AVATAR_FILENAME')
+      return
+    }
+
+    try {
+      const uploadedPath = sanitizePath(uploadedAvatarsDir, filename)
+      const generatedPath = sanitizePath(generatedAvatarsDir, filename)
+      if (!uploadedPath || !generatedPath) {
+        sendError(res, 400, 'Invalid avatar path', 'INVALID_AVATAR_PATH')
+        return
+      }
+
+      try {
+        await fs.unlink(uploadedPath)
+        console.log(`[Avatar] Deleted uploaded avatar ${filename}`)
+        sendSuccess(res, { deleted: filename })
+        return
+      } catch (err) {
+        if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')) {
+          throw err
+        }
+      }
+
+      await fs.unlink(generatedPath)
+      console.log(`[Avatar] Deleted legacy avatar ${filename}`)
+      sendSuccess(res, { deleted: filename })
+    } catch (err) {
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+        sendError(res, 404, 'Avatar not found', 'AVATAR_NOT_FOUND')
+        return
+      }
+      console.error('[Avatar] Failed to delete uploaded avatar:', err)
+      sendError(res, 500, 'Failed to delete avatar', 'AVATAR_DELETE_FAILED')
+    }
   })
 
   router.post('/generate', generationLimiter, async (req, res) => {
@@ -178,8 +300,18 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       const fileName = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`
       const localPath = path.join(generatedAvatarsDir, fileName)
       const response = await fetch(result.imageUrl)
-      if (!response.ok) throw new Error(`Failed to download generated avatar: ${response.status}`)
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '')
+        throw new Error(`Failed to download generated avatar: ${response.status} ${detail.slice(0, 120)}`)
+      }
+      const contentType = response.headers.get('content-type') || ''
       const buffer = Buffer.from(await response.arrayBuffer())
+      if (!contentType.startsWith('image/')) {
+        throw new Error(`Generated avatar content-type invalid: ${contentType || 'unknown'}`)
+      }
+      if (!mockProvidersEnabled && buffer.length < MIN_AVATAR_BYTES) {
+        throw new Error(`Generated avatar too small: ${buffer.length} bytes`)
+      }
       await fs.mkdir(generatedAvatarsDir, { recursive: true })
       await fs.writeFile(localPath, buffer)
       console.log(`[Avatar] Saved to ${localPath}`)
@@ -225,8 +357,18 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       const fileName = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`
       const localPath = path.join(generatedAvatarsDir, fileName)
       const response = await fetch(result.imageUrl)
-      if (!response.ok) throw new Error(`Failed to download generated avatar: ${response.status}`)
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '')
+        throw new Error(`Failed to download generated avatar: ${response.status} ${detail.slice(0, 120)}`)
+      }
+      const contentType = response.headers.get('content-type') || ''
       const buffer = Buffer.from(await response.arrayBuffer())
+      if (!contentType.startsWith('image/')) {
+        throw new Error(`Generated avatar content-type invalid: ${contentType || 'unknown'}`)
+      }
+      if (!mockProvidersEnabled && buffer.length < MIN_AVATAR_BYTES) {
+        throw new Error(`Generated avatar too small: ${buffer.length} bytes`)
+      }
       await fs.mkdir(generatedAvatarsDir, { recursive: true })
       await fs.writeFile(localPath, buffer)
       console.log(`[Avatar] Saved to ${localPath}`)
@@ -247,7 +389,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
   router.post('/script', avatarLimiter, async (req, res) => {
     let span: ReturnType<typeof createPipelineSpan> | null = null
     try {
-      const { concept, duration, examples, tone } = req.body
+      const { concept, duration, examples, tone, appName } = req.body
       if (!concept || typeof concept !== 'string') {
         sendError(res, 400, 'Concept is required', 'INVALID_CONCEPT')
         return
@@ -268,13 +410,33 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         sendError(res, 400, 'Examples must be an array with max 5 items', 'INVALID_EXAMPLES')
         return
       }
+      if (appName != null && typeof appName !== 'string') {
+        sendError(res, 400, 'Invalid app name', 'INVALID_APP_NAME')
+        return
+      }
+      const normalizedAppName = appName?.trim()
+      if (normalizedAppName && normalizedAppName.length > 80) {
+        sendError(res, 400, 'App name too long (max 80 characters)', 'APP_NAME_TOO_LONG')
+        return
+      }
       span = createPipelineSpan({
         pipeline: 'avatars.script',
-        metadata: { conceptLength: concept.length, duration, tone: tone || 'default' },
+        metadata: {
+          conceptLength: concept.length,
+          duration,
+          tone: tone || 'default',
+          appName: normalizedAppName || 'generic',
+        },
       })
 
-      console.log(`[Script] Generating ${duration}s script for "${concept}"...`)
-      const result = await generateVoiceoverScript({ concept, duration, examples, tone })
+      console.log(`[Script] Generating ${duration}s script for "${concept}" (${normalizedAppName || 'generic'})...`)
+      const result = await generateVoiceoverScript({
+        concept,
+        duration,
+        examples,
+        tone,
+        appName: normalizedAppName || undefined,
+      })
       if (!result.script || result.wordCount === 0) throw new Error('Script generation returned empty result')
       console.log(`[Script] Generated ${result.wordCount} words (~${result.estimatedDuration}s)`)
       span.success({ wordCount: result.wordCount, estimatedDuration: result.estimatedDuration })
@@ -311,6 +473,58 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     }
   })
 
+  router.post('/script/translate', avatarLimiter, async (req, res) => {
+    try {
+      const { script, languages } = req.body
+      if (!script || typeof script !== 'string') {
+        sendError(res, 400, 'Script is required', 'INVALID_SCRIPT')
+        return
+      }
+      if (script.length > MAX_TEXT_LENGTH) {
+        sendError(res, 400, 'Script too long', 'SCRIPT_TOO_LONG')
+        return
+      }
+      if (!Array.isArray(languages) || languages.length === 0) {
+        sendError(res, 400, 'Languages are required', 'INVALID_LANGUAGES')
+        return
+      }
+      if (languages.length > 10) {
+        sendError(res, 400, 'Too many languages (max 10)', 'LANGUAGE_LIMIT')
+        return
+      }
+      if (!languages.every((lang) => typeof lang === 'string' && lang.trim().length > 0 && lang.length <= 40)) {
+        sendError(res, 400, 'Invalid language list', 'INVALID_LANGUAGE')
+        return
+      }
+
+      console.log(`[Script] Translating script into ${languages.length} languages...`)
+      const result = await translateVoiceoverScript(script, languages)
+      sendSuccess(res, result)
+    } catch (error) {
+      console.error('[Script] Translation failed:', error)
+      sendError(res, 500, 'Failed to translate script', 'SCRIPT_TRANSLATION_FAILED')
+    }
+  })
+
+  router.post('/script/detect', avatarLimiter, async (req, res) => {
+    try {
+      const { script } = req.body
+      if (!script || typeof script !== 'string') {
+        sendError(res, 400, 'Script is required', 'INVALID_SCRIPT')
+        return
+      }
+      if (script.length > MAX_TEXT_LENGTH) {
+        sendError(res, 400, 'Script too long', 'SCRIPT_TOO_LONG')
+        return
+      }
+      const result = await detectScriptLanguage(script)
+      sendSuccess(res, result)
+    } catch (error) {
+      console.error('[Script] Language detection failed:', error)
+      sendError(res, 500, 'Failed to detect script language', 'SCRIPT_DETECT_FAILED')
+    }
+  })
+
   router.get('/voices', avatarLimiter, async (_req, res) => {
     try {
       const voices = await listVoices()
@@ -325,7 +539,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     sendSuccess(res, { models: getAvailableModels() })
   })
 
-  router.post('/tts', generationLimiter, async (req, res) => {
+  router.post('/tts', ttsLimiter, async (req, res) => {
     let span: ReturnType<typeof createPipelineSpan> | null = null
     try {
       const { text, voiceId, modelId } = req.body
@@ -414,7 +628,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     }
   })
 
-  router.post('/lipsync', generationLimiter, async (req: AuthRequest, res) => {
+  router.post('/lipsync', lipsyncLimiter, async (req: AuthRequest, res) => {
     req.setTimeout(660_000)
     res.setTimeout(660_000)
     let span: ReturnType<typeof createPipelineSpan> | null = null
@@ -446,6 +660,8 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
       if (imageUrl.startsWith('/avatars_generated/')) {
         imagePath = sanitizePath(generatedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_generated/'.length)))
+      } else if (imageUrl.startsWith('/avatars_uploads/')) {
+        imagePath = sanitizePath(uploadedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_uploads/'.length)))
       } else if (imageUrl.startsWith('/avatars/')) {
         imagePath = sanitizePath(avatarsDir, decodeURIComponent(imageUrl.slice('/avatars/'.length)))
       } else if (imageUrl.startsWith('/outputs/')) {
@@ -543,6 +759,8 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       let imagePath: string | null = null
       if (imageUrl.startsWith('/avatars_generated/')) {
         imagePath = sanitizePath(generatedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_generated/'.length)))
+      } else if (imageUrl.startsWith('/avatars_uploads/')) {
+        imagePath = sanitizePath(uploadedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_uploads/'.length)))
       } else if (imageUrl.startsWith('/avatars/')) {
         imagePath = sanitizePath(avatarsDir, decodeURIComponent(imageUrl.slice('/avatars/'.length)))
       } else if (imageUrl.startsWith('/outputs/')) {
@@ -631,6 +849,8 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       let imagePath: string | null = null
       if (imageUrl.startsWith('/avatars_generated/')) {
         imagePath = sanitizePath(generatedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_generated/'.length)))
+      } else if (imageUrl.startsWith('/avatars_uploads/')) {
+        imagePath = sanitizePath(uploadedAvatarsDir, decodeURIComponent(imageUrl.slice('/avatars_uploads/'.length)))
       } else if (imageUrl.startsWith('/avatars/')) {
         imagePath = sanitizePath(avatarsDir, decodeURIComponent(imageUrl.slice('/avatars/'.length)))
       } else if (imageUrl.startsWith('/outputs/')) {

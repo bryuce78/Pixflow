@@ -3,7 +3,7 @@ import { useAvatarStore } from '../stores/avatarStore'
 import { useGenerationStore } from '../stores/generationStore'
 import { type TabId, useNavigationStore } from '../stores/navigationStore'
 
-const TAB_ORDER: TabId[] = ['prompts', 'generate', 'avatars', 'machine', 'history']
+const TAB_ORDER: TabId[] = ['home', 'prompts', 'generate', 'img2video', 'avatars', 'captions', 'machine', 'history']
 
 export function useKeyboardShortcuts() {
   const navigate = useNavigationStore((s) => s.navigate)
@@ -19,9 +19,10 @@ export function useKeyboardShortcuts() {
       )
         return
 
-      if (e.metaKey && e.key >= '1' && e.key <= '5') {
+      if (e.metaKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault()
-        navigate(TAB_ORDER[Number(e.key) - 1])
+        const idx = Number(e.key) - 1
+        if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
         return
       }
 

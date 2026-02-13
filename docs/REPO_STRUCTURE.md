@@ -4,10 +4,8 @@ This project is currently in active UI/UX iteration. To keep development fast, t
 
 ## Source of truth (active)
 
-- `src/main` - Electron main process
-- `src/preload` - Electron preload bridge
 - `src/renderer` - React UI
-- `src/server` - Express API used by the app
+- `src/server` - Express API used by the web app
 - `docs` - Product and engineering documentation
 - `scripts` - Utility and maintenance scripts
 

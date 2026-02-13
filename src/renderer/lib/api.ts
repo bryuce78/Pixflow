@@ -1,6 +1,9 @@
 import { getToken } from './auth'
 
-let _baseUrl = ''
+const ENV_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '')
+let _baseUrl = ENV_BASE_URL
 
 type ApiEnvelope<T> = {
   success?: boolean
@@ -10,14 +13,8 @@ type ApiEnvelope<T> = {
 }
 
 export async function initApi(): Promise<void> {
-  try {
-    if (window.api?.getServerPort) {
-      const port = await window.api.getServerPort()
-      _baseUrl = `http://localhost:${port}`
-    }
-  } catch (err) {
-    console.error('[API] Failed to get server port, using proxy fallback:', err)
-  }
+  if (_baseUrl) return
+  _baseUrl = ''
 }
 
 export function apiUrl(path: string): string {

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
+import { seedCaptionPresets, seedProducts } from '../db/schema.js'
 import type { AuthRequest } from '../middleware/auth.js'
 import { createPreset, deletePreset, getPreset, getPresets, updatePreset } from '../services/presets.js'
 import { sendError, sendSuccess } from '../utils/http.js'
@@ -16,6 +17,11 @@ export function createPresetsRouter(): Router {
     let productId: number | undefined
 
     if (req.query.product) {
+      if (req.query.product === 'captions') {
+        const db = getDb()
+        seedProducts(db)
+        seedCaptionPresets(db)
+      }
       const db = getDb()
       const row = db.prepare('SELECT id FROM products WHERE slug = ?').get(req.query.product) as
         | { id: number }
@@ -36,7 +42,7 @@ export function createPresetsRouter(): Router {
   })
 
   router.post('/', (req: AuthRequest, res) => {
-    const { name, description, prompt, productId } = req.body
+    const { name, description, prompt, productId, product } = req.body
 
     if (!name || typeof name !== 'string' || name.length > MAX_NAME_LENGTH) {
       sendError(res, 400, `Name required (max ${MAX_NAME_LENGTH} chars)`, 'INVALID_PRESET_NAME')
@@ -55,7 +61,14 @@ export function createPresetsRouter(): Router {
       return
     }
 
-    const preset = createPreset(req.user!.id, name.trim(), description?.trim() ?? null, prompt, productId)
+    let resolvedProductId: number | undefined = productId
+    if (!resolvedProductId && product && typeof product === 'string') {
+      const db = getDb()
+      const row = db.prepare('SELECT id FROM products WHERE slug = ?').get(product) as { id: number } | undefined
+      resolvedProductId = row?.id
+    }
+
+    const preset = createPreset(req.user!.id, name.trim(), description?.trim() ?? null, prompt, resolvedProductId)
     sendSuccess(res, { preset }, 201)
   })
 

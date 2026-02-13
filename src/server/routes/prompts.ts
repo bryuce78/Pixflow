@@ -5,20 +5,13 @@ import multer from 'multer'
 import { PROMPT_GENERATE_DEFAULT, PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } from '../../constants/limits.js'
 import type { AuthRequest } from '../middleware/auth.js'
 import { addToHistory } from '../services/history.js'
-import {
-  generatePrompts,
-  generateSinglePrompt,
-  textToPrompt,
-  validateAllPrompts,
-  validateVariety,
-} from '../services/promptGenerator.js'
-import { analyzeResearchResults, DEFAULT_RESEARCH_BRIEF, performResearch } from '../services/research.js'
+import { generatePrompts, textToPrompt, validateAllPrompts, validateVariety } from '../services/promptGenerator.js'
+import { analyzeResearchResults, performResearch } from '../services/research.js'
 import { createPipelineSpan } from '../services/telemetry.js'
 import { analyzeImage } from '../services/vision.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { calculatePromptQualityMetrics } from '../utils/promptScoring.js'
 import type { PromptOutput } from '../utils/prompts.js'
-import { calculateVarietyScore } from '../utils/prompts.js'
 
 interface PromptsRouterConfig {
   projectRoot: string
@@ -62,23 +55,6 @@ async function runPromptGenerationPipeline({
     console.log(`[Vision] Image analysis complete: ${imageInsights.style?.slice(0, 80)}`)
   }
 
-  let quickPrompt: PromptOutput | undefined
-  if (emit && count > 0) {
-    console.log('[Streaming Phase 1] Generating quick first prompt...')
-    emit('status', { step: 'quick_prompt', message: 'Generating preview...' })
-
-    quickPrompt = await generateSinglePrompt(concept, { ...DEFAULT_RESEARCH_BRIEF, concept }, imageInsights)
-
-    emit('prompt', {
-      prompt: quickPrompt,
-      index: 0,
-      total: count,
-      quick: true,
-    })
-
-    console.log('[Streaming Phase 1] Quick prompt sent')
-  }
-
   console.log('[Streaming Phase 2] Starting research...')
   emit?.('status', { step: 'research', message: `Researching "${concept}"...` })
 
@@ -100,7 +76,7 @@ async function runPromptGenerationPipeline({
   emit?.('research', research)
   console.log('[Streaming Phase 2] Research complete')
 
-  const remainingCount = emit && quickPrompt ? count - 1 : count
+  const remainingCount = count
   console.log(`[Streaming Phase 3] Generating ${remainingCount} enriched prompts...`)
 
   const { prompts: enrichedPrompts, varietyScore: enrichedVariety } = await generatePrompts(
@@ -123,8 +99,8 @@ async function runPromptGenerationPipeline({
     console.log(`[Streaming Phase 3] Sent ${enrichedPrompts.length} enriched prompts`)
   }
 
-  const prompts = emit && quickPrompt ? [quickPrompt, ...enrichedPrompts] : enrichedPrompts
-  const varietyScore = emit && quickPrompt ? calculateVarietyScore(prompts) : enrichedVariety
+  const prompts = enrichedPrompts
+  const varietyScore = enrichedVariety
 
   const validation = validateAllPrompts(prompts)
   if (!validation.allValid) {

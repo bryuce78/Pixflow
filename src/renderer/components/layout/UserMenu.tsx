@@ -3,8 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { Button } from '../ui/Button'
 
-export function UserMenu() {
-  const { user, logout, changePassword } = useAuthStore()
+export function UserMenu({
+  compact = false,
+  className = '',
+  buttonClassName = '',
+}: {
+  compact?: boolean
+  className?: string
+  buttonClassName?: string
+}) {
+  const { user, logout, changePassword, loginDisabled } = useAuthStore()
   const [open, setOpen] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
@@ -38,14 +46,17 @@ export function UserMenu() {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100"
+        title={user?.name || 'User'}
+        className={`flex items-center gap-2 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100 ${
+          compact ? 'w-8 h-8 inline-flex items-center justify-center p-0' : 'px-3 py-1.5'
+        } ${buttonClassName}`}
       >
         <User className="w-4 h-4" />
-        <span className="text-sm">{user?.name || 'User'}</span>
+        {!compact && <span className="text-sm">{user?.name || 'User'}</span>}
       </button>
 
       {open && (
@@ -55,7 +66,7 @@ export function UserMenu() {
             <p className="text-xs text-surface-400">{user?.email}</p>
           </div>
 
-          {changingPassword ? (
+          {changingPassword && !loginDisabled ? (
             <div className="px-3 py-3 space-y-2">
               <input
                 type="password"
@@ -92,6 +103,8 @@ export function UserMenu() {
                 </Button>
               </div>
             </div>
+          ) : loginDisabled ? (
+            <p className="px-3 py-3 text-xs text-surface-400">Sign-in is disabled in this environment.</p>
           ) : (
             <>
               <button

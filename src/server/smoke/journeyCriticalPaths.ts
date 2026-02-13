@@ -30,7 +30,7 @@ function canUseBetterSqliteInCurrentRuntime(): boolean {
     return true
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    console.warn(`[Smoke:Desktop] Skipping desktop smoke in this runtime (better-sqlite3 mismatch): ${reason}`)
+    console.warn(`[Smoke:Journey] Skipping journey smoke in this runtime (better-sqlite3 mismatch): ${reason}`)
     return false
   }
 }
@@ -81,10 +81,10 @@ async function recordFrontendPerfSample(
     durationMs: Math.max(1, Math.round(durationMs)),
     metadata: {
       provider: 'frontend',
-      source: 'desktop_smoke_proxy',
+      source: 'journey_smoke_proxy',
       metric,
       tab,
-      journey: 'desktop_critical_path',
+      journey: 'web_critical_path',
     },
   })
 }
@@ -104,7 +104,7 @@ async function measureFrontendTab<T>(tab: FrontendTab, action: () => Promise<T>)
 async function run(): Promise<void> {
   if (!canUseBetterSqliteInCurrentRuntime()) {
     await recordPipelineEvent({
-      pipeline: 'smoke.desktop',
+      pipeline: 'smoke.journey',
       status: 'success',
       metadata: {
         provider: 'runtime',
@@ -117,15 +117,15 @@ async function run(): Promise<void> {
     return
   }
 
-  process.env.JWT_SECRET = process.env.JWT_SECRET || 'pixflow-desktop-smoke-secret-abcdefghijklmnopqrstuvwxyz'
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'pixflow-journey-smoke-secret-abcdefghijklmnopqrstuvwxyz'
   process.env.PIXFLOW_BOOTSTRAP_ADMIN_ON_STARTUP = 'true'
-  process.env.PIXFLOW_BOOTSTRAP_ADMIN_EMAIL = 'desktop-smoke-admin@pixflow.local'
-  process.env.PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD = 'DesktopSmokePassword123'
-  process.env.PIXFLOW_BOOTSTRAP_ADMIN_NAME = 'Desktop Smoke Admin'
+  process.env.PIXFLOW_BOOTSTRAP_ADMIN_EMAIL = 'journey-smoke-admin@pixflow.local'
+  process.env.PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD = 'JourneySmokePassword123'
+  process.env.PIXFLOW_BOOTSTRAP_ADMIN_NAME = 'Journey Smoke Admin'
   process.env.PIXFLOW_MOCK_PROVIDERS = 'true'
   process.env.PIXFLOW_TELEMETRY_ENABLED = 'true'
 
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pixflow-desktop-smoke-'))
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pixflow-journey-smoke-'))
   const dataDir = path.join(tempRoot, 'data')
   const pngPath = path.join(tempRoot, 'reference.png')
   await fs.writeFile(pngPath, Buffer.from(ONE_BY_ONE_PNG_BASE64, 'base64'))
@@ -135,7 +135,7 @@ async function run(): Promise<void> {
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
   try {
-    console.log(`[Smoke:Desktop] Base URL: ${baseUrl}`)
+    console.log(`[Smoke:Journey] Base URL: ${baseUrl}`)
 
     const login = await requestJson<{ token: string }>(baseUrl, '/api/auth/login', {
       method: 'POST',
@@ -145,13 +145,13 @@ async function run(): Promise<void> {
         password: process.env.PIXFLOW_BOOTSTRAP_ADMIN_PASSWORD,
       }),
     })
-    assert(login.status === 200 && login.json.success, 'desktop login failed')
+    assert(login.status === 200 && login.json.success, 'journey login failed')
     const token = login.json.data.token
-    assert(typeof token === 'string' && token.length > 0, 'desktop token missing')
+    assert(typeof token === 'string' && token.length > 0, 'journey token missing')
 
     const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-    console.log('[Smoke:Desktop] Journey 1/2: Login -> Generate(Batch) -> History')
+    console.log('[Smoke:Journey] Journey 1/2: Login -> Generate(Batch) -> History')
     const productsAndStatus = await measureFrontendTab('prompts', async () => {
       const products = await requestJson<{ products: unknown[] }>(baseUrl, '/api/products')
       assert(products.status === 200 && products.json.success, 'products fetch failed')
@@ -170,7 +170,7 @@ async function run(): Promise<void> {
     const blob = new Blob([await fs.readFile(pngPath)], { type: 'image/png' })
     const formData = new FormData()
     formData.append('referenceImages', blob, 'reference.png')
-    formData.append('concept', 'desktop journey studio test')
+    formData.append('concept', 'journey studio test')
     formData.append('prompts', JSON.stringify([{ style: 'clean studio portrait', pose: { framing: 'medium shot' } }]))
     formData.append('aspectRatio', '9:16')
     formData.append('numImagesPerPrompt', '1')
@@ -184,16 +184,16 @@ async function run(): Promise<void> {
     })
     const batchJson = (await batchStart.json()) as unknown
     assertEnvelope<{ jobId: string }>(batchJson, '/api/generate/batch')
-    assert(batchStart.status === 200 && batchJson.success, 'desktop batch start failed')
+    assert(batchStart.status === 200 && batchJson.success, 'journey batch start failed')
     const jobId = batchJson.data.jobId
-    assert(typeof jobId === 'string' && jobId.length > 0, 'desktop missing jobId')
+    assert(typeof jobId === 'string' && jobId.length > 0, 'journey missing jobId')
     await waitForBatchCompletion(baseUrl, token, jobId)
 
     const historyCreate = await requestJson<{ entry: { id: string } }>(baseUrl, '/api/history', {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({
-        concept: 'desktop journey concept',
+        concept: 'journey concept',
         prompts: [{ style: 'studio clean', pose: { framing: 'medium shot' } }],
         source: 'generated',
       }),
@@ -210,7 +210,7 @@ async function run(): Promise<void> {
     assert(historyList.status === 200 && historyList.json.success, 'history list failed')
     assert(
       historyList.json.data.history.some((entry) => entry.id === historyId),
-      'desktop history entry not found',
+      'journey history entry not found',
     )
 
     const avatarsList = await measureFrontendTab('avatars', async () =>
@@ -227,7 +227,7 @@ async function run(): Promise<void> {
     )
     assert(machineTabNotifications.status === 200 && machineTabNotifications.json.success, 'notifications list failed')
 
-    console.log('[Smoke:Desktop] Journey 2/2: Avatar -> Script -> TTS -> Lipsync -> I2V')
+    console.log('[Smoke:Journey] Journey 2/2: Avatar -> Script -> TTS -> Lipsync -> I2V')
     const avatar = await requestJson<{ localPath: string }>(baseUrl, '/api/avatars/generate', {
       method: 'POST',
       headers: authHeaders,
@@ -244,7 +244,7 @@ async function run(): Promise<void> {
     const script = await requestJson<{ script: string }>(baseUrl, '/api/avatars/script', {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ concept: 'desktop avatar ad', duration: 15, tone: 'energetic' }),
+      body: JSON.stringify({ concept: 'journey avatar ad', duration: 15, tone: 'energetic' }),
     })
     assert(script.status === 200 && script.json.success, 'avatar script failed')
     assert(typeof script.json.data.script === 'string' && script.json.data.script.length > 0, 'script empty')
@@ -283,7 +283,7 @@ async function run(): Promise<void> {
     await requestJson(baseUrl, `/api/history/${historyId}`, { method: 'DELETE', headers: authHeaders })
     await requestJson(baseUrl, '/api/history', { method: 'DELETE', headers: authHeaders })
 
-    console.log('[Smoke:Desktop] Desktop critical journeys passed')
+    console.log('[Smoke:Journey] Critical journeys passed')
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => {
@@ -297,6 +297,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((error) => {
-  console.error('[Smoke:Desktop] Failed:', error instanceof Error ? error.message : String(error))
+  console.error('[Smoke:Journey] Failed:', error instanceof Error ? error.message : String(error))
   process.exitCode = 1
 })

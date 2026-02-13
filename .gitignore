@@ -16,6 +16,8 @@ logs/
 backups/
 outputs/
 uploads/
+avatars_generated/
+avatars_uploads/
 pixflow.db
 data/
 data/*.db

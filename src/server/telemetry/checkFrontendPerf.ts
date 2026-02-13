@@ -82,7 +82,7 @@ function percentile(values: number[], p: number): number {
 
 function isRuntimeMismatchSkip(event: TelemetryEvent): boolean {
   return (
-    event.pipeline === 'smoke.desktop' &&
+    event.pipeline === 'smoke.journey' &&
     event.status === 'success' &&
     event.metadata?.provider === 'runtime' &&
     event.metadata?.reason === 'sqlite_runtime_mismatch'
@@ -140,7 +140,7 @@ async function run(): Promise<void> {
     console.log('=== Pixflow Frontend Perf Gate ===')
     console.log(`Profile: ${profile}`)
     console.log(`File: ${filePath}`)
-    console.log('Skipped: desktop smoke skipped due sqlite runtime mismatch')
+    console.log('Skipped: journey smoke skipped due sqlite runtime mismatch')
     console.log('Gate passed (conditional)')
     return
   }

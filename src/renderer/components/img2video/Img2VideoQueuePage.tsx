@@ -3,6 +3,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Film,
+  Image,
   Loader2,
   Play,
   ThumbsDown,
@@ -51,22 +53,27 @@ export default function Img2VideoQueuePage() {
     }
   }, [queueItems, queueOrder])
 
+  const workflowTabs = (
+    <SegmentedTabs
+      ariaLabel="Image Lab workflow"
+      value={activeTab}
+      onChange={setActiveTab}
+      items={[
+        { id: 'img2img', label: 'img2img', icon: <Image className="w-4 h-4" /> },
+        { id: 'img2video', label: 'img2video', icon: <Film className="w-4 h-4" /> },
+      ]}
+      className="w-full"
+    />
+  )
+
   return (
     <div className="space-y-6">
-      {/* Tab Buttons */}
-      <SegmentedTabs
-        ariaLabel="Image Lab workflow"
-        value={activeTab}
-        onChange={setActiveTab}
-        items={[
-          { id: 'img2img', label: 'img2img' },
-          { id: 'img2video', label: 'img2video' },
-        ]}
-        className="max-w-sm"
-      />
-
       {/* Tab Content */}
-      {activeTab === 'img2img' ? <Img2ImgContent /> : <Img2VideoContent />}
+      {activeTab === 'img2img' ? (
+        <Img2ImgContent tabs={workflowTabs} />
+      ) : (
+        <Img2VideoContent tabs={workflowTabs} />
+      )}
     </div>
   )
 }
@@ -75,7 +82,7 @@ export default function Img2VideoQueuePage() {
 // IMG2IMG TAB
 // ============================================================================
 
-function Img2ImgContent() {
+function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
   const { queueItems, queueOrder, selectedId, uploading, selectItem, transformBatch, removeItem, uploadFiles } =
     useImg2VideoQueueStore()
 
@@ -158,6 +165,7 @@ function Img2ImgContent() {
             </span>
             Select Images
           </h2>
+          <div className="mb-4">{tabs}</div>
           <div
             {...getRootProps()}
             className={`min-h-[200px] border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
@@ -534,7 +542,7 @@ function Img2ImgContent() {
 // IMG2VIDEO TAB
 // ============================================================================
 
-function Img2VideoContent() {
+function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
   const {
     queueItems,
     queueOrder,
@@ -618,6 +626,7 @@ function Img2VideoContent() {
             </span>
             Select Images
           </h2>
+          <div className="mb-4">{tabs}</div>
           <div
             {...getRootProps()}
             className={`min-h-[200px] border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
@@ -656,7 +665,9 @@ function Img2VideoContent() {
             <>
               <div className="flex gap-2 mt-3 text-xs">
                 <StatusPill status="neutral" size="xs" label={`${totalCount} Total`} />
-                {completedCount > 0 && <StatusPill status="completed" size="xs" label={`${completedCount} Completed`} />}
+                {completedCount > 0 && (
+                  <StatusPill status="completed" size="xs" label={`${completedCount} Completed`} />
+                )}
                 {failedCount > 0 && <StatusPill status="failed" size="xs" label={`${failedCount} Failed`} />}
               </div>
               <div className="flex gap-2 mt-3">

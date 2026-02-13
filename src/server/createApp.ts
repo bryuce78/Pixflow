@@ -7,6 +7,7 @@ import { migrateJsonToSqlite } from './db/migrations.js'
 import { requireAuth } from './middleware/auth.js'
 import { createAuthRouter } from './routes/auth.js'
 import { createAvatarsRouter } from './routes/avatars.js'
+import { createCaptionsRouter } from './routes/captions.js'
 import { createFeedbackRouter } from './routes/feedback.js'
 import { createGenerateRouter } from './routes/generate.js'
 import { createHistoryRouter } from './routes/history.js'
@@ -46,6 +47,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/outputs', express.static(path.join(projectRoot, 'outputs')))
   app.use('/avatars', express.static(path.join(projectRoot, 'avatars')))
   app.use('/avatars_generated', express.static(path.join(projectRoot, 'avatars_generated')))
+  app.use('/avatars_uploads', express.static(path.join(projectRoot, 'avatars_uploads')))
 
   app.get('/health', (_req, res) => {
     sendSuccess(res, { status: 'ok', timestamp: new Date().toISOString() })
@@ -59,6 +61,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/api/prompts', requireAuth, createPromptsRouter({ projectRoot }))
   app.use('/api/generate', requireAuth, createGenerateRouter({ projectRoot }))
   app.use('/api/history', requireAuth, createHistoryRouter())
+  app.use('/api/captions', requireAuth, createCaptionsRouter({ projectRoot }))
   app.use('/api/avatars', requireAuth, createAvatarsRouter({ projectRoot }))
   app.use('/api/videos', requireAuth, createVideosRouter({ projectRoot }))
   app.use('/api/presets', requireAuth, createPresetsRouter())

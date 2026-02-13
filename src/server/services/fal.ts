@@ -310,7 +310,17 @@ export async function generateBatch(
   }
 }
 
-export function formatPromptForFal(promptJson: Record<string, unknown>): string {
+export function formatPromptForFal(
+  promptJson: Record<string, unknown>,
+  options: { referenceImageCount?: number } = {},
+): string {
+  const referenceImageCount = Math.max(1, options.referenceImageCount ?? 1)
+  const personWord = referenceImageCount === 1 ? 'person' : 'people'
+  const identityGuardrail =
+    referenceImageCount === 1
+      ? 'CRITICAL: Use the provided reference image as mandatory identity source. Preserve the exact person identity, facial structure, age, expression, and proportions. Do not replace the person, do not add extra people.'
+      : `CRITICAL: Use ALL provided reference images as mandatory identity sources. The final output must clearly include exactly ${referenceImageCount} distinct ${personWord} from the references. Do not omit any referenced person. Do not merge identities. Do not add new people. Preserve each person's face, age, expression, and proportions.`
+
   const style = (promptJson.style as string) || ''
   const pose = (promptJson.pose as Record<string, unknown>) || {}
   const lighting = (promptJson.lighting as Record<string, unknown>) || {}
@@ -322,6 +332,7 @@ export function formatPromptForFal(promptJson: Record<string, unknown>): string 
   const camera = (promptJson.camera as Record<string, unknown>) || {}
 
   const parts = [
+    identityGuardrail,
     style,
     `Pose: ${pose.framing || ''}, ${pose.body_position || ''}, ${(pose.expression as Record<string, unknown>)?.facial || ''}`,
     `Lighting: ${lighting.setup || ''}, ${lighting.mood || ''}`,

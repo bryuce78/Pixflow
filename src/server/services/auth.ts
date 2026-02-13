@@ -75,6 +75,25 @@ export function listUsers(): User[] {
   return db.prepare('SELECT id, email, name, role, created_at FROM users').all() as User[]
 }
 
+export function getOrCreateBypassUser(): User {
+  const db = getDb()
+
+  const admin = db
+    .prepare('SELECT id, email, name, role, created_at FROM users WHERE role = ? ORDER BY id ASC LIMIT 1')
+    .get('admin') as User | undefined
+  if (admin) return admin
+
+  const existing = db.prepare('SELECT id, email, name, role, created_at FROM users ORDER BY id ASC LIMIT 1').get() as
+    | User
+    | undefined
+  if (existing) return existing
+
+  const email = process.env.PIXFLOW_AUTH_BYPASS_EMAIL?.trim() || 'local@pixflow.internal'
+  const name = process.env.PIXFLOW_AUTH_BYPASS_NAME?.trim() || 'Local User'
+  const password = process.env.PIXFLOW_AUTH_BYPASS_PASSWORD || 'pixflow-local-bypass'
+  return createUser(email, password, name, 'admin')
+}
+
 function parseBool(value: string | undefined, defaultValue: boolean): boolean {
   if (value === undefined) return defaultValue
   const normalized = value.trim().toLowerCase()

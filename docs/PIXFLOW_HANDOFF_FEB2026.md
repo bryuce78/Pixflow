@@ -2,12 +2,13 @@
 
 > **Previous handoff archived:** `PIXFLOW_AI_VERSIONING_HANDOFF_ARCHIVE_20260209.md` (1272 lines)
 > **This document:** Fresh continuation covering recent sessions and current state
+> **Update (2026-02-13):** Pixflow is now web-first. Legacy Electron notes below are retained as historical context.
 
 ---
 
 ## Quick Context
 
-**Pixflow** is an Electron desktop app for AI-powered asset production workflows:
+**Pixflow** is a web-first app for AI-powered asset production workflows:
 - **Prompt Factory**: Image-to-prompt analysis + concept-to-prompt generation
 - **Asset Monster**: Batch image generation with reference images
 - **Img2Video**: Image-to-video conversion with camera controls
@@ -16,13 +17,21 @@
 - **Library**: History, favorites, liked images
 
 **Stack:**
-- Electron + Vite
+- Vite (web)
 - React + Zustand (state)
-- Express API (embedded server)
+- Express API server
 - SQLite database (better-sqlite3)
 - FAL.ai (image generation), Kling/Minimax (video), OpenAI GPT-4o (vision/text)
 
 **Recent Focus:** Like/dislike system, Img2Video improvements, UX enhancements
+
+### Current Runtime Status (2026-02-13)
+
+- Pixflow now runs as a web-first app (`Vite UI + Express API`), not Electron.
+- Login is disabled by default for internal environment usage (`PIXFLOW_AUTH_MODE=disabled`).
+- Release gate pipeline is green locally with the updated journey smoke path:
+  - `npm run gate:release` ✅
+- Historical Electron notes in this file are preserved as timeline context only.
 
 ---
 
@@ -3119,3 +3128,37 @@ src/server/services/ytdlp.ts                 # Ad-ID-aware extraction + debug lo
 
 **Current posture after Session 42:**
 - UI standardization is complete and documented.
+
+---
+
+### Session 43: Sidebar Navigation + Layout Shift
+
+**Date:** Feb 12, 2026
+
+**Objective:** Replace the cramped top tabs with a left sidebar to scale comfortably past eight categories while keeping core controls accessible.
+
+**What changed:**
+
+1. **New sidebar component**
+- Added:
+  - `src/renderer/components/layout/SideNav.tsx`
+- Change:
+  - Vertical nav with badges, a theme toggle, notifications, and user menu; uses the same TabId set so routing stays unchanged.
+
+2. **AppShell layout updated**
+- Updated:
+  - `src/renderer/components/layout/AppShell.tsx`
+- Change:
+  - `SideNav` sits beside the content, `ProductSelector` stays sticky above the main grid, and the old `TopNav`/`PrimaryTabBar` header is removed.
+
+3. **Top navigation removed**
+- Removed:
+  - `src/renderer/components/layout/TopNav.tsx`
+- Change:
+  - No more dual header rows; the sidebar now owns brand, mode toggle, and navigation.
+
+**Validation:**
+- Not run in this session.
+
+**Current posture after Session 43:**
+- Horizontal space is now reserved for the sidebar, giving room for at least eight categories without wrapping.

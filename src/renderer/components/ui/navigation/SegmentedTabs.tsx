@@ -35,7 +35,7 @@ export function SegmentedTabs<T extends SegmentedTabId>({
   size = 'md',
 }: SegmentedTabsProps<T>) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const sizeClass = size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-sm'
+  const sizeClass = size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'
 
   const findNextEnabled = (startIndex: number, direction: 1 | -1): number => {
     if (items.length === 0) return -1
@@ -78,7 +78,11 @@ export function SegmentedTabs<T extends SegmentedTabId>({
   }
 
   return (
-    <div role="tablist" aria-label={ariaLabel} className={`flex bg-surface-100 rounded-lg p-1 gap-1 ${className}`}>
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className={`flex bg-surface-100/80 rounded-xl p-1.5 gap-1.5 border border-surface-200/60 ${className}`}
+    >
       {items.map((item, index) => {
         const isActive = item.id === value
         return (
@@ -97,12 +101,12 @@ export function SegmentedTabs<T extends SegmentedTabId>({
             onClick={() => {
               if (!item.disabled) onChange(item.id)
             }}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-md font-medium transition-colors ${sizeClass} ${
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors whitespace-nowrap ${sizeClass} ${
               isActive
-                ? 'bg-brand-600 text-surface-900'
+                ? 'bg-brand-600 text-white shadow-sm'
                 : item.disabled
                   ? 'text-surface-400 opacity-50 cursor-not-allowed'
-                  : 'text-surface-400 hover:text-surface-900'
+                  : 'text-surface-400 hover:text-surface-100'
             }`}
           >
             {item.icon}
@@ -111,6 +115,22 @@ export function SegmentedTabs<T extends SegmentedTabId>({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+interface SegmentedTabsCardProps<T extends SegmentedTabId> extends SegmentedTabsProps<T> {
+  wrapperClassName?: string
+}
+
+export function SegmentedTabsCard<T extends SegmentedTabId>({
+  wrapperClassName = '',
+  className = '',
+  ...props
+}: SegmentedTabsCardProps<T>) {
+  return (
+    <div className={`bg-surface-100/50 border border-surface-200/50 rounded-xl p-4 ${wrapperClassName}`}>
+      <SegmentedTabs {...props} className={`w-full ${className}`} />
     </div>
   )
 }

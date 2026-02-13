@@ -64,7 +64,7 @@ interface GenerationState {
   setPromptSource: (source: 'generated' | 'custom' | 'library') => void
   updateCurrentCustomPromptInput: (json: string) => void
   setCurrentCustomPromptError: (error: string | null) => void
-  saveCurrentCustomPrompt: (prompt: GeneratedPrompt, name: string) => void
+  saveCurrentCustomPrompt: (prompt: GeneratedPrompt, name: string) => string
   removeSavedCustomPrompt: (id: string) => void
   setImageSource: (source: 'upload' | 'gallery') => void
   setAspectRatio: (ratio: string) => void
@@ -146,6 +146,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
       currentCustomPromptInput: '',
       currentCustomPromptError: null,
     }))
+    return id
   },
 
   removeSavedCustomPrompt: (id) => {

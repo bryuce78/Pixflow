@@ -17,6 +17,44 @@ type AvatarAgeGroup = 'young-adult' | 'adult' | 'middle-aged'
 type AvatarEthnicity = 'caucasian' | 'black' | 'asian' | 'hispanic' | 'middle-eastern' | 'south-asian'
 type AvatarOutfit = 'casual' | 'business' | 'sporty' | 'elegant' | 'streetwear'
 type ScriptTone = 'casual' | 'professional' | 'energetic' | 'friendly' | 'dramatic'
+type TranslationAudioStatus = 'queued' | 'generating' | 'completed' | 'failed'
+
+export const TALKING_AVATAR_LANGUAGE_CARDS = [
+  { code: 'EN', label: 'English' },
+  { code: 'TR', label: 'Turkish' },
+  { code: 'ES', label: 'Spanish' },
+  { code: 'FR', label: 'French' },
+  { code: 'DE', label: 'German' },
+  { code: 'IT', label: 'Italian' },
+  { code: 'PT', label: 'Portuguese (Brazil)' },
+  { code: 'AR', label: 'Arabic' },
+  { code: 'RU', label: 'Russian' },
+  { code: 'JA', label: 'Japanese' },
+] as const
+
+const LANGUAGE_CODE_TO_NAME: Record<string, string> = Object.fromEntries(
+  TALKING_AVATAR_LANGUAGE_CARDS.map((item) => [item.code, item.label]),
+)
+const MAX_TRANSLATION_LANGUAGES = 10
+const TTS_BATCH_CONCURRENCY = 4
+const LIPSYNC_BATCH_CONCURRENCY = 4
+const RATE_LIMIT_MAX_RETRIES = 4
+const RATE_LIMIT_BASE_DELAY_MS = 2500
+
+interface TranslatedAudio {
+  language: string
+  script: string
+  audioUrl: string | null
+  status: TranslationAudioStatus
+  error?: string
+}
+
+interface TranslatedVideo {
+  language: string
+  videoUrl: string | null
+  status: TranslationAudioStatus
+  error?: string
+}
 
 const AGE_DESCRIPTIONS: Record<AvatarAgeGroup, string> = {
   'young-adult': 'young adult in their 20s',
@@ -78,6 +116,78 @@ const EXPRESSION_VARIATIONS = [
   'soft smile, confident gaze at camera',
   'welcoming expression, direct eye contact',
 ]
+
+function normalizeLanguageCode(value: string): string {
+  return value.trim().toUpperCase()
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  let index = 0
+  const workerCount = Math.max(1, Math.min(limit, items.length))
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (index < items.length) {
+        const current = index++
+        await worker(items[current], current)
+      }
+    }),
+  )
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getRateLimitDelayMs(response: Response, attempt: number): number {
+  const retryAfter = response.headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.floor(seconds * 1000)
+    }
+    const dateMs = Date.parse(retryAfter)
+    if (Number.isFinite(dateMs)) {
+      const delta = dateMs - Date.now()
+      if (delta > 0) return delta
+    }
+  }
+
+  const resetHeader = response.headers.get('ratelimit-reset')
+  if (resetHeader) {
+    const resetSeconds = Number(resetHeader)
+    if (Number.isFinite(resetSeconds) && resetSeconds > 0) {
+      const nowSeconds = Math.floor(Date.now() / 1000)
+      const deltaSeconds = resetSeconds > nowSeconds ? resetSeconds - nowSeconds : resetSeconds
+      if (deltaSeconds > 0 && deltaSeconds < 3600) {
+        return deltaSeconds * 1000
+      }
+    }
+  }
+
+  return RATE_LIMIT_BASE_DELAY_MS * (attempt + 1)
+}
+
+async function authFetchWithRateLimitRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = RATE_LIMIT_MAX_RETRIES,
+): Promise<Response> {
+  let attempt = 0
+  while (true) {
+    const response = await authFetch(url, init)
+    if (response.status !== 429 || attempt >= maxRetries) {
+      return response
+    }
+    const waitMs = getRateLimitDelayMs(response, attempt)
+    const jitterMs = Math.floor(Math.random() * 350)
+    await sleep(waitMs + jitterMs)
+    attempt += 1
+  }
+}
 
 export const REACTION_DEFINITIONS: Record<ReactionType, { label: string; emoji: string; prompt: string }> = {
   sad: {
@@ -163,6 +273,14 @@ interface AvatarState {
   scriptHistory: string[]
   scriptHistoryIndex: number
   transcriptionRequestId: number
+  autoDetectLanguage: boolean
+  detectedLanguage: string | null
+  translationLanguages: string[]
+  translatedScripts: Array<{ language: string; script: string }>
+  translatedAudios: TranslatedAudio[]
+  translatedVideos: TranslatedVideo[]
+  translationGenerating: boolean
+  translationError: ErrorInfo | null
 
   voices: Voice[]
   voicesLoading: boolean
@@ -204,6 +322,10 @@ interface AvatarState {
   setGeneratedScript: (script: string) => void
   undoScript: () => void
   redoScript: () => void
+  setAutoDetectLanguage: (enabled: boolean) => void
+  setTranslationLanguages: (languages: string[]) => void
+  toggleTranslationLanguage: (language: string) => void
+  clearTranslations: () => void
   setSelectedVoice: (voiceId: string | null) => void
   setAudioMode: (mode: 'tts' | 'upload') => void
   setScriptMode: (mode: 'existing' | 'audio' | 'fetch' | 'generate') => void
@@ -216,11 +338,15 @@ interface AvatarState {
   loadAvatars: () => Promise<void>
   loadVoices: () => Promise<void>
   uploadAvatars: (files: FileList) => Promise<void>
+  deleteUploadedAvatar: (filename: string) => Promise<void>
   generateAvatar: () => Promise<void>
   generateScript: () => Promise<void>
   refineScript: (instruction: string, targetDuration?: number) => Promise<void>
+  translateScript: () => Promise<void>
+  generateTranslationAudioBatch: () => Promise<void>
+  generateTalkingAvatarVideosBatch: () => Promise<void>
   generateTTS: () => Promise<void>
-  uploadAudio: (file: File) => Promise<void>
+  uploadAudio: (file: File) => Promise<string | null>
   createLipsync: () => Promise<void>
   generateReactionVideo: () => Promise<void>
   cancelReactionVideo: () => void
@@ -258,6 +384,14 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   scriptHistory: [],
   scriptHistoryIndex: -1,
   transcriptionRequestId: 0,
+  autoDetectLanguage: true,
+  detectedLanguage: null,
+  translationLanguages: ['EN'],
+  translatedScripts: [],
+  translatedAudios: [],
+  translatedVideos: [],
+  translationGenerating: false,
+  translationError: null,
 
   voices: [],
   voicesLoading: false,
@@ -304,6 +438,11 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
       generatedScript,
       scriptHistory: newHistory,
       scriptHistoryIndex: newHistory.length - 1,
+      detectedLanguage: null,
+      translatedScripts: [],
+      translatedAudios: [],
+      translatedVideos: [],
+      translationError: null,
     })
   },
   undoScript: () => {
@@ -313,6 +452,9 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
       set({
         generatedScript: scriptHistory[newIndex],
         scriptHistoryIndex: newIndex,
+        translatedScripts: [],
+        translatedAudios: [],
+        translatedVideos: [],
       })
     }
   },
@@ -323,9 +465,42 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
       set({
         generatedScript: scriptHistory[newIndex],
         scriptHistoryIndex: newIndex,
+        translatedScripts: [],
+        translatedAudios: [],
+        translatedVideos: [],
       })
     }
   },
+  setAutoDetectLanguage: (autoDetectLanguage) => set({ autoDetectLanguage }),
+  setTranslationLanguages: (translationLanguages) => set({ translationLanguages }),
+  toggleTranslationLanguage: (language) => {
+    set((state) => {
+      const normalized = normalizeLanguageCode(language)
+      if (!LANGUAGE_CODE_TO_NAME[normalized]) return state
+      const next = new Set(state.translationLanguages)
+      if (next.has(normalized)) {
+        next.delete(normalized)
+      } else {
+        if (next.size >= MAX_TRANSLATION_LANGUAGES) return state
+        next.add(normalized)
+      }
+      return {
+        translationLanguages: Array.from(next),
+        translatedScripts: [],
+        translatedAudios: [],
+        translatedVideos: [],
+        translationError: null,
+      }
+    })
+  },
+  clearTranslations: () =>
+    set({
+      translatedScripts: [],
+      translatedAudios: [],
+      translatedVideos: [],
+      detectedLanguage: null,
+      translationError: null,
+    }),
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
   setAudioMode: (audioMode) => set({ audioMode }),
   setScriptMode: (scriptMode) => set({ scriptMode }),
@@ -383,17 +558,46 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
     Array.from(files).forEach((f) => formData.append('files', f))
 
     try {
+      set({ error: null })
       const res = await authFetch(apiUrl('/api/avatars/upload'), {
         method: 'POST',
         body: formData,
       })
       if (!res.ok) {
         const raw = await res.json().catch(() => ({}))
-        throw new Error(getApiError(raw, 'Upload failed'))
+        const err = new Error(getApiError(raw, 'Upload failed'))
+        throw err
+      }
+      const raw = await res.json().catch(() => ({}))
+      const data = unwrapApiData<{ avatars?: Avatar[] }>(raw)
+      if (data.avatars && data.avatars.length > 0) {
+        set((state) => ({ avatars: [...data.avatars!, ...state.avatars] }))
       }
       await get().loadAvatars()
     } catch (err) {
-      set({ error: parseError(err) })
+      const parsed = parseError(err)
+      set({ error: parsed })
+      throw parsed
+    }
+  },
+
+  deleteUploadedAvatar: async (filename) => {
+    try {
+      set({ error: null })
+      const res = await authFetch(apiUrl(`/api/avatars/upload/${encodeURIComponent(filename)}`), {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to delete avatar'))
+      }
+      set((state) => ({
+        avatars: state.avatars.filter((avatar) => avatar.filename !== filename),
+      }))
+    } catch (err) {
+      const parsed = parseError(err)
+      set({ error: parsed })
+      throw parsed
     }
   },
 
@@ -525,6 +729,253 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     }
   },
 
+  translateScript: async () => {
+    const { generatedScript, translationLanguages, autoDetectLanguage } = get()
+    if (!generatedScript.trim()) {
+      set({ translationError: { message: 'No script to translate', type: 'warning' } })
+      return
+    }
+
+    let enabledLanguages = translationLanguages
+      .map((value) => normalizeLanguageCode(value))
+      .filter((code) => Boolean(LANGUAGE_CODE_TO_NAME[code]))
+
+    let detectedLanguage: string | null = null
+    if (autoDetectLanguage) {
+      try {
+        const detectRes = await authFetch(apiUrl('/api/avatars/script/detect'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script: generatedScript }),
+        })
+        if (detectRes.ok) {
+          const detectRaw = await detectRes.json()
+          const detectData = unwrapApiData<{ languageCode?: string }>(detectRaw)
+          const normalized = normalizeLanguageCode(detectData.languageCode || '')
+          if (LANGUAGE_CODE_TO_NAME[normalized]) {
+            detectedLanguage = normalized
+            if (!enabledLanguages.includes(normalized)) {
+              enabledLanguages = [normalized, ...enabledLanguages].slice(0, MAX_TRANSLATION_LANGUAGES)
+            }
+          }
+        }
+      } catch {
+        // Auto-detect is best effort; keep manual language selection if detection fails.
+      }
+    }
+
+    if (enabledLanguages.length === 0) {
+      set({ translationError: { message: 'Select at least one language', type: 'warning' } })
+      return
+    }
+
+    set({
+      translationGenerating: true,
+      translationError: null,
+      translatedScripts: [],
+      translatedAudios: [],
+      translatedVideos: [],
+      detectedLanguage,
+      translationLanguages: enabledLanguages,
+    })
+
+    try {
+      const languageNames = enabledLanguages.map((code) => LANGUAGE_CODE_TO_NAME[code]).filter(Boolean)
+      const res = await authFetch(apiUrl('/api/avatars/script/translate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: generatedScript, languages: languageNames }),
+      })
+
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to translate script'))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ translations: Array<{ language: string; script: string }> }>(raw)
+      const byLanguageName = new Map<string, string>(
+        (data.translations || []).map((item) => [item.language.trim().toLowerCase(), item.script || '']),
+      )
+      const translatedScripts = enabledLanguages.map((code) => {
+        const languageName = LANGUAGE_CODE_TO_NAME[code]
+        const translated = byLanguageName.get(languageName.toLowerCase())?.trim() || ''
+        return {
+          language: code,
+          script: translated || (detectedLanguage === code ? generatedScript.trim() : ''),
+        }
+      })
+      set({ translatedScripts })
+    } catch (err) {
+      set({ translationError: parseError(err) })
+    } finally {
+      set({ translationGenerating: false })
+    }
+  },
+
+  generateTranslationAudioBatch: async () => {
+    const { selectedVoice } = get()
+    if (!selectedVoice) {
+      set({ translationError: { message: 'Please select a voice', type: 'warning' } })
+      return
+    }
+
+    await get().translateScript()
+    const translatedScripts = get().translatedScripts.filter((item) => item.script.trim())
+    if (translatedScripts.length === 0) return
+
+    set({
+      translationGenerating: true,
+      translationError: null,
+      translatedAudios: translatedScripts.map((item) => ({
+        language: item.language,
+        script: item.script,
+        audioUrl: null,
+        status: 'queued',
+      })),
+      translatedVideos: [],
+      generatedAudioUrl: null,
+    })
+
+    await runWithConcurrency(translatedScripts, TTS_BATCH_CONCURRENCY, async (item) => {
+      set((state) => ({
+        translatedAudios: state.translatedAudios.map((audio) =>
+          audio.language === item.language ? { ...audio, status: 'generating', error: undefined } : audio,
+        ),
+      }))
+
+      try {
+        const res = await authFetchWithRateLimitRetry(apiUrl('/api/avatars/tts'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: item.script, voiceId: selectedVoice }),
+        })
+
+        if (!res.ok) {
+          const raw = await res.json().catch(() => ({}))
+          throw new Error(getApiError(raw, `TTS failed for ${item.language}`))
+        }
+
+        const raw = await res.json()
+        const data = unwrapApiData<{ audioUrl: string }>(raw)
+        set((state) => ({
+          translatedAudios: state.translatedAudios.map((audio) =>
+            audio.language === item.language
+              ? { ...audio, status: 'completed', audioUrl: data.audioUrl, error: undefined }
+              : audio,
+          ),
+        }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : `TTS failed for ${item.language}`
+        set((state) => ({
+          translatedAudios: state.translatedAudios.map((audio) =>
+            audio.language === item.language ? { ...audio, status: 'failed', error: message } : audio,
+          ),
+        }))
+      }
+    })
+
+    const firstCompletedAudio = get().translatedAudios.find((item) => item.status === 'completed' && item.audioUrl)
+    set({
+      generatedAudioUrl: firstCompletedAudio?.audioUrl || null,
+      translationGenerating: false,
+    })
+  },
+
+  generateTalkingAvatarVideosBatch: async () => {
+    const {
+      selectedVoice,
+      generatedScript,
+      translationLanguages,
+      generatedUrls,
+      selectedGeneratedIndex,
+      selectedAvatar,
+    } = get()
+    if (!generatedScript.trim()) {
+      set({ translationError: { message: 'Please generate a script first', type: 'warning' } })
+      return
+    }
+    if (!selectedVoice) {
+      set({ translationError: { message: 'Please select a voice', type: 'warning' } })
+      return
+    }
+    if (translationLanguages.length === 0) {
+      set({ translationError: { message: 'Select at least one language', type: 'warning' } })
+      return
+    }
+    const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || null
+    if (!avatarUrl) {
+      set({ translationError: { message: 'Select an avatar to generate videos', type: 'warning' } })
+      return
+    }
+
+    await get().generateTranslationAudioBatch()
+
+    const { translatedAudios } = get()
+    const readyAudios = translatedAudios.filter((item) => item.status === 'completed' && item.audioUrl)
+    if (readyAudios.length === 0) return
+
+    set({
+      lipsyncGenerating: true,
+      translationError: null,
+      translatedVideos: readyAudios.map((item) => ({
+        language: item.language,
+        status: 'queued',
+        videoUrl: null,
+      })),
+      generatedVideoUrl: null,
+    })
+
+    await runWithConcurrency(readyAudios, LIPSYNC_BATCH_CONCURRENCY, async (item) => {
+      set((state) => ({
+        translatedVideos: state.translatedVideos.map((video) =>
+          video.language === item.language ? { ...video, status: 'generating', error: undefined } : video,
+        ),
+      }))
+
+      try {
+        const res = await authFetchWithRateLimitRetry(apiUrl('/api/avatars/lipsync'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: avatarUrl || undefined,
+            audioUrl: item.audioUrl,
+          }),
+        })
+        if (!res.ok) {
+          const raw = await res.json().catch(() => ({}))
+          throw new Error(getApiError(raw, `Video generation failed for ${item.language}`))
+        }
+
+        const raw = await res.json()
+        const data = unwrapApiData<{ localPath?: string }>(raw)
+        if (!data.localPath) {
+          throw new Error(`No output file returned for ${item.language}`)
+        }
+        set((state) => ({
+          translatedVideos: state.translatedVideos.map((video) =>
+            video.language === item.language
+              ? { ...video, status: 'completed', videoUrl: data.localPath, error: undefined }
+              : video,
+          ),
+        }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : `Video generation failed for ${item.language}`
+        set((state) => ({
+          translatedVideos: state.translatedVideos.map((video) =>
+            video.language === item.language ? { ...video, status: 'failed', error: message } : video,
+          ),
+        }))
+      }
+    })
+
+    const firstCompletedVideo = get().translatedVideos.find((item) => item.status === 'completed' && item.videoUrl)
+    set({
+      generatedVideoUrl: firstCompletedVideo?.videoUrl || null,
+      lipsyncGenerating: false,
+    })
+  },
+
   generateTTS: async () => {
     const { generatedScript, selectedVoice } = get()
     if (!generatedScript.trim()) {
@@ -539,7 +990,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     set({ ttsGenerating: true, error: null, generatedAudioUrl: null })
 
     try {
-      const res = await authFetch(apiUrl('/api/avatars/tts'), {
+      const res = await authFetchWithRateLimitRetry(apiUrl('/api/avatars/tts'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: generatedScript, voiceId: selectedVoice }),
@@ -580,8 +1031,10 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       const raw = await res.json()
       const data = unwrapApiData<{ audioUrl: string }>(raw)
       set({ generatedAudioUrl: data.audioUrl })
+      return data.audioUrl
     } catch (err) {
       set({ error: parseError(err) })
+      return null
     } finally {
       set({ audioUploading: false })
     }
@@ -608,7 +1061,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     set({ lipsyncGenerating: true, error: null, lipsyncJob: null, generatedVideoUrl: null })
 
     try {
-      const res = await authFetch(apiUrl('/api/avatars/lipsync'), {
+      const res = await authFetchWithRateLimitRetry(apiUrl('/api/avatars/lipsync'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: avatarUrl, audioUrl: generatedAudioUrl }),
@@ -651,6 +1104,11 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       scriptHistory: [],
       scriptHistoryIndex: -1,
       transcriptionRequestId: currentRequestId,
+      detectedLanguage: null,
+      translatedScripts: [],
+      translatedAudios: [],
+      translatedVideos: [],
+      translationError: null,
     })
 
     try {

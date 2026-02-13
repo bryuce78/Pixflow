@@ -153,7 +153,6 @@ export function createTables(db: Database.Database): void {
 
 export function seedProducts(db: Database.Database): void {
   const existing = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number }
-  if (existing.count > 0) return
 
   const insert = db.prepare('INSERT INTO products (name, slug, color_primary, color_accent) VALUES (?, ?, ?, ?)')
 
@@ -163,11 +162,123 @@ export function seedProducts(db: Database.Database): void {
     ['Fling', 'fling', '#DB2777', '#F472B6'],
     ['Zurna', 'zurna', '#0891B2', '#22D3EE'],
     ['Impresso', 'impresso', '#059669', '#34D399'],
+    ['Captions', 'captions', '#7C3AED', '#A78BFA'],
   ] as const
 
   const insertMany = db.transaction((rows: typeof products) => {
     for (const row of rows) insert.run(...row)
   })
 
-  insertMany(products)
+  if (existing.count === 0) {
+    insertMany(products)
+  } else {
+    const existingSlugs = new Set(
+      (db.prepare('SELECT slug FROM products').all() as { slug: string }[]).map((row) => row.slug),
+    )
+    for (const row of products) {
+      if (!existingSlugs.has(row[1])) insert.run(...row)
+    }
+  }
+}
+
+export function seedCaptionPresets(db: Database.Database): void {
+  const productRow = db.prepare('SELECT id FROM products WHERE slug = ?').get('captions') as { id: number } | undefined
+  if (!productRow) return
+
+  const existing = db
+    .prepare('SELECT name FROM presets WHERE product_id = ? AND is_builtin = 1')
+    .all(productRow.id) as { name: string }[]
+  const existingNames = new Set(existing.map((row) => row.name))
+
+  const presets = [
+    {
+      name: 'TikTok Bold',
+      description: 'High-contrast, bold subtitles with highlight.',
+      prompt: {
+        language: 'auto',
+        fontName: 'Poppins',
+        fontSize: 38,
+        fontWeight: 'black',
+        fontColor: '#ffffff',
+        highlightColor: '#7c3aed',
+        strokeWidth: 3,
+        strokeColor: '#000000',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.45,
+        position: 'bottom',
+        yOffset: 0,
+        wordsPerSubtitle: 4,
+        enableAnimation: true,
+      },
+    },
+    {
+      name: 'YouTube Clean',
+      description: 'Clean white text with subtle stroke, no animation.',
+      prompt: {
+        language: 'auto',
+        fontName: 'Inter',
+        fontSize: 30,
+        fontWeight: 'bold',
+        fontColor: '#ffffff',
+        highlightColor: '#ffffff',
+        strokeWidth: 2,
+        strokeColor: '#000000',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.2,
+        position: 'bottom',
+        yOffset: 0,
+        wordsPerSubtitle: 6,
+        enableAnimation: false,
+      },
+    },
+    {
+      name: 'Subtle Minimal',
+      description: 'Minimal subtitles, smaller size, low contrast background.',
+      prompt: {
+        language: 'auto',
+        fontName: 'Poppins',
+        fontSize: 24,
+        fontWeight: 'normal',
+        fontColor: '#f5f5f5',
+        highlightColor: '#f5f5f5',
+        strokeWidth: 0,
+        strokeColor: '#000000',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.15,
+        position: 'bottom',
+        yOffset: 8,
+        wordsPerSubtitle: 6,
+        enableAnimation: false,
+      },
+    },
+    {
+      name: 'High Contrast',
+      description: 'Large text with strong outline for busy footage.',
+      prompt: {
+        language: 'auto',
+        fontName: 'Poppins',
+        fontSize: 40,
+        fontWeight: 'bold',
+        fontColor: '#ffffff',
+        highlightColor: '#22c55e',
+        strokeWidth: 4,
+        strokeColor: '#000000',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.5,
+        position: 'bottom',
+        yOffset: 0,
+        wordsPerSubtitle: 3,
+        enableAnimation: true,
+      },
+    },
+  ]
+
+  const insert = db.prepare(
+    'INSERT INTO presets (product_id, user_id, name, description, prompt, is_builtin) VALUES (?, NULL, ?, ?, ?, 1)',
+  )
+
+  for (const preset of presets) {
+    if (existingNames.has(preset.name)) continue
+    insert.run(productRow.id, preset.name, preset.description, JSON.stringify(preset.prompt))
+  }
 }

@@ -1,4 +1,5 @@
 import { AlertTriangle, Download, Loader2, RefreshCw, Video, X } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { assetUrl } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import { REACTION_DEFINITIONS, useAvatarStore } from '../../stores/avatarStore'
@@ -11,11 +12,13 @@ import { AvatarSelectionCard } from './shared/AvatarSelectionCard'
 interface ReactionVideoPageProps {
   fullSizeAvatarUrl: string | null
   setFullSizeAvatarUrl: (url: string | null) => void
+  modeTabs?: ReactNode
 }
 
 export function ReactionVideoPage({
   fullSizeAvatarUrl: _fullSizeAvatarUrl,
   setFullSizeAvatarUrl,
+  modeTabs,
 }: ReactionVideoPageProps) {
   const {
     selectedAvatar,
@@ -36,7 +39,8 @@ export function ReactionVideoPage({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* LEFT COLUMN: INPUTS */}
-      <div className="space-y-6">
+      <div className="space-y-6 xl:col-start-1 xl:col-end-2">
+        {modeTabs && <div className="bg-surface-50 rounded-lg p-4">{modeTabs}</div>}
         <AvatarSelectionCard stepNumber={1} showGenerateOptions={false} />
 
         {/* Selected Avatar Display */}
@@ -100,7 +104,7 @@ export function ReactionVideoPage({
             <div>
               <span className="block text-sm font-medium text-surface-500 mb-2">Aspect Ratio</span>
               <div className="flex gap-2">
-                {(['9:16', '16:9', '1:1'] as const).map((ar) => (
+                {(['9:16', '4:5', '1:1'] as const).map((ar) => (
                   <button
                     key={ar}
                     type="button"
@@ -136,69 +140,63 @@ export function ReactionVideoPage({
                 ))}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Step 4: Generate */}
-        <div className="bg-surface-50 rounded-lg p-4">
-          <StepHeader stepNumber={4} title="Generate" />
-
-          <div className="space-y-4">
-            {reactionGenerating ? (
-              /* Generating State with Thumbnail */
-              <div className="space-y-4 flex flex-col items-center">
-                <div className="relative w-1/2">
-                  <img
-                    src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
-                    alt="Generating reaction"
-                    className="w-full aspect-[9/16] object-cover rounded-lg opacity-50"
-                  />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                    <Loader2 className="w-12 h-12 animate-spin text-brand" />
-                    <p className="text-sm font-medium text-surface-900">
-                      Generating {selectedReaction && REACTION_DEFINITIONS[selectedReaction].emoji} reaction...
-                    </p>
+            {/* Generate */}
+            <div className="pt-2">
+              {reactionGenerating ? (
+                <div className="space-y-4 flex flex-col items-center">
+                  <div className="relative w-1/2">
+                    <img
+                      src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
+                      alt="Generating reaction"
+                      className="w-full aspect-[9/16] object-cover rounded-lg opacity-50"
+                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="w-12 h-12 animate-spin text-brand" />
+                      <p className="text-sm font-medium text-surface-900">
+                        Generating {selectedReaction && REACTION_DEFINITIONS[selectedReaction].emoji} reaction...
+                      </p>
+                    </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    icon={<X className="w-4 h-4" />}
+                    onClick={cancelReactionVideo}
+                    className="w-full"
+                  >
+                    Cancel
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="md"
-                  icon={<X className="w-4 h-4" />}
-                  onClick={cancelReactionVideo}
-                  className="w-full"
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              /* Ready to Generate */
-              <>
-                <Button
-                  variant="success"
-                  size="lg"
-                  icon={<Video className="w-5 h-5" />}
-                  onClick={generateReactionVideo}
-                  disabled={(!selectedAvatar && generatedUrls.length === 0) || !selectedReaction}
-                  className="w-full"
-                >
-                  Generate Reaction Video
-                </Button>
-                {((!selectedAvatar && generatedUrls.length === 0) || !selectedReaction) && (
-                  <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {!selectedAvatar && generatedUrls.length === 0
-                      ? 'Select an avatar first (Step 1)'
-                      : 'Choose a reaction (Step 2)'}
-                  </p>
-                )}
-              </>
-            )}
+              ) : (
+                <>
+                  <Button
+                    variant="success"
+                    size="lg"
+                    icon={<Video className="w-5 h-5" />}
+                    onClick={generateReactionVideo}
+                    disabled={(!selectedAvatar && generatedUrls.length === 0) || !selectedReaction}
+                    className="w-full"
+                  >
+                    Generate Reaction Video
+                  </Button>
+                  {((!selectedAvatar && generatedUrls.length === 0) || !selectedReaction) && (
+                    <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      {!selectedAvatar && generatedUrls.length === 0
+                        ? 'Select an avatar first (Step 1)'
+                        : 'Choose a reaction (Step 2)'}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* RIGHT COLUMN: OUTPUT */}
-      <div className="space-y-6">
+      <div className="space-y-6 xl:col-start-2 xl:col-end-3">
         {/* Step 5: Output */}
         <div className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
           <StepHeader stepNumber={5} title="Output" />

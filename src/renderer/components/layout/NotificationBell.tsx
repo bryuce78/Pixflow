@@ -2,7 +2,15 @@ import { Bell, Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNotificationStore } from '../../stores/notificationStore'
 
-export function NotificationBell() {
+export function NotificationBell({
+  compact = false,
+  className = '',
+  buttonClassName = '',
+}: {
+  compact?: boolean
+  className?: string
+  buttonClassName?: string
+}) {
   const { notifications, unreadCount, load, markRead, markAllRead } = useNotificationStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -21,11 +29,13 @@ export function NotificationBell() {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={`relative ${className}`}>
       <button
         type="button"
         onClick={handleOpen}
-        className="relative p-2 text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100"
+        className={`relative text-surface-400 hover:text-surface-900 transition-colors rounded-lg hover:bg-surface-100 ${
+          compact ? 'w-8 h-8 inline-flex items-center justify-center p-0' : 'p-2'
+        } ${buttonClassName}`}
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (

@@ -70,5 +70,5 @@ jobs:
             logs/telemetry-trends.json
             logs/telemetry-trends-history.jsonl
             logs/preflight-history.jsonl
-            logs/pipeline-events.jsonl
+            logs/gate-run/pipeline-events.jsonl
           if-no-files-found: ignore

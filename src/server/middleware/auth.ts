@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
-import { getUserById, verifyToken } from '../services/auth.js'
+import { getOrCreateBypassUser, getUserById, verifyToken } from '../services/auth.js'
 import { sendError } from '../utils/http.js'
 
 export interface AuthRequest extends Request {
@@ -12,10 +12,15 @@ function isDevAuthBypassEnabled(): boolean {
   return ['1', 'true', 'yes', 'on'].includes(raw || '')
 }
 
+function getAuthMode(): 'disabled' | 'token' {
+  const raw = process.env.PIXFLOW_AUTH_MODE?.trim().toLowerCase()
+  if (raw === 'token' || raw === 'jwt' || raw === 'strict') return 'token'
+  return 'disabled'
+}
+
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  // Optional local bypass for rapid UI iteration (never enabled by default).
-  if (isDevAuthBypassEnabled()) {
-    req.user = { id: 1, email: 'dev@test.com', name: 'Dev User', role: 'admin' }
+  if (getAuthMode() === 'disabled' || isDevAuthBypassEnabled()) {
+    req.user = getOrCreateBypassUser()
     next()
     return
   }

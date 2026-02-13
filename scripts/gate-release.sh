@@ -21,9 +21,9 @@ run_step "Validate Playbooks" npm run validate:playbooks
 run_step "Typecheck" npm run lint
 run_step "Unit Tests" npm run test
 run_step "API Smoke" npm run smoke:api
-run_step "Desktop Journey Smoke" npm run smoke:desktop:journey
+run_step "Journey Smoke" npm run smoke:journey
 run_step "External Smoke (Mock)" npm run smoke:external
-run_step "Desktop Build" npm run build
+run_step "Web Build" npm run build
 
 run_step "Telemetry Report (TXT)" npm run telemetry:report -- --file "$EVENTS_FILE" --out telemetry-report.txt
 run_step "Telemetry Report (JSON)" npm run telemetry:report:json -- --file "$EVENTS_FILE" --out telemetry-report.json

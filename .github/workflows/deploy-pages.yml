@@ -1,0 +1,62 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/renderer/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.web.config.ts'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+    inputs:
+      preview:
+        description: 'Deploy preview branch instead of production'
+        required: false
+        default: false
+        type: boolean
+      preview_branch:
+        description: 'Preview branch name (used when preview=true)'
+        required: false
+        default: 'staging'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build:web
+
+      - name: Deploy Production
+        if: github.event_name == 'push' || github.event.inputs.preview != 'true'
+        run: npx wrangler pages deploy dist/web --project-name "${CF_PAGES_PROJECT:-pixflow-web}"
+
+      - name: Deploy Preview
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.preview == 'true'
+        run: |
+          branch="${{ github.event.inputs.preview_branch }}"
+          npx wrangler pages deploy dist/web --project-name "${CF_PAGES_PROJECT:-pixflow-web}" --branch "$branch"

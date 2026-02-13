@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Pixflow Desktop Launcher
-# This script launches the Pixflow Electron app in development mode
+# Pixflow Web Launcher
+# This script launches Pixflow web development mode (API + UI)
 
 cd "$(dirname "$0")"
 
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
-    echo "📦 Installing dependencies..."
+    echo "Installing dependencies..."
     npm install
 fi
 
 # Launch the app
-echo "🚀 Starting Pixflow..."
+echo "Starting Pixflow web dev..."
 npm run dev

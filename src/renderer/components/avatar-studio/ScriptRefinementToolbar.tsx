@@ -1,4 +1,5 @@
 import { Redo, Undo } from 'lucide-react'
+import { Button } from '../ui/Button'
 
 interface ScriptRefinementToolbarProps {
   onImprove: () => void
@@ -28,59 +29,39 @@ export function ScriptRefinementToolbar({
   onTargetDurationChange,
 }: ScriptRefinementToolbarProps) {
   return (
-    <div className="flex items-center justify-between text-xs">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onImprove}
-          disabled={isGenerating}
-          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-        >
-          Improved
-        </button>
-        <button
-          type="button"
-          onClick={onShorter}
-          disabled={isGenerating}
-          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-        >
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onImprove} disabled={isGenerating}>
+          Improve
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onShorter} disabled={isGenerating}>
           Shorter
-        </button>
-        <button
-          type="button"
-          onClick={onLonger}
-          disabled={isGenerating}
-          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-        >
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onLonger} disabled={isGenerating}>
           Longer
-        </button>
-        <div className="w-px h-4 bg-surface-300" />
-        <div className="flex items-center gap-1 px-3 py-1.5 rounded bg-surface-200 text-surface-900">
+        </Button>
+        <div className="w-px h-5 bg-surface-200" />
+        <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-surface-100 text-surface-900">
           <input
             type="number"
             value={targetDuration}
             onChange={(e) => onTargetDurationChange(Number(e.target.value))}
             min={5}
             max={120}
-            className="w-8 bg-transparent text-surface-900 outline-none"
+            className="w-10 bg-transparent text-surface-900 outline-none text-xs"
           />
-          <span>sec.</span>
+          <span>sec</span>
         </div>
-        <button
-          type="button"
-          onClick={() => onDuration(targetDuration)}
-          disabled={isGenerating}
-          className="px-3 py-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-900 disabled:opacity-50"
-        >
+        <Button variant="ghost" size="sm" onClick={() => onDuration(targetDuration)} disabled={isGenerating}>
           Duration
-        </button>
+        </Button>
       </div>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onUndo}
           disabled={!canUndo}
-          className="p-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="w-8 h-8 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center"
           title="Undo"
         >
           <Undo className="w-4 h-4" />
@@ -89,7 +70,7 @@ export function ScriptRefinementToolbar({
           type="button"
           onClick={onRedo}
           disabled={!canRedo}
-          className="p-1.5 rounded bg-surface-200 hover:bg-surface-300 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="w-8 h-8 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-600 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center"
           title="Redo"
         >
           <Redo className="w-4 h-4" />

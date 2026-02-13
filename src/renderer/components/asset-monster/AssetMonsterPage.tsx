@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Download,
   FileJson,
+  FileText,
   Film,
   FolderOpen,
   Image,
@@ -130,7 +131,7 @@ async function convertTextToPrompt(
     const res = await authFetch(apiUrl('/api/prompts/text-to-json'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, preserveOriginal: true }),
     })
     if (!res.ok) {
       const raw = await res.json().catch(() => ({}))
@@ -208,6 +209,7 @@ export default function AssetMonsterPage() {
     updateCurrentCustomPromptInput,
     setCurrentCustomPromptError,
     saveCurrentCustomPrompt,
+    removeSavedCustomPrompt,
     setImageSource,
     setAspectRatio,
     setNumImagesPerPrompt,
@@ -234,11 +236,21 @@ export default function AssetMonsterPage() {
   const { navigate } = useNavigationStore()
   const { rateImage: rateImageInStore } = useImageRatingsStore()
   const { favorites, loadAll: loadHistory, addToFavorites } = useHistoryStore()
+  const curatedAvatars = avatars.filter((avatar) => avatar.url.startsWith('/avatars/'))
 
   const [batchImageIds, setBatchImageIds] = useState<Map<number, number>>(new Map())
   const [selectedLibraryPrompts] = useState<Set<string>>(new Set())
   const [selectedCustomPrompts, setSelectedCustomPrompts] = useState<Set<string>>(new Set())
   const [customPromptSaved, setCustomPromptSaved] = useState(false)
+  const [customPromptSaving, setCustomPromptSaving] = useState(false)
+  const [customPromptConverting, setCustomPromptConverting] = useState(false)
+  const [customPromptImporting, setCustomPromptImporting] = useState(false)
+  const [customPromptImportProgress, setCustomPromptImportProgress] = useState<{
+    completed: number
+    total: number
+  } | null>(null)
+  const customPromptFileRef = useRef<HTMLInputElement | null>(null)
+  const IMPORT_CONCURRENCY = 4
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
@@ -485,30 +497,154 @@ export default function AssetMonsterPage() {
               <div className="border border-surface-200 rounded-lg p-4 bg-surface-100">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-surface-600">New Custom Prompt</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const parsed = await parseCustomPrompt(currentCustomPromptInput, 1, setCurrentCustomPromptError)
-                      if (parsed?.[0]) {
-                        const prompt = parsed[0]
-                        const name = `${savedCustomPrompts.length + 1}`
-                        await addToFavorites(prompt, name, 'custom')
-                        saveCurrentCustomPrompt(prompt, name)
-                        setCustomPromptSaved(true)
-                        setTimeout(() => setCustomPromptSaved(false), 2000)
-                      }
-                    }}
-                    disabled={!currentCustomPromptInput.trim() || customPromptSaved}
-                    className={
-                      customPromptSaved
-                        ? 'text-brand-500 transition-colors disabled:opacity-100'
-                        : 'text-secondary-600 hover:text-secondary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
-                    }
-                    title="Save to Library & Add Card"
-                  >
-                    {customPromptSaved ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<FileText className="w-4 h-4" />}
+                      loading={customPromptImporting}
+                      onClick={() => customPromptFileRef.current?.click()}
+                      disabled={customPromptImporting}
+                      title="Fetch from text file"
+                    >
+                      {customPromptImporting ? 'Importing...' : 'Fetch File'}
+                    </Button>
+                    <Button
+                      variant={customPromptSaved ? 'lime' : 'secondary'}
+                      size="sm"
+                      loading={customPromptSaving}
+                      icon={customPromptSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                      onClick={async () => {
+                        if (customPromptSaving) return
+                        const trimmed = currentCustomPromptInput.trim()
+                        const needsConversion = !(trimmed.startsWith('{') && trimmed.endsWith('}'))
+                        setCustomPromptSaving(true)
+                        setCustomPromptConverting(needsConversion)
+                        const parsed = await parseCustomPrompt(currentCustomPromptInput, 1, setCurrentCustomPromptError)
+                        setCustomPromptConverting(false)
+                        if (parsed?.[0]) {
+                          const prompt = parsed[0]
+                          const name = `${savedCustomPrompts.length + 1}`
+                          await addToFavorites(prompt, name, 'custom')
+                          const id = saveCurrentCustomPrompt(prompt, name)
+                          setSelectedCustomPrompts((prev) => {
+                            const next = new Set(prev)
+                            next.add(id)
+                            return next
+                          })
+                          setCustomPromptSaved(true)
+                          setTimeout(() => setCustomPromptSaved(false), 2000)
+                        }
+                        setCustomPromptSaving(false)
+                      }}
+                      disabled={!currentCustomPromptInput.trim() || customPromptSaved || customPromptSaving}
+                      title="Save to Library & Add Card"
+                    >
+                      {customPromptSaved ? 'Saved!' : customPromptSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                  </div>
                 </div>
+                <input
+                  ref={customPromptFileRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  className="hidden"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0]
+                    if (!file) return
+                    event.target.value = ''
+                    setCurrentCustomPromptError(null)
+                    try {
+                      const content = await file.text()
+                      const blockPattern = /(?:^|\n)\s*(?:---\s*)?prompt\s*\d+\s*(?:---)?\s*\n?/gi
+                      const segments: string[] = []
+                      let lastIndex = 0
+                      for (;;) {
+                        const match = blockPattern.exec(content)
+                        if (!match) break
+                        if (match.index >= lastIndex) {
+                          const before = content.slice(lastIndex, match.index).trim()
+                          if (before) segments.push(before)
+                        }
+                        lastIndex = blockPattern.lastIndex
+                      }
+                      const after = content.slice(lastIndex).trim()
+                      if (after) segments.push(after)
+
+                      const blockEntries = segments
+                        .map((block) => {
+                          const trimmed = block.trim()
+                          const unquoted =
+                            trimmed.startsWith('"') && trimmed.endsWith('"') ? trimmed.slice(1, -1).trim() : trimmed
+                          return unquoted
+                        })
+                        .filter(Boolean)
+                      const lineEntries = content
+                        .split(/\r?\n/)
+                        .map((line) =>
+                          line
+                            .trim()
+                            .replace(/^prompt\s*\d+\s*[:–.)-]?\s*/i, '')
+                            .trim(),
+                        )
+                        .filter(Boolean)
+
+                      const paragraphEntries = content
+                        .split(/\r?\n\s*\r?\n/)
+                        .map((block) => block.trim())
+                        .filter(Boolean)
+
+                      const entries = (
+                        blockEntries.length > 0
+                          ? blockEntries
+                          : paragraphEntries.length > 0
+                            ? paragraphEntries
+                            : lineEntries
+                      ).slice(0, 10)
+                      if (entries.length === 0) {
+                        setCurrentCustomPromptError('No prompts found in file')
+                        return
+                      }
+                      setCustomPromptImporting(true)
+                      setCustomPromptImportProgress({ completed: 0, total: entries.length })
+                      const baseIndex = savedCustomPrompts.length
+                      let completed = 0
+                      const queue = entries.map((text, index) => ({ text, index }))
+                      const worker = async () => {
+                        while (queue.length > 0) {
+                          const next = queue.shift()
+                          if (!next) return
+                          const parsed = await convertTextToPrompt(next.text, setCurrentCustomPromptError)
+                          if (parsed) {
+                            const name = `${baseIndex + next.index + 1}`
+                            await addToFavorites(parsed, name, 'custom')
+                            const id = saveCurrentCustomPrompt(parsed, name)
+                            setSelectedCustomPrompts((prev) => {
+                              const updated = new Set(prev)
+                              updated.add(id)
+                              return updated
+                            })
+                          }
+                          completed += 1
+                          setCustomPromptImportProgress({ completed, total: entries.length })
+                        }
+                      }
+                      const workerCount = Math.min(IMPORT_CONCURRENCY, queue.length)
+                      await Promise.all(Array.from({ length: workerCount }, () => worker()))
+                    } finally {
+                      setCustomPromptImporting(false)
+                      setTimeout(() => setCustomPromptImportProgress(null), 1200)
+                    }
+                  }}
+                />
+                {customPromptImportProgress && (
+                  <p className="text-xs text-surface-500 mb-2">
+                    Importing prompts… {customPromptImportProgress.completed}/{customPromptImportProgress.total}
+                  </p>
+                )}
+                {customPromptSaving && customPromptConverting && (
+                  <p className="text-xs text-surface-500 mb-2">Converting prompt…</p>
+                )}
                 <textarea
                   value={currentCustomPromptInput}
                   onChange={(e) => updateCurrentCustomPromptInput(e.target.value)}
@@ -554,6 +690,15 @@ Examples:
                     }}
                     renderContent={(id) => savedCustomPrompts.find((sp) => sp.id === id)?.name || ''}
                     getKey={(id) => id}
+                    onRemove={(id) => {
+                      removeSavedCustomPrompt(id)
+                      setSelectedCustomPrompts((prev) => {
+                        const next = new Set(prev)
+                        next.delete(id)
+                        return next
+                      })
+                    }}
+                    removeLabel={(id) => `Remove ${savedCustomPrompts.find((sp) => sp.id === id)?.name ?? 'prompt'}`}
                   />
                 </div>
               )}
@@ -574,7 +719,7 @@ Examples:
                 id: 'gallery' as const,
                 label: 'Gallery',
                 icon: <FolderOpen className="w-4 h-4" />,
-                badge: avatars.length > 0 ? <span>({avatars.length})</span> : undefined,
+                badge: curatedAvatars.length > 0 ? <span>({curatedAvatars.length})</span> : undefined,
               },
               { id: 'upload' as const, label: 'Upload', icon: <Upload className="w-4 h-4" /> },
             ]}
@@ -586,7 +731,7 @@ Examples:
             <div className="border border-surface-200 rounded-lg p-3">
               {avatarsLoading ? (
                 <LoadingState title="Loading avatars..." size="sm" />
-              ) : avatars.length === 0 ? (
+              ) : curatedAvatars.length === 0 ? (
                 <EmptyState
                   title="No avatars in gallery"
                   description="Add images to avatars/ folder"
@@ -594,7 +739,7 @@ Examples:
                 />
               ) : (
                 <div className="flex gap-2 overflow-x-auto pb-2">
-                  {avatars.map((avatar) => {
+                  {curatedAvatars.map((avatar) => {
                     const isSelected = referenceImages.some((f) => f.name === avatar.filename)
                     return (
                       <button

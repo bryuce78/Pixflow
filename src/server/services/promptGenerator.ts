@@ -35,6 +35,39 @@ function safeJsonParse<T>(content: string, fallback: T): T {
   }
 }
 
+const REFERENCE_PROMPT_PREFIX =
+  'Using the provided reference image, preserve identity, facial structure, age, expression, and subject count exactly. Do not add or replace people.'
+
+const REFERENCE_HAIR_RULE =
+  'Match reference hair length and overall style exactly; do not change cut or introduce a new hairstyle.'
+
+function ensureReferenceStylePrefix(style?: string): string {
+  const normalized = (style || '').trim()
+  if (!normalized) return REFERENCE_PROMPT_PREFIX
+  if (/reference image|provided reference|source image|input image/i.test(normalized)) return normalized
+  return `${REFERENCE_PROMPT_PREFIX} ${normalized}`.trim()
+}
+
+function enforceReferenceDrivenPrompt(prompt: PromptOutput): PromptOutput {
+  const hairstyle = prompt.hairstyle || { style: '', parting: '', details: '', finish: '' }
+  const normalizedHairStyle = (hairstyle.style || '').trim()
+  const mergedHairStyle =
+    normalizedHairStyle.length > 0 && /match reference|reference hair|same hair/i.test(normalizedHairStyle)
+      ? normalizedHairStyle
+      : normalizedHairStyle.length > 0
+        ? `${REFERENCE_HAIR_RULE} ${normalizedHairStyle}`.trim()
+        : REFERENCE_HAIR_RULE
+
+  return {
+    ...prompt,
+    style: ensureReferenceStylePrefix(prompt.style),
+    hairstyle: {
+      ...hairstyle,
+      style: mergedHairStyle,
+    },
+  }
+}
+
 const CREATIVE_DIRECTOR_KNOWLEDGE = `
 ## VISUAL VOCABULARY - Use specific terms, not generic descriptions
 
@@ -181,10 +214,10 @@ const PROMPT_SCHEMA_EXAMPLE = `{
   },
 
   "hairstyle": {
-    "style": "Shape and texture without color — e.g., 'Long loose waves with natural movement and body, effortless beach texture as if air-dried after ocean swim, face-framing layers starting at chin'",
-    "parting": "Parting detail — e.g., 'Deep side part on left, hair sweeping across forehead with natural swoop, exposing right ear and elegant earring'",
-    "details": "Specific styling elements — e.g., 'Subtle natural-looking highlights catching the sunlight, lived-in texture with slight frizz suggesting humidity, a few strands catching breeze across face'",
-    "finish": "Overall hair quality — e.g., 'Healthy shine without looking overdone, touchable texture, natural movement, no stiffness or product buildup visible'"
+    "style": "Match reference hair length and style exactly — do NOT introduce new length or cut (e.g., 'Match reference hair length and overall style')",
+    "parting": "Only if clearly visible in reference; otherwise 'match reference' or ''",
+    "details": "Only accessories or styling details visible in reference; otherwise 'none'",
+    "finish": "If visible, describe finish (sleek/tousled) without changing length; otherwise ''"
   },
 
   "makeup": {
@@ -325,14 +358,14 @@ export async function generateSinglePrompt(
 
   if (batch.length === 0) {
     // Fallback if generation fails
-    return createFallbackPrompt(subTheme, concept)
+    return enforceReferenceDrivenPrompt(createFallbackPrompt(subTheme, concept))
   }
 
-  return {
+  return enforceReferenceDrivenPrompt({
     ...batch[0],
     sub_theme: subTheme.name,
     aesthetic: subTheme.aesthetic,
-  }
+  })
 }
 
 export async function generatePrompts(
@@ -346,45 +379,50 @@ export async function generatePrompts(
   const subThemesToUse = distributeSubThemes(researchBrief.sub_themes, count)
   const SINGLE_PROMPT_TIMEOUT = 60000 // 60 second timeout per individual prompt
 
-  console.log(`[generatePrompts] Starting PARALLEL generation for ${count} prompts`)
+  const concurrencyLimit = Math.min(10, count)
+  console.log(`[generatePrompts] Starting PARALLEL generation for ${count} prompts (concurrency=${concurrencyLimit})`)
 
-  // Generate all prompts in parallel
-  const promptPromises = subThemesToUse.map(async (theme, index) => {
-    const singlePromptPromise = generateSinglePromptWithTheme(
-      client,
-      concept,
-      theme,
-      researchBrief,
-      index,
-      imageInsights,
-      count,
-    )
-    const timeoutPromise = new Promise<PromptOutput>((_, reject) =>
-      setTimeout(() => reject(new Error(`Prompt ${index + 1} timeout after 60s`)), SINGLE_PROMPT_TIMEOUT),
-    )
+  const prompts: PromptOutput[] = Array.from({ length: count })
+  const queue = subThemesToUse.map((theme, index) => ({ theme, index }))
+  let completed = 0
 
-    try {
-      const prompt = await Promise.race([singlePromptPromise, timeoutPromise])
-      console.log(`[generatePrompts] Prompt ${index + 1}/${count} complete`)
+  const worker = async () => {
+    while (queue.length > 0) {
+      const next = queue.shift()
+      if (!next) return
+      const { theme, index } = next
 
-      // Report progress after each completion
-      onBatchDone?.(index + 1, count)
+      const singlePromptPromise = generateSinglePromptWithTheme(
+        client,
+        concept,
+        theme,
+        researchBrief,
+        index,
+        imageInsights,
+        count,
+      )
+      const timeoutPromise = new Promise<PromptOutput>((_, reject) =>
+        setTimeout(() => reject(new Error(`Prompt ${index + 1} timeout after 60s`)), SINGLE_PROMPT_TIMEOUT),
+      )
 
-      return prompt
-    } catch (error) {
-      console.error(`[generatePrompts] Prompt ${index + 1} failed:`, error)
-      // Use fallback prompt for this individual failure
-      const fallbackPrompt = createFallbackPrompt(theme, concept)
-      console.log(`[generatePrompts] Using fallback for prompt ${index + 1}`)
-
-      onBatchDone?.(index + 1, count)
-
-      return fallbackPrompt
+      try {
+        const prompt = await Promise.race([singlePromptPromise, timeoutPromise])
+        prompts[index] = enforceReferenceDrivenPrompt(prompt)
+        console.log(`[generatePrompts] Prompt ${index + 1}/${count} complete`)
+      } catch (error) {
+        console.error(`[generatePrompts] Prompt ${index + 1} failed:`, error)
+        const fallbackPrompt = enforceReferenceDrivenPrompt(createFallbackPrompt(theme, concept))
+        console.log(`[generatePrompts] Using fallback for prompt ${index + 1}`)
+        prompts[index] = fallbackPrompt
+      } finally {
+        completed += 1
+        onBatchDone?.(completed, count)
+      }
     }
-  })
+  }
 
-  // Wait for all prompts to complete
-  const prompts = await Promise.all(promptPromises)
+  const workerCount = Math.min(concurrencyLimit, queue.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
 
   console.log(`[generatePrompts] PARALLEL generation complete, total: ${prompts.length} prompts`)
   const varietyScore = calculateVarietyScore(prompts)
@@ -438,6 +476,8 @@ ${CREATIVE_DIRECTOR_KNOWLEDGE}
 4. NEVER mention: body type, weight, beauty, skinny, curvy, slim, fit, attractive, perfect body
 5. NEVER mention: age descriptors (young, mature, youthful), skin color, ethnicity, race
 6. NEVER mention hair COLOR - only style/texture (comes from reference photo)
+6.5. HAIR MUST MATCH REFERENCE - do NOT change length, cut, or overall style. If unknown, set hairstyle fields to "match reference" or leave empty. Avoid mentioning hair in the style field.
+6.5. HAIR MUST MATCH REFERENCE - do NOT change length, cut, or overall style. If unknown, set hairstyle fields to "match reference" or leave empty. Avoid mentioning hair in the style field.
 7. NO gender/appearance sections in JSON
 
 ### Pose & Expression
@@ -511,9 +551,9 @@ Return a JSON object with this EXACT structure (all fields are nested objects):
     "atmosphere": "Overall environment feel, depth, spatial quality, ambient details"
   },
   "hairstyle": {
-    "style": "Hair arrangement, structure, volume (pulled back, loose waves, updo, etc.)",
-    "texture": "Hair quality, finish, movement (sleek, tousled, windswept, etc.)",
-    "accessories": "Hair accessories if any (clip, scarf, etc.) or 'none'"
+    "style": "Match reference hair length and style exactly — do NOT introduce new length or cut",
+    "texture": "Only if visible in reference; otherwise ''",
+    "accessories": "Only if visible in reference; otherwise 'none'"
   },
   "effects": {
     "color_grade": "Color treatment: tone (warm/cool), saturation level, contrast approach",
@@ -602,10 +642,10 @@ Return as JSON with the exact structure specified in the system prompt.`
       console.warn(`[Prompt ${index + 1}] Quality issue: ${outfitCheck.reason}`)
     }
 
-    return parsed
+    return enforceReferenceDrivenPrompt(parsed)
   } catch (error) {
     console.error(`[generateSinglePrompt] Failed for prompt ${index + 1}:`, error)
-    return fallbackPrompt
+    return enforceReferenceDrivenPrompt(fallbackPrompt)
   }
 }
 
@@ -797,7 +837,7 @@ Create variations blending this reference style with the concept. Do NOT copy th
     if (!content) return fallbackPrompts
 
     const parsed = safeJsonParse<{ prompts?: PromptOutput[] }>(content, { prompts: fallbackPrompts })
-    const generatedPrompts = parsed.prompts ?? fallbackPrompts
+    const generatedPrompts = (parsed.prompts ?? fallbackPrompts).map((prompt) => enforceReferenceDrivenPrompt(prompt))
 
     // Quality gate: Check for vague language
     const qualityIssues: string[] = []
@@ -823,7 +863,7 @@ Create variations blending this reference style with the concept. Do NOT copy th
     return generatedPrompts
   } catch (error) {
     console.error('[Prompts] Batch generation failed:', error)
-    return fallbackPrompts
+    return fallbackPrompts.map((prompt) => enforceReferenceDrivenPrompt(prompt))
   }
 }
 
@@ -879,7 +919,7 @@ export async function textToPrompt(textDescription: string, preserveOriginal = f
   // If preserveOriginal, use text as-is in style field with minimal structure
   if (preserveOriginal) {
     console.log(`[TextToPrompt] Using as-is (preserveOriginal=true)`)
-    return {
+    return enforceReferenceDrivenPrompt({
       style: textDescription.trim(),
       pose: { framing: '', body_position: '', arms: '', posture: '', expression: { facial: '', eyes: '', mouth: '' } },
       lighting: { setup: '', key_light: '', fill_light: '', shadows: '', mood: '' },
@@ -889,7 +929,7 @@ export async function textToPrompt(textDescription: string, preserveOriginal = f
       hairstyle: { style: '', parting: '', details: '', finish: '' },
       makeup: { style: '', skin: '', eyes: '', lips: '' },
       effects: { color_grade: '', grain: '' },
-    }
+    })
   }
 
   const client = await getOpenAI()
@@ -906,6 +946,7 @@ ${CREATIVE_DIRECTOR_KNOWLEDGE}
 - NEVER: body type, weight, beauty, skinny, curvy, slim, fit, attractive, perfect body
 - NEVER: age descriptors (young, mature, youthful), skin color, ethnicity, race
 - NEVER: hair COLOR - only style/texture (comes from reference photo)
+- HAIR MUST MATCH REFERENCE - do NOT change length, cut, or overall style. If unknown, set hairstyle fields to "match reference" or leave empty. Avoid mentioning hair in the style field.
 - BANNED WORDS: gorgeous, perfect, flawless, stunning, breathtaking
 
 ### REQUIRED - Detail Levels
@@ -977,5 +1018,5 @@ Return only the JSON object.`,
 
   console.log(`[TextToPrompt] Generated style: "${parsed.style?.substring(0, 50)}..."`)
 
-  return parsed
+  return enforceReferenceDrivenPrompt(parsed)
 }

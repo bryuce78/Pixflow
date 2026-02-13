@@ -69,7 +69,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
     },
   })
 
-  const MAX_REFERENCE_IMAGES = 4
+  const MAX_REFERENCE_IMAGES = 5
 
   router.post('/batch', upload.array('referenceImages', MAX_REFERENCE_IMAGES), async (req: AuthRequest, res) => {
     let span: ReturnType<typeof createPipelineSpan> | null = null
@@ -141,7 +141,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       job.prompts = prompts
 
       const referenceImageUrls = files.map((file) => `file://${file.path}`)
-      const textPrompts = prompts.map((p) => formatPromptForFal(p))
+      const textPrompts = prompts.map((p) => formatPromptForFal(p, { referenceImageCount: files.length }))
 
       console.log(
         `[Batch] Starting with ${files.length} reference image(s), ${aspectRatio}, ${resolution}, ${numImages} images/prompt`,

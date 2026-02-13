@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { createTables, seedProducts } from './schema.js'
+import { createTables, seedCaptionPresets, seedProducts } from './schema.js'
 
 let db: Database.Database | null = null
 
@@ -17,6 +17,7 @@ export function initDatabase(dataDir: string): Database.Database {
 
   createTables(db)
   seedProducts(db)
+  seedCaptionPresets(db)
 
   return db
 }

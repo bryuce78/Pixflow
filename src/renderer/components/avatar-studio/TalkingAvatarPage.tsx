@@ -1,17 +1,17 @@
-import { AlertCircle, CheckCircle, Download, Loader2, Mic, Upload, Video, Volume2, Wand2, XCircle } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { AlertCircle, CheckCircle, Download, Link, Loader2, Upload, Video, Volume2, Wand2 } from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import type { ScriptTone } from '../../stores/avatarStore'
-import { useAvatarStore } from '../../stores/avatarStore'
+import { TALKING_AVATAR_LANGUAGE_CARDS, useAvatarStore } from '../../stores/avatarStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { AudioPlayer } from '../ui/AudioPlayer'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingState } from '../ui/LoadingState'
 import { SegmentedTabs } from '../ui/navigation/SegmentedTabs'
+import { ProgressBar } from '../ui/ProgressBar'
 import { Select } from '../ui/Select'
-import { StatusPill } from '../ui/StatusPill'
 import { Textarea } from '../ui/Textarea'
 import { ScriptRefinementToolbar } from './ScriptRefinementToolbar'
 import { AvatarSelectionCard } from './shared/AvatarSelectionCard'
@@ -27,14 +27,18 @@ const TONE_OPTIONS = [
 interface TalkingAvatarPageProps {
   fullSizeAvatarUrl: string | null
   setFullSizeAvatarUrl: (url: string | null) => void
+  modeTabs?: ReactNode
 }
 
-export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPageProps) {
+export function TalkingAvatarPage({ setFullSizeAvatarUrl, modeTabs }: TalkingAvatarPageProps) {
   const videoFileInputRef = useRef<HTMLInputElement>(null)
   const [videoSource, setVideoSource] = useState<'url' | 'upload'>('url')
   const [videoUrl, setVideoUrl] = useState('')
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [uploadedAudioFile, setUploadedAudioFile] = useState<File | null>(null)
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null)
+  const [audioUploadProgress, setAudioUploadProgress] = useState(0)
+  const [audioUploadDone, setAudioUploadDone] = useState(false)
   const [showVariationOptions, setShowVariationOptions] = useState(false)
   const [targetDuration, setTargetDuration] = useState(30)
 
@@ -52,15 +56,18 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
     voices,
     voicesLoading,
     selectedVoice,
-    ttsGenerating,
     audioUploading,
-    generatedAudioUrl,
     lipsyncGenerating,
-    lipsyncJob,
-    generatedVideoUrl,
     scriptMode,
     transcribingVideo,
     transcriptionError,
+    autoDetectLanguage,
+    detectedLanguage,
+    translationLanguages,
+    translatedScripts,
+    translatedVideos,
+    translationGenerating,
+    translationError,
     setScriptConcept,
     setScriptDuration,
     setScriptTone,
@@ -72,15 +79,46 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
     refineScript,
     undoScript,
     redoScript,
-    generateTTS,
     uploadAudio,
-    createLipsync,
     transcribeVideo: transcribeVideoFromStore,
+    toggleTranslationLanguage,
+    setAutoDetectLanguage,
+    clearTranslations,
+    generateTalkingAvatarVideosBatch,
   } = useAvatarStore()
 
   useEffect(() => {
     loadVoices()
   }, [loadVoices])
+
+  useEffect(() => {
+    if (!uploadedAudioFile) {
+      setAudioUploadProgress(0)
+      setAudioUploadDone(false)
+      return
+    }
+    if (!audioUploading) return
+
+    setAudioUploadDone(false)
+    setAudioUploadProgress((prev) => (prev > 0 && prev < 95 ? prev : 8))
+    const timer = window.setInterval(() => {
+      setAudioUploadProgress((prev) => {
+        if (prev >= 92) return prev
+        return Math.min(92, prev + Math.max(2, Math.floor(Math.random() * 7)))
+      })
+    }, 220)
+
+    return () => window.clearInterval(timer)
+  }, [audioUploading, uploadedAudioFile])
+
+  useEffect(() => {
+    if (!uploadedAudioFile) return
+    if (audioUploading) return
+    if (uploadedAudioUrl) {
+      setAudioUploadProgress(100)
+      setAudioUploadDone(true)
+    }
+  }, [audioUploading, uploadedAudioFile, uploadedAudioUrl])
 
   const handleRefineScript = async (type: 'improved' | 'shorter' | 'longer') => {
     const prompts = {
@@ -95,24 +133,38 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
     await transcribeVideoFromStore(url)
   }
 
+  const handleAudioFileSelected = async (file: File) => {
+    setUploadedAudioFile(file)
+    setUploadedAudioUrl(null)
+    setAudioUploadProgress(5)
+    setAudioUploadDone(false)
+    const uploadedUrl = await uploadAudio(file)
+    if (uploadedUrl) {
+      setUploadedAudioUrl(uploadedUrl)
+      await transcribeVideo(uploadedUrl)
+    }
+  }
+
   const scriptModeTabs: {
     id: 'existing' | 'audio' | 'fetch' | 'generate'
     label: string
   }[] = [
     { id: 'existing', label: 'Have a Script' },
     { id: 'audio', label: 'Have an Audio' },
-    { id: 'fetch', label: 'Transcript from Media' },
+    { id: 'fetch', label: 'Transcript Media' },
     { id: 'generate', label: 'Generate New' },
   ]
-  const videoSourceTabs: { id: 'url' | 'upload'; label: string }[] = [
-    { id: 'url', label: 'Video URL' },
-    { id: 'upload', label: 'Upload File' },
+  const videoSourceTabs: { id: 'url' | 'upload'; label: string; icon: JSX.Element }[] = [
+    { id: 'url', label: 'Video URL', icon: <Link className="w-4 h-4" /> },
+    { id: 'upload', label: 'Upload File', icon: <Upload className="w-4 h-4" /> },
   ]
+  const hasSelectedAvatar = Boolean((generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '').trim())
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* Left Column: Inputs (Avatar + Script + TTS) */}
       <div className="space-y-6">
+        {modeTabs && <div className="bg-surface-50 rounded-lg p-4">{modeTabs}</div>}
         {/* Step 1: Avatar Selection */}
         <AvatarSelectionCard stepNumber={1} subtitle="(Optional)" showGenerateOptions={true} />
 
@@ -163,13 +215,9 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
               <div className="flex items-center justify-between">
                 <span className="text-sm text-surface-400">Your Script</span>
                 {generatedScript && !scriptGenerating && (
-                  <button
-                    type="button"
-                    onClick={() => setShowVariationOptions(!showVariationOptions)}
-                    className="text-xs text-brand-400 hover:text-brand-300"
-                  >
-                    Improve Script
-                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowVariationOptions(!showVariationOptions)}>
+                    Improve
+                  </Button>
                 )}
               </div>
               {showVariationOptions && generatedScript && (
@@ -341,13 +389,13 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
                     <span className="text-sm text-surface-400">Script</span>
                     <div className="flex items-center gap-2">
                       {!scriptGenerating && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setShowVariationOptions(!showVariationOptions)}
-                          className="text-xs text-brand-400 hover:text-brand-300"
                         >
-                          Improve Script
-                        </button>
+                          Improve
+                        </Button>
                       )}
                       <button
                         type="button"
@@ -414,8 +462,9 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (file) {
-                        setUploadedAudioFile(file)
+                        void handleAudioFileSelected(file)
                       }
+                      e.currentTarget.value = ''
                     }}
                   />
                   <Button
@@ -437,23 +486,89 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
                     </div>
                     <button
                       type="button"
-                      onClick={() => setUploadedAudioFile(null)}
+                      onClick={() => {
+                        setUploadedAudioFile(null)
+                        setUploadedAudioUrl(null)
+                        setAudioUploadProgress(0)
+                        setAudioUploadDone(false)
+                      }}
                       className="text-xs text-surface-400 hover:text-surface-300"
                     >
                       Remove
                     </button>
                   </div>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    icon={audioUploading ? undefined : <Upload className="w-4 h-4" />}
-                    loading={audioUploading}
-                    onClick={() => uploadAudio(uploadedAudioFile)}
-                    disabled={audioUploading}
-                    className="w-full"
-                  >
-                    {audioUploading ? 'Uploading...' : 'Upload Audio'}
-                  </Button>
+                  <div className="p-3 bg-surface-100 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between text-xs text-surface-400">
+                      <span className="flex items-center gap-2">
+                        {audioUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {audioUploading ? 'Uploading automatically...' : audioUploadDone ? 'Upload completed' : 'Ready'}
+                      </span>
+                      <span>{Math.round(audioUploadProgress)}%</span>
+                    </div>
+                    <ProgressBar value={audioUploadProgress} />
+                    {audioUploadDone && (
+                      <div className="text-xs text-success flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Audio uploaded successfully.
+                      </div>
+                    )}
+                  </div>
+                  {uploadedAudioUrl && (
+                    <div className="p-3 bg-surface-100 rounded-lg">
+                      <p className="text-xs text-surface-400 mb-2">Uploaded Audio Preview</p>
+                      <AudioPlayer src={assetUrl(uploadedAudioUrl)} />
+                    </div>
+                  )}
+                  {transcribingVideo && (
+                    <div className="p-3 bg-surface-100 rounded-lg text-xs text-surface-400 flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Transcribing audio to script...
+                    </div>
+                  )}
+                  {generatedScript && !transcribingVideo && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-surface-400">Transcribed Script</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowVariationOptions(!showVariationOptions)}
+                        >
+                          Improve
+                        </Button>
+                      </div>
+                      {showVariationOptions && (
+                        <ScriptRefinementToolbar
+                          onImprove={() => handleRefineScript('improved')}
+                          onShorter={() => handleRefineScript('shorter')}
+                          onLonger={() => handleRefineScript('longer')}
+                          onDuration={(duration) =>
+                            refineScript(
+                              `Adjust this script to be exactly ${duration} seconds long (approximately ${Math.round(duration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`,
+                              duration,
+                            )
+                          }
+                          onUndo={undoScript}
+                          onRedo={redoScript}
+                          isGenerating={scriptGenerating}
+                          canUndo={scriptHistoryIndex > 0}
+                          canRedo={scriptHistoryIndex < scriptHistory.length - 1}
+                          targetDuration={targetDuration}
+                          onTargetDurationChange={setTargetDuration}
+                        />
+                      )}
+                      <Textarea
+                        value={generatedScript}
+                        onChange={(e) => setGeneratedScript(e.target.value)}
+                        rows={6}
+                        disabled={scriptGenerating}
+                      />
+                      <p className="text-xs text-surface-400">
+                        {generatedScript.split(/\s+/).filter(Boolean).length} words (~
+                        {Math.ceil((generatedScript.split(/\s+/).filter(Boolean).length / 150) * 60)}s)
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -493,20 +608,16 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
                 disabled={!scriptConcept.trim() || scriptGenerating}
                 className="w-full"
               >
-                {scriptGenerating ? 'Generating Script...' : 'Generate Script'}
+                {scriptGenerating ? 'Generating Script...' : generatedScript ? 'Regenerate' : 'Generate Script'}
               </Button>
 
               {generatedScript && !scriptGenerating && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-surface-400">Generated Script</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowVariationOptions(!showVariationOptions)}
-                      className="text-xs text-brand-400 hover:text-brand-300"
-                    >
-                      Improve Script
-                    </button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowVariationOptions(!showVariationOptions)}>
+                      Improve
+                    </Button>
                   </div>
                   {showVariationOptions && (
                     <ScriptRefinementToolbar
@@ -544,122 +655,181 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl }: TalkingAvatarPagePro
           )}
         </div>
 
-        {/* Step 3: Text to Speech (conditional - only if not "Have an Audio" mode) */}
-        {scriptMode !== 'audio' && generatedScript && (
+        {generatedScript && (
           <div className="bg-surface-50 rounded-lg p-4">
-            <StepHeader stepNumber={3} title="Text to Speech" />
+            <StepHeader stepNumber={3} title="Languages" />
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-surface-400">Enable language cards (max 10).</p>
+              <button
+                type="button"
+                onClick={() => setAutoDetectLanguage(!autoDetectLanguage)}
+                className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                  autoDetectLanguage
+                    ? 'bg-brand-500/20 border-brand-500 text-brand-200'
+                    : 'border-surface-200 text-surface-400'
+                }`}
+              >
+                Auto-detect {autoDetectLanguage ? 'On' : 'Off'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {TALKING_AVATAR_LANGUAGE_CARDS.map((language) => {
+                const active = translationLanguages.includes(language.code)
+                const detected = detectedLanguage === language.code
+                return (
+                  <button
+                    key={language.code}
+                    type="button"
+                    onClick={() => toggleTranslationLanguage(language.code)}
+                    className={`px-3 py-2 rounded-lg text-xs border text-left transition-colors ${
+                      active
+                        ? 'bg-brand-500/20 border-brand-500 text-brand-200'
+                        : 'border-surface-200 text-surface-300 hover:text-surface-100 hover:border-surface-100'
+                    }`}
+                  >
+                    <div className="font-semibold">{language.code}</div>
+                    <div className="text-[10px] opacity-80">{language.label}</div>
+                    {detected && <div className="text-[10px] mt-1 text-brand-300">Auto detected</div>}
+                  </button>
+                )
+              })}
+            </div>
+            {translationError && (
+              <div className="mt-3 bg-danger-muted/50 border border-danger/40 p-3 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                  <p className="text-danger text-sm">{translationError.message}</p>
+                </div>
+              </div>
+            )}
+            {translatedScripts.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <Button variant="ghost" size="md" onClick={clearTranslations}>
+                  Clear
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
+        {generatedScript && (
+          <div className="bg-surface-50 rounded-lg p-4">
+            <StepHeader stepNumber={4} title="Voice" />
             <div className="space-y-4">
               {voicesLoading ? (
                 <LoadingState title="Loading voices..." size="sm" />
               ) : (
-                <Select
-                  label="Voice"
-                  value={selectedVoice || ''}
-                  onChange={(e) => setSelectedVoice(e.target.value)}
-                  options={voices.map((v) => ({ value: v.id, label: v.name }))}
-                />
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {voices.slice(0, 10).map((voice) => (
+                    <button
+                      key={voice.id}
+                      type="button"
+                      onClick={() => setSelectedVoice(voice.id)}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        selectedVoice === voice.id
+                          ? 'bg-brand-500/20 border-brand-500 text-brand-100'
+                          : 'border-surface-200 text-surface-300 hover:border-surface-100 hover:text-surface-100'
+                      }`}
+                    >
+                      <p className="text-xs font-semibold truncate">{voice.name}</p>
+                      <p className="text-[10px] opacity-80 mt-1 truncate">
+                        {voice.labels?.accent || voice.category || 'Voice'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
               )}
 
               <Button
-                variant="primary"
-                size="md"
-                icon={ttsGenerating ? undefined : <Mic className="w-4 h-4" />}
-                loading={ttsGenerating}
-                onClick={generateTTS}
-                disabled={!selectedVoice || ttsGenerating}
+                variant="success"
+                size="lg"
+                icon={translationGenerating || lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
+                loading={translationGenerating || lipsyncGenerating}
+                onClick={generateTalkingAvatarVideosBatch}
+                disabled={
+                  voicesLoading ||
+                  !selectedVoice ||
+                  translationLanguages.length === 0 ||
+                  !generatedScript.trim() ||
+                  !hasSelectedAvatar
+                }
                 className="w-full"
               >
-                {ttsGenerating ? 'Generating Audio...' : 'Generate Voice'}
+                {translationGenerating || lipsyncGenerating
+                  ? 'Generating...'
+                  : `Generate ${translationLanguages.length} Talking Avatar Videos`}
               </Button>
-
-              {generatedAudioUrl && (
-                <div className="p-3 bg-surface-100 rounded-lg">
-                  <p className="text-sm text-surface-400 mb-2">Generated Audio:</p>
-                  <AudioPlayer src={assetUrl(generatedAudioUrl)} />
-                </div>
+              {!hasSelectedAvatar && (
+                <p className="text-xs text-surface-400">
+                  Select an avatar first. This flow now generates video-only outputs.
+                </p>
               )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Right Column: Output (Lipsync Video) */}
+      {/* Right Column: Outputs */}
       <div className="space-y-6">
-        {/* Step 4: Lipsync Video */}
-        {generatedAudioUrl && (
-          <div className="bg-surface-50 rounded-lg p-4">
-            <StepHeader stepNumber={scriptMode === 'audio' ? 3 : 4} title="Create Talking Avatar Video" />
+        <div className="bg-surface-50 rounded-lg p-4 space-y-3">
+          <StepHeader stepNumber={5} title="Videos" />
+          {translatedScripts.length === 0 ? (
+            <p className="text-sm text-surface-400">Generated talking avatar videos will appear here.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {translatedScripts.map((entry) => {
+                const video = translatedVideos.find((item) => item.language === entry.language)
+                const hasVideo = Boolean(video?.videoUrl && /\.(mp4|mov|webm|m4v)$/i.test(video.videoUrl))
+                return (
+                  <div key={entry.language} className="bg-surface-0 border border-surface-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-surface-400">{entry.language}</span>
+                      {!video || video.status === 'queued' ? (
+                        <span className="text-xs text-surface-400">Queued</span>
+                      ) : null}
+                    </div>
 
-            <div className="space-y-4">
-              <Button
-                variant="success"
-                size="lg"
-                icon={lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
-                loading={lipsyncGenerating}
-                onClick={createLipsync}
-                disabled={!generatedAudioUrl || lipsyncGenerating}
-                className="w-full"
-              >
-                {lipsyncGenerating ? 'Creating Video...' : 'Create Talking Avatar Video'}
-              </Button>
-
-              {lipsyncJob && (
-                <div className="p-3 bg-surface-100 rounded-lg">
-                  <div className="flex items-center gap-2 text-sm">
-                  {lipsyncJob.status === 'pending' && (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-brand" />
-                      <StatusPill status="queued" size="sm" />
-                    </>
-                  )}
-                  {lipsyncJob.status === 'processing' && (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-brand" />
-                      <StatusPill
-                        status="processing"
-                        size="sm"
-                        label={`Processing (${lipsyncJob.progress || 0}%)`}
-                      />
-                    </>
-                  )}
-                  {lipsyncJob.status === 'completed' && (
-                    <>
-                      <CheckCircle className="w-4 h-4 text-success" />
-                      <StatusPill status="completed" size="sm" label="Complete" />
-                    </>
-                  )}
-                  {lipsyncJob.status === 'error' && (
-                    <>
-                      <XCircle className="w-4 h-4 text-danger" />
-                      <StatusPill status="failed" size="sm" />
-                    </>
-                  )}
+                    {video?.status === 'generating' && (
+                      <div className="flex items-center gap-2 text-xs text-surface-400">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Generating talking avatar video...
+                      </div>
+                    )}
+                    {video?.status === 'failed' && (
+                      <p className="text-xs text-danger">{video.error || 'Video generation failed'}</p>
+                    )}
+                    {video?.status === 'completed' && video.videoUrl && (
+                      <div className="space-y-2">
+                        {hasVideo ? (
+                          <div className="rounded-lg overflow-hidden">
+                            {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
+                            <video controls src={assetUrl(video.videoUrl)} className="w-full" />
+                          </div>
+                        ) : (
+                          <p className="text-xs text-danger">Video output missing for this language.</p>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<Download className="w-4 h-4" />}
+                          onClick={() =>
+                            downloadVideo(
+                              assetUrl(video.videoUrl || ''),
+                              `talking-avatar-${entry.language.toLowerCase()}.mp4`,
+                            )
+                          }
+                          disabled={!hasVideo}
+                        >
+                          Download Video
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  {lipsyncJob.message && <p className="text-xs text-surface-400 mt-1">{lipsyncJob.message}</p>}
-                </div>
-              )}
-
-              {generatedVideoUrl && (
-                <div className="space-y-3">
-                  <div className="rounded-lg overflow-hidden">
-                    {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
-                    <video controls autoPlay loop src={assetUrl(generatedVideoUrl)} className="w-full" />
-                  </div>
-                  <Button
-                    variant="success"
-                    size="md"
-                    icon={<Download className="w-4 h-4" />}
-                    onClick={() => downloadVideo(assetUrl(generatedVideoUrl), 'talking-avatar.mp4')}
-                    className="w-full"
-                  >
-                    Download Video
-                  </Button>
-                </div>
-              )}
+                )
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

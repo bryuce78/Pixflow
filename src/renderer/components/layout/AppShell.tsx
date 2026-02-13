@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { BookOpen, Film, Layers, LayoutGrid, Loader2, MessageSquareText, Video, Wand2, Zap } from 'lucide-react'
 import { lazy, Suspense, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -8,31 +8,55 @@ import { useNavigationStore } from '../../stores/navigationStore'
 import { useNotificationStore } from '../../stores/notificationStore'
 import { useProductStore } from '../../stores/productStore'
 import { useThemeStore } from '../../stores/themeStore'
-import { LoginPage } from '../auth/LoginPage'
 import { FeedbackWidget } from '../feedback/FeedbackWidget'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { Skeleton } from '../ui/Skeleton'
 import { AvatarPreviewOverlay } from './AvatarPreviewOverlay'
 import { ImagePreviewOverlay } from './ImagePreviewOverlay'
 import { PageTransition } from './PageTransition'
-import { ProductSelector } from './ProductSelector'
-import { TopNav } from './TopNav'
+import { SideNav } from './SideNav'
 
 const PromptFactoryPage = lazy(() => import('../prompt-factory/PromptFactoryPage'))
 const AssetMonsterPage = lazy(() => import('../asset-monster/AssetMonsterPage'))
 const Img2VideoQueuePage = lazy(() => import('../img2video/Img2VideoQueuePage'))
 const AvatarStudioPage = lazy(() => import('../avatar-studio/AvatarStudioPage'))
+const CaptionsPage = lazy(() => import('../captions/CaptionsPage'))
 const MachinePage = lazy(() => import('../machine/MachinePage'))
 const LibraryPage = lazy(() => import('../library/LibraryPage'))
+const HomePage = lazy(() => import('../home/HomePage'))
 
 const PAGES = {
+  home: HomePage,
   prompts: PromptFactoryPage,
   generate: AssetMonsterPage,
   img2video: Img2VideoQueuePage,
   avatars: AvatarStudioPage,
+  captions: CaptionsPage,
   machine: MachinePage,
   history: LibraryPage,
 } as const
+
+const PAGE_TITLES: Record<keyof typeof PAGES, string> = {
+  home: 'Pixflow',
+  prompts: 'Prompt Factory',
+  generate: 'Asset Monster',
+  img2video: 'Img2 Engine',
+  avatars: 'Avatar Studio',
+  captions: 'Captions',
+  machine: 'The Machine',
+  history: 'Library',
+}
+
+const PAGE_ICONS: Record<keyof typeof PAGES, typeof Wand2> = {
+  home: LayoutGrid,
+  prompts: Wand2,
+  generate: Layers,
+  img2video: Film,
+  avatars: Video,
+  captions: MessageSquareText,
+  machine: Zap,
+  history: BookOpen,
+}
 
 function PageSkeleton() {
   return (
@@ -45,7 +69,7 @@ function PageSkeleton() {
 }
 
 export function AppShell() {
-  const { isAuthenticated, loading: authLoading, init: initAuth } = useAuthStore()
+  const { loading: authLoading, init: initAuth } = useAuthStore()
   const initTheme = useThemeStore((s) => s.init)
   const loadProducts = useProductStore((s) => s.loadProducts)
   const loadNotifications = useNotificationStore((s) => s.load)
@@ -60,14 +84,12 @@ export function AppShell() {
   }, [initAuth, initTheme])
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadProducts()
-      loadNotifications()
-    }
-  }, [isAuthenticated, loadProducts, loadNotifications])
+    if (authLoading) return
+    loadProducts()
+    loadNotifications()
+  }, [authLoading, loadProducts, loadNotifications])
 
   useEffect(() => {
-    if (!isAuthenticated) return
     const pending = consumePendingNavigationPerf()
     if (!pending || pending.toTab !== activeTab) return
 
@@ -100,7 +122,7 @@ export function AppShell() {
       cancelled = true
       cancelAnimationFrame(raf1)
     }
-  }, [activeTab, consumePendingNavigationPerf, isAuthenticated])
+  }, [activeTab, consumePendingNavigationPerf])
 
   if (authLoading) {
     return (
@@ -110,24 +132,33 @@ export function AppShell() {
     )
   }
 
-  if (!isAuthenticated) return <LoginPage />
-
   const ActivePage = PAGES[activeTab]
+  const pageTitle = PAGE_TITLES[activeTab]
+  const PageIcon = PAGE_ICONS[activeTab]
 
   return (
-    <div className="min-h-screen bg-surface-0 text-surface-900">
-      <div className="sticky top-0 z-40 bg-surface-0">
-        <TopNav />
-        <ProductSelector />
-      </div>
-      <div className="max-w-6xl mx-auto p-8">
-        <PageTransition pageKey={activeTab}>
-          <ErrorBoundary key={activeTab} fallbackTitle="This tab failed to load">
-            <Suspense fallback={<PageSkeleton />}>
-              <ActivePage />
-            </Suspense>
-          </ErrorBoundary>
-        </PageTransition>
+    <div className="h-screen overflow-hidden bg-surface-0 text-surface-900 flex">
+      <SideNav />
+      <div className="flex-1 flex flex-col">
+        <div className="sticky top-0 z-30 border-b border-surface-100 bg-surface-0 drag-region">
+          <div className="max-w-6xl mx-auto px-8 h-[84px] flex items-baseline pb-[12px]">
+            <h1 className="text-[2.06rem] font-semibold text-surface-900 flex items-center gap-3 leading-none translate-y-[36px]">
+              <PageIcon className="w-8 h-8 text-brand-500 inline-block align-middle" />
+              <span className="leading-none">{pageTitle}</span>
+            </h1>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto" data-app-scroll-container="true">
+          <div className="max-w-6xl mx-auto p-8">
+            <PageTransition pageKey={activeTab}>
+              <ErrorBoundary key={activeTab} fallbackTitle="This tab failed to load">
+                <Suspense fallback={<PageSkeleton />}>
+                  <ActivePage />
+                </Suspense>
+              </ErrorBoundary>
+            </PageTransition>
+          </div>
+        </div>
       </div>
       <ImagePreviewOverlay />
       <AvatarPreviewOverlay />

@@ -9,6 +9,34 @@ function revokePreviews(previews: string[]) {
   for (const url of previews) URL.revokeObjectURL(url)
 }
 
+async function fetchScript({
+  concept,
+  duration,
+  tone,
+  appName,
+  signal,
+}: {
+  concept: string
+  duration: number
+  tone: ScriptTone
+  appName?: string
+  signal?: AbortSignal
+}): Promise<string> {
+  const res = await authFetch(apiUrl('/api/avatars/script'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ concept, duration, tone, appName }),
+    signal,
+  })
+  if (!res.ok) {
+    const raw = await res.json().catch(() => ({}))
+    throw new Error(getApiError(raw, 'Script generation failed'))
+  }
+  const raw = await res.json()
+  const data = unwrapApiData<{ script: string }>(raw)
+  return data.script
+}
+
 interface MachineState {
   step: MachineStep
   failedStep: MachineStep
@@ -20,12 +48,16 @@ interface MachineState {
   refPreviews: string[]
   scriptDuration: number
   scriptTone: ScriptTone
+  selectedApp: string
   selectedVoice: Voice | null
   selectedAvatar: Avatar | null
 
   prompts: GeneratedPrompt[]
   batchProgress: BatchProgress | null
   script: string
+  scriptGenerating: boolean
+  scriptHistory: string[]
+  scriptHistoryIndex: number
   audioUrl: string | null
   videoUrl: string | null
 
@@ -33,12 +65,18 @@ interface MachineState {
   setPromptCount: (count: number) => void
   setScriptDuration: (duration: number) => void
   setScriptTone: (tone: ScriptTone) => void
+  setSelectedApp: (appName: string) => void
   setSelectedVoice: (voice: Voice | null) => void
   setSelectedAvatar: (avatar: Avatar | null) => void
+  setScript: (script: string) => void
+  undoScript: () => void
+  redoScript: () => void
   addRefImages: (files: File[]) => void
   removeRefImage: (index: number) => void
   clearRefImages: () => void
 
+  generateScript: () => Promise<string | null>
+  refineScript: (instruction: string, targetDuration?: number) => Promise<void>
   run: (resumeFrom?: MachineStep) => Promise<void>
   cancel: () => void
   reset: () => void
@@ -77,17 +115,21 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
   error: null,
 
   concept: '',
-  promptCount: 6,
+  promptCount: 5,
   refImages: [],
   refPreviews: [],
-  scriptDuration: 30,
+  scriptDuration: 15,
   scriptTone: 'energetic',
+  selectedApp: 'Clone AI',
   selectedVoice: null,
   selectedAvatar: null,
 
   prompts: [],
   batchProgress: null,
   script: '',
+  scriptGenerating: false,
+  scriptHistory: [],
+  scriptHistoryIndex: -1,
   audioUrl: null,
   videoUrl: null,
 
@@ -95,13 +137,42 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
   setPromptCount: (promptCount) => set({ promptCount }),
   setScriptDuration: (scriptDuration) => set({ scriptDuration }),
   setScriptTone: (scriptTone) => set({ scriptTone }),
+  setSelectedApp: (selectedApp) => set({ selectedApp }),
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
   setSelectedAvatar: (selectedAvatar) => set({ selectedAvatar }),
+  setScript: (script) =>
+    set((state) => {
+      const history = [...state.scriptHistory]
+      const index = history.length - 1
+      if (index >= 0 && history[index] === script) {
+        return { script }
+      }
+      history.push(script)
+      return { script, scriptHistory: history, scriptHistoryIndex: history.length - 1 }
+    }),
+  undoScript: () =>
+    set((state) => {
+      if (state.scriptHistoryIndex <= 0) return state
+      const nextIndex = state.scriptHistoryIndex - 1
+      return {
+        scriptHistoryIndex: nextIndex,
+        script: state.scriptHistory[nextIndex] ?? state.script,
+      }
+    }),
+  redoScript: () =>
+    set((state) => {
+      if (state.scriptHistoryIndex >= state.scriptHistory.length - 1) return state
+      const nextIndex = state.scriptHistoryIndex + 1
+      return {
+        scriptHistoryIndex: nextIndex,
+        script: state.scriptHistory[nextIndex] ?? state.script,
+      }
+    }),
 
   addRefImages: (files) =>
     set((state) => {
       revokePreviews(state.refPreviews)
-      const newFiles = [...state.refImages, ...files].slice(0, 3)
+      const newFiles = [...state.refImages, ...files].slice(0, 5)
       return {
         refImages: newFiles,
         refPreviews: newFiles.map((f) => URL.createObjectURL(f)),
@@ -124,8 +195,67 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
       return { refImages: [], refPreviews: [] }
     }),
 
+  generateScript: async () => {
+    const { concept, scriptDuration, scriptTone, selectedApp } = get()
+    if (!concept.trim()) {
+      set({ error: { message: 'Enter a concept to generate a script', type: 'warning' } })
+      return null
+    }
+
+    set({ scriptGenerating: true, error: null })
+    try {
+      const script = await fetchScript({ concept, duration: scriptDuration, tone: scriptTone, appName: selectedApp })
+      get().setScript(script)
+      return script
+    } catch (err) {
+      set({ error: parseError(err) })
+      return null
+    } finally {
+      set({ scriptGenerating: false })
+    }
+  },
+
+  refineScript: async (instruction, targetDuration) => {
+    const { script } = get()
+    if (!script.trim()) {
+      set({ error: { message: 'No script to refine', type: 'warning' } })
+      return
+    }
+
+    const wordCount = script.split(/\s+/).length
+    const estimatedDuration = targetDuration || Math.ceil(wordCount / 2.5)
+
+    set({ scriptGenerating: true, error: null })
+
+    try {
+      const res = await authFetch(apiUrl('/api/avatars/script/refine'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script,
+          feedback: instruction,
+          duration: estimatedDuration,
+        }),
+      })
+
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to refine script'))
+      }
+
+      const raw = await res.json()
+      const data = unwrapApiData<{ script: string }>(raw)
+      get().setScript(data.script)
+    } catch (err) {
+      set({ error: parseError(err) })
+    } finally {
+      set({ scriptGenerating: false })
+    }
+  },
+
   run: async (resumeFrom) => {
-    const { concept, selectedAvatar, selectedVoice, promptCount, scriptDuration, scriptTone, refImages } = get()
+    const { concept, selectedAvatar, selectedVoice, promptCount, scriptDuration, scriptTone, selectedApp, refImages } =
+      get()
     const avatarUrl = selectedAvatar?.url
 
     if (!concept.trim()) {
@@ -155,8 +285,59 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
     let localAudioUrl = get().audioUrl
     let currentStep: MachineStep = 'idle'
     const voiceId = selectedVoice.id
+    const shouldGenerateScript = startIdx <= 2 && (resumeFrom === 'script' || !localScript)
+    let scriptPromise: Promise<string | null> | null = null
+    let scriptError: Error | null = null
+    let ttsPromise: Promise<string | null> | null = null
+    let ttsError: Error | null = null
 
     try {
+      if (shouldGenerateScript) {
+        set({ scriptGenerating: true })
+        scriptPromise = fetchScript({
+          concept,
+          duration: scriptDuration,
+          tone: scriptTone,
+          appName: selectedApp,
+          signal,
+        })
+          .then((script) => {
+            localScript = script
+            get().setScript(script)
+            return script
+          })
+          .catch((err) => {
+            scriptError = err as Error
+            return null
+          })
+          .finally(() => {
+            set({ scriptGenerating: false })
+          })
+      }
+
+      if (startIdx <= 3) {
+        ttsPromise = (async () => {
+          const scriptText = scriptPromise ? await scriptPromise : localScript || get().script
+          if (!scriptText) throw scriptError ?? new Error('Script generation failed')
+          const res = await authFetch(apiUrl('/api/avatars/tts'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: scriptText, voiceId }),
+            signal,
+          })
+          if (!res.ok) {
+            const raw = await res.json().catch(() => ({}))
+            throw new Error(getApiError(raw, 'TTS failed'))
+          }
+          const raw = await res.json()
+          const data = unwrapApiData<{ audioUrl: string }>(raw)
+          return data.audioUrl
+        })().catch((err) => {
+          ttsError = err as Error
+          return null
+        })
+      }
+
       // Step 1: Generate Prompts
       if (startIdx <= 0) {
         currentStep = 'prompts'
@@ -223,39 +404,21 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
       if (startIdx <= 2) {
         currentStep = 'script'
         set({ step: currentStep })
-        const res = await authFetch(apiUrl('/api/avatars/script'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ concept, duration: scriptDuration, tone: scriptTone }),
-          signal,
-        })
-        if (!res.ok) {
-          const raw = await res.json().catch(() => ({}))
-          throw new Error(getApiError(raw, 'Script generation failed'))
+        if (scriptPromise) {
+          localScript = (await scriptPromise) || localScript
         }
-        const raw = await res.json()
-        const data = unwrapApiData<{ script: string }>(raw)
-        localScript = data.script
-        set({ script: localScript })
+        if (!localScript) localScript = get().script
+        if (!localScript) throw scriptError ?? new Error('Script generation failed')
       }
 
       // Step 4: TTS
       if (startIdx <= 3) {
         currentStep = 'tts'
         set({ step: currentStep })
-        const res = await authFetch(apiUrl('/api/avatars/tts'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: localScript, voiceId }),
-          signal,
-        })
-        if (!res.ok) {
-          const raw = await res.json().catch(() => ({}))
-          throw new Error(getApiError(raw, 'TTS failed'))
+        if (ttsPromise) {
+          localAudioUrl = (await ttsPromise) || null
         }
-        const raw = await res.json()
-        const data = unwrapApiData<{ audioUrl: string }>(raw)
-        localAudioUrl = data.audioUrl
+        if (!localAudioUrl) throw ttsError ?? new Error('TTS failed')
         set({ audioUrl: localAudioUrl })
       }
 
@@ -308,6 +471,9 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
       prompts: [],
       batchProgress: null,
       script: '',
+      scriptGenerating: false,
+      scriptHistory: [],
+      scriptHistoryIndex: -1,
       audioUrl: null,
       videoUrl: null,
     })
@@ -325,11 +491,15 @@ export const useMachineStore = create<MachineState>()((set, get) => ({
       prompts: [],
       batchProgress: null,
       script: '',
+      scriptGenerating: false,
+      scriptHistory: [],
+      scriptHistoryIndex: -1,
       audioUrl: null,
       videoUrl: null,
       refImages: [],
       refPreviews: [],
       selectedAvatar: null,
+      selectedApp: 'Clone AI',
     })
   },
 }))

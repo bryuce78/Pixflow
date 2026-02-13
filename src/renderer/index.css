@@ -96,11 +96,18 @@
 }
 
 /* Base styles */
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--surface-0);
   color: var(--surface-900);
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
 /* macOS traffic light drag region */
@@ -119,4 +126,29 @@ body {
 
 .animate-shimmer {
   animation: shimmer 2s infinite;
+}
+
+@keyframes home-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.home-card-enter {
+  opacity: 0;
+  animation: home-card-enter 620ms var(--ease-out) forwards;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-card-enter {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
 }

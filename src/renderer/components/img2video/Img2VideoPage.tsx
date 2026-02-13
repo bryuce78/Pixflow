@@ -21,9 +21,9 @@ import { ASPECT_RATIOS, DURATIONS, useImg2VideoStore, VIDEO_PRESETS } from '../.
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { ProgressBar } from '../ui/ProgressBar'
-import { StatusPill } from '../ui/StatusPill'
 import { Select } from '../ui/Select'
 import { StatusBanner } from '../ui/StatusBanner'
+import { StatusPill } from '../ui/StatusPill'
 
 export default function Img2VideoPage() {
   const {

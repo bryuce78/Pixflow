@@ -1,6 +1,6 @@
 # Pixflow
 
-AI-powered desktop application for creative asset production workflows.
+AI-powered web platform for creative asset production workflows.
 
 ## Features
 
@@ -26,7 +26,6 @@ Organize, favorite, and reuse your best prompts and generated assets.
 ## Tech Stack
 
 - **Frontend**: React + TypeScript + Vite
-- **Desktop**: Electron
 - **Backend**: Node.js + Express
 - **Styling**: TailwindCSS
 - **State Management**: Zustand
@@ -49,9 +48,18 @@ npm install
 cp .env.example .env
 # Add your API keys to .env
 
-# Start development server
+# Start web app (API + UI)
 npm run dev
 ```
+
+Or run each process separately:
+
+```bash
+npm run dev:web:server
+npm run dev:web:client
+```
+
+Default web API port is `3002` (override with `PIXFLOW_WEB_API_PORT`).
 
 ### Build
 
@@ -63,13 +71,32 @@ npm run build
 npm run preview
 ```
 
+## Cloudflare Pages Deploy
+
+Pixflow is currently deployed as a frontend Pages app.
+
+```bash
+# one-time auth
+npx wrangler login
+npx wrangler whoami
+
+# set backend API origin used by frontend build
+export VITE_API_BASE_URL="https://your-api-domain.example.com"
+
+# deploy
+npm run deploy:pages
+```
+
+Detailed guide: `/Users/pixery/Projects/pixflow/docs/CLOUDFLARE_DEPLOY.md`
+
+CI option:
+- GitHub workflow `/Users/pixery/Projects/pixflow/.github/workflows/deploy-pages.yml` deploys on `main` pushes (and manual preview runs).
+
 ## Project Structure
 
 ```
 pixflow/
 ├── src/
-│   ├── main/          # Electron main process
-│   ├── preload/       # Electron preload scripts
 │   ├── renderer/      # React UI application
 │   └── server/        # Express API server
 ├── docs/              # Documentation
@@ -106,6 +133,8 @@ Private - All rights reserved
 
 ## Notes
 
+- Login screen is disabled by default (`PIXFLOW_AUTH_MODE=disabled`).
+- Re-enable token auth with `PIXFLOW_AUTH_MODE=token` and `VITE_PIXFLOW_DISABLE_LOGIN=0`.
 - Gallery (`avatars/`) is manually curated - generated assets do not auto-populate
 - Generated images are saved to `outputs/` directory
 - Avatar Studio outputs go to `avatars_generated/` (not included in gallery)

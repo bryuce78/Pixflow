@@ -1,3 +1,4 @@
+import { Video } from 'lucide-react'
 import { useState } from 'react'
 import { assetUrl } from '../../lib/api'
 import { useAvatarStore } from '../../stores/avatarStore'
@@ -9,21 +10,21 @@ import { TalkingAvatarPage } from './TalkingAvatarPage'
 export default function AvatarStudioPage() {
   const { studioMode, setStudioMode, error, reactionError } = useAvatarStore()
   const [fullSizeAvatarUrl, setFullSizeAvatarUrl] = useState<string | null>(null)
+  const modeTabs = (
+    <SegmentedTabs
+      ariaLabel="Avatar Studio mode"
+      value={studioMode}
+      onChange={setStudioMode}
+      items={[
+        { id: 'talking', label: 'Talking Avatar', icon: <Video className="w-4 h-4" /> },
+        { id: 'reaction', label: 'Reaction Video', icon: <span className="text-base leading-none">🫥</span> },
+      ]}
+      className="w-full"
+    />
+  )
 
   return (
     <div className="space-y-6">
-      {/* Tab Switcher */}
-      <SegmentedTabs
-        ariaLabel="Avatar Studio mode"
-        value={studioMode}
-        onChange={setStudioMode}
-        items={[
-          { id: 'talking', label: 'Talking Avatar' },
-          { id: 'reaction', label: 'Reaction Video' },
-        ]}
-        className="max-w-md"
-      />
-
       {/* Error Displays */}
       {error && <StudioErrorAlert error={error} onDismiss={() => useAvatarStore.setState({ error: null })} />}
       {reactionError && (
@@ -32,9 +33,17 @@ export default function AvatarStudioPage() {
 
       {/* Page Rendering */}
       {studioMode === 'talking' ? (
-        <TalkingAvatarPage fullSizeAvatarUrl={fullSizeAvatarUrl} setFullSizeAvatarUrl={setFullSizeAvatarUrl} />
+        <TalkingAvatarPage
+          fullSizeAvatarUrl={fullSizeAvatarUrl}
+          setFullSizeAvatarUrl={setFullSizeAvatarUrl}
+          modeTabs={modeTabs}
+        />
       ) : (
-        <ReactionVideoPage fullSizeAvatarUrl={fullSizeAvatarUrl} setFullSizeAvatarUrl={setFullSizeAvatarUrl} />
+        <ReactionVideoPage
+          fullSizeAvatarUrl={fullSizeAvatarUrl}
+          setFullSizeAvatarUrl={setFullSizeAvatarUrl}
+          modeTabs={modeTabs}
+        />
       )}
 
       {/* Full-size Avatar Modal (shared) */}

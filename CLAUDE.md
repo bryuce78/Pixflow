@@ -1,10 +1,10 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
-> Primary reference for the active Pixflow desktop app.
+> Primary reference for the active Pixflow web app.
 
 ## Project
 
-Pixflow is an Electron desktop app for AI asset production workflows:
+Pixflow is a web app for AI asset production workflows:
 - Prompt Factory (concept/image to structured prompts)
 - Asset Monster (batch image generation)
 - Avatar Studio (avatar, script, TTS, lipsync)
@@ -13,10 +13,8 @@ Pixflow is an Electron desktop app for AI asset production workflows:
 
 ## Active code paths
 
-- `src/main` - Electron main process
-- `src/preload` - Electron bridge
 - `src/renderer` - UI application
-- `src/server` - embedded Express API
+- `src/server` - Express API
 - `docs` - active documentation
 
 ## Notes

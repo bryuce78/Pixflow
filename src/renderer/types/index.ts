@@ -122,6 +122,7 @@ export interface Avatar {
   name: string
   filename: string
   url: string
+  source?: 'curated' | 'uploaded' | 'generated'
 }
 
 export interface Voice {

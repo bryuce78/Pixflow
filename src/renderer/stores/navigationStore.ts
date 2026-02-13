@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { usePromptStore } from './promptStore'
 
-export type TabId = 'prompts' | 'generate' | 'img2video' | 'avatars' | 'machine' | 'history'
+export type TabId = 'home' | 'prompts' | 'generate' | 'img2video' | 'avatars' | 'captions' | 'machine' | 'history'
 
 interface NavigationOptions {
   promptMode?: 'concept' | 'image'
@@ -16,20 +16,29 @@ interface PendingNavigationPerf {
 
 interface NavigationState {
   activeTab: TabId
+  sidebarCollapsed: boolean
+  hasSelectedCategory: boolean
   pendingNavigationPerf: PendingNavigationPerf | null
   navigate: (tab: TabId, options?: NavigationOptions) => void
+  toggleSidebarCollapsed: () => void
+  setSidebarCollapsed: (collapsed: boolean) => void
   consumePendingNavigationPerf: () => PendingNavigationPerf | null
 }
 
 export const useNavigationStore = create<NavigationState>()((set) => ({
-  activeTab: 'prompts',
+  activeTab: 'home',
+  sidebarCollapsed: true,
+  hasSelectedCategory: false,
   pendingNavigationPerf: null,
 
   navigate: (tab, options) => {
     set((state) => {
       if (state.activeTab === tab) return state
+      const shouldExpand = !state.hasSelectedCategory && tab !== 'home'
       return {
         activeTab: tab,
+        hasSelectedCategory: state.hasSelectedCategory || tab !== 'home',
+        sidebarCollapsed: shouldExpand ? false : state.sidebarCollapsed,
         pendingNavigationPerf: {
           fromTab: state.activeTab,
           toTab: tab,
@@ -46,6 +55,18 @@ export const useNavigationStore = create<NavigationState>()((set) => ({
       usePromptStore.getState().addAnalyzeFiles(options.analyzeFiles)
     }
   },
+
+  toggleSidebarCollapsed: () =>
+    set((state) => ({
+      sidebarCollapsed: !state.sidebarCollapsed,
+      hasSelectedCategory: state.hasSelectedCategory || !state.sidebarCollapsed,
+    })),
+
+  setSidebarCollapsed: (collapsed) =>
+    set((state) => ({
+      sidebarCollapsed: collapsed,
+      hasSelectedCategory: state.hasSelectedCategory || !collapsed,
+    })),
 
   consumePendingNavigationPerf: () => {
     const current = useNavigationStore.getState().pendingNavigationPerf

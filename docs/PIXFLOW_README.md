@@ -1,6 +1,6 @@
-# Pixflow - Desktop AI Asset Pipeline
+# Pixflow - Web AI Asset Pipeline
 
-Pixflow is the current desktop product. It focuses on UI/UX-driven workflows for creating marketing assets.
+Pixflow is the current web product. It focuses on UI/UX-driven workflows for creating marketing assets.
 
 ## Core flows
 
@@ -12,7 +12,7 @@ Pixflow is the current desktop product. It focuses on UI/UX-driven workflows for
 
 ## Active architecture
 
-- Electron host + embedded Express API + React renderer
+- React renderer + Express API
 - Runtime outputs stored locally (`outputs/`, `uploads/`, `data/`)
 
 ## Legacy archive
