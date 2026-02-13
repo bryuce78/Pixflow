@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-13 (Web-first migration + login-disabled-by-default + release gate cleanup)
+Last updated: 2026-02-13 (Turning point checkpoint + captions stabilization baseline)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -50,6 +50,20 @@ Project root: `/Users/pixery/Projects/pixflow`
   - `npm run lint` ✅
   - `npm test` (94/94) ✅
   - `npm run gate:release` ✅
+
+### 0.2) Turning Point Checkpoint (2026-02-13)
+
+- Checkpoint commit:
+  - `64ab23e` (`checkpoint: turning point before sentence-level captions`)
+- Checkpoint tag:
+  - `turning-point-2026-02-13-captions`
+- Checkpoint intent:
+  - freeze a known-good baseline before implementing sentence-level caption selection/exclusion UX.
+- Quick rollback commands:
+  - `git checkout turning-point-2026-02-13-captions`
+  - or `git reset --hard turning-point-2026-02-13-captions` (only in disposable/local branch contexts).
+- Important note:
+  - local untracked avatar image files were intentionally excluded from the checkpoint commit.
 
 ---
 

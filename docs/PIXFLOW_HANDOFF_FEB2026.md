@@ -33,6 +33,18 @@
   - `npm run gate:release` ✅
 - Historical Electron notes in this file are preserved as timeline context only.
 
+### Turning Point Checkpoint (2026-02-13)
+
+- Commit: `64ab23e` (`checkpoint: turning point before sentence-level captions`)
+- Tag: `turning-point-2026-02-13-captions`
+- Why this checkpoint exists:
+  - This marks the baseline right before the next captions sprint (sentence-level subtitle selection/exclusion and finer preview-to-output alignment).
+- Fast restore:
+  - `git checkout turning-point-2026-02-13-captions`
+  - or create a branch from it: `git checkout -b codex/captions-experiment turning-point-2026-02-13-captions`
+- Note:
+  - User-local untracked avatar files were intentionally left outside the checkpoint commit.
+
 ---
 
 ## Recent Sessions Summary
