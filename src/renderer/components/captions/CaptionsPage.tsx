@@ -644,20 +644,24 @@ export default function CaptionsPage() {
             <StepHeader stepNumber={1} title="Preview & Presets" />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="rounded-lg border border-surface-200 bg-surface-0 p-4 space-y-3">
-                <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Preview</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Preview</p>
+                  {inputPreviewSource && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 px-2.5 py-0 text-[11px]"
+                      onClick={clearSelectedVideo}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
                 {inputPreviewSource ? (
                   <div
                     ref={videoPreviewRef}
                     className="relative w-full rounded-lg overflow-hidden border border-surface-200 bg-surface-0"
                   >
-                    <button
-                      type="button"
-                      className="absolute top-2 left-1/2 -translate-x-1/2 z-20 rounded-md bg-surface-900/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-surface-50/90 transition hover:bg-surface-900 hover:text-surface-50"
-                      onClick={clearSelectedVideo}
-                      title="Remove video"
-                    >
-                      Remove
-                    </button>
                     <video
                       src={inputPreviewSource}
                       className="block w-full h-auto object-contain bg-black"
