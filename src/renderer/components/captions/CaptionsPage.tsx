@@ -662,19 +662,27 @@ export default function CaptionsPage() {
                     ref={videoPreviewRef}
                     className="relative w-full rounded-lg overflow-hidden border border-surface-200 bg-surface-0"
                   >
+                    {/* biome-ignore lint/a11y/useMediaCaption: preview videos currently have no embedded caption track */}
                     <video
                       src={inputPreviewSource}
                       className="block w-full h-auto object-contain bg-black"
-                      muted
                       loop
                       playsInline
                       preload="metadata"
                       onMouseEnter={(event) => {
-                        void event.currentTarget.play().catch(() => {})
+                        const video = event.currentTarget
+                        video.muted = false
+                        void video.play().catch(() => {
+                          // Fallback for autoplay policies that still block unmuted hover playback.
+                          video.muted = true
+                          void video.play().catch(() => {})
+                        })
                       }}
                       onMouseLeave={(event) => {
-                        event.currentTarget.pause()
-                        event.currentTarget.currentTime = 0
+                        const video = event.currentTarget
+                        video.pause()
+                        video.currentTime = 0
+                        video.muted = true
                       }}
                       onLoadedMetadata={(event) => {
                         const element = event.currentTarget
