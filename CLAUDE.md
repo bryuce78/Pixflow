@@ -10,7 +10,7 @@ Pixflow is a web app for AI asset production workflows:
 - Avatar Studio (avatar, script, TTS, lipsync)
 - Captions (AI-generated video captions with sentence selection)
 - Img2Video (image-to-video generation)
-- Lifetime (lifetime deal management)
+- Lifetime (age progression: baby photo → aging frames → transition videos → final compilation)
 - The Machine (end-to-end pipeline orchestration)
 - Library (history, favorites, reuse)
 
@@ -92,6 +92,13 @@ Adding a new page requires syncing these files:
 2. `SideNav.tsx` - SIDEBAR_ITEMS array + badge logic if needed
 3. `navigationStore.ts` - TabId union type
 
+### Lifetime Pipeline (lifetime.ts)
+- In-memory job maps: `lifetimeRunJobs` (`lrun_` prefix, frame gen) and `lifetimeVideoJobs` (`lvid_` prefix, video creation)
+- Fire-and-forget POST returns jobId → frontend polls GET every 1.8s for status
+- Session-based: each run creates `outputs/<sessionId>/` with manifest.json, frames, transitions, final video
+- Early transitions: Kling video calls fire during frame gen (non-blocking), video job awaits them before assembly
+- Transition concurrency: 4 parallel batches via `runWithConcurrency()` in server routes (separate from Zustand pattern)
+
 ### Static Asset Directories
 Server serves: `/uploads`, `/outputs`, `/avatars`, `/avatars_generated`, `/avatars_uploads`.
 Vite proxies these + `/api` to localhost:3002 with 600s timeout.
@@ -135,6 +142,9 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - AppShell measures tab-switch perf via double-RAF pattern (two nested requestAnimationFrame calls)
 - Avatar green screen detection: hardcoded thresholds (minGreen: 120, minDominance: 35, ratio: 0.6)
 - Caption segments: max 8 words / 72 chars per segment
+- FAL.ai Kling model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
+- Server does not hot-reload all service file changes — restart `npm run dev` after modifying services like `kling.ts`
+- GitHub Actions: push to main with `src/renderer/**` changes triggers Cloudflare Pages deploy; needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets
 - Legacy materials in `Burgflow Archive/` - do not reference in new code
 - Keep "Pixflow" naming in all new docs, routes, and UX copy
 
