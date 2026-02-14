@@ -8,27 +8,42 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - Mobile: Single column with inputs first, outputs second.
 - Forms: Use `grid-cols-1 sm:grid-cols-2` for dense field groups.
 - Long lists/grids: keep padding and card radius consistent (`rounded-lg` + surface background).
+- Result grids: `grid-cols-2 sm:grid-cols-3 xl:grid-cols-4` — not page-specific column counts.
 
 ## Navigation
 - Top-level category navigation: `PrimaryTabBar`.
 - In-page mode switches: `SegmentedTabs`.
 - Actions are always `Button` (no action inside tab sets).
 - If a control changes the view/state, it is a tab. If it triggers work, it is a button.
+- Tab switch scrolls content to top automatically.
 
 ## Steps
 - Wizard-like flows use `StepHeader` for numbering + titles.
 - Keep step labels short and action-oriented.
+- **Never use custom step circles or ad-hoc numbering.** Migrate to `StepHeader`.
 
 ## Status and Feedback
 - Status chips: `StatusPill` (queued/generating/completed/failed/neutral).
 - Banners: `StatusBanner` only. Do not introduce custom banners.
-- Empty state: `EmptyState`.
-- Loading: `LoadingState` or a page-specific grid placeholder if needed.
+- Empty state: `EmptyState` component — never ad-hoc text.
+- Loading: `LoadingState` component — never raw `Loader2` spinners.
 - Progress: `ProgressBar`.
 
 ## Buttons
 - Use shared `Button` variants for all actions.
+- **Generate/Regenerate buttons:** Let auto-lime detection handle variant. Never manually set `variant="success"` or `variant="warning"` on generate actions.
 - Avoid raw `<button>` unless the element is a card overlay or complex hit-target.
+
+## Destructive Actions
+- All destructive actions (delete, clear, remove) require `ConfirmationDialog` before execution.
+- Use `variant="ghost-danger"` for destructive trigger buttons.
+- Never delete/clear data on single click without confirmation.
+
+## Error Hierarchy
+- **Validation errors:** Toast via `notify.error()` — transient, 3s.
+- **API/network errors:** `StatusBanner variant="error"` — persistent inline, user-dismissible.
+- **Blocking errors:** Inline alert with retry action.
+- Do not mix — each severity has one display mechanism.
 
 ## Responsive & Touch Standards
 - **Touch targets:** All interactive elements (buttons, slider thumbs, modal close) must be at least 44×44px CSS (WCAG 2.2 AAA). Use `min-h-[44px] min-w-[44px]` guard classes on custom hit areas.
@@ -38,6 +53,12 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - **Text overflow:** Use `truncate` or `line-clamp-*` on any user-generated or variable-length text (prompt previews, file names, error messages). Never allow unbounded text to break layout.
 - **Breakpoint ladder:** Use at least `sm:` + `xl:` where layout shifts. Avoid relying on `xl:` alone.
 
+## Visual Tokens
+- **Secondary text:** `text-surface-400` = hint/disabled, `text-surface-500` = secondary, `text-surface-600` = label.
+- **Borders:** `border-surface-200/50` for card edges. `border-surface-100` for section dividers.
+- **Icon sizes:** `w-4 h-4` inline, `w-5 h-5` section headers, `w-6 h-6` hero/page icons. Never use arbitrary sizes.
+- **Animation durations:** `duration-150` (fast, hover/focus), `duration-300` (medium, transitions), `duration-500` (slow, page enter).
+
 ## Accessibility Baseline
 - Tabs must be keyboard navigable (ArrowLeft/ArrowRight/Home/End).
 - Buttons need clear labels and visible focus states.
@@ -46,7 +67,10 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 ## Do Not
 - No bespoke tab/button styles for modes.
 - No custom banner components.
-- No “action tabs” (Upload, Generate, Save inside tab rows).
+- No "action tabs" (Upload, Generate, Save inside tab rows).
+- No raw `<Loader2>` spinners — use `LoadingState`.
+- No ad-hoc empty text — use `EmptyState`.
+- No single-click destructive actions — use `ConfirmationDialog`.
 
 ## Component Map
 - `PrimaryTabBar`: top nav categories
@@ -57,3 +81,4 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - `EmptyState`: empty outputs
 - `LoadingState`: neutral loading placeholder
 - `ProgressBar`: generation or upload progress
+- `ConfirmationDialog`: destructive action confirmation
