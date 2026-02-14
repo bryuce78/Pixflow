@@ -11,7 +11,7 @@ import {
 } from './providerRuntime.js'
 
 const MODEL_ID = 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video'
-const MODEL_ID_START_END = 'fal-ai/kling-video/v2.5/master/image-to-video'
+const MODEL_ID_START_END = 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video'
 
 async function fileToDataUrl(filePath: string): Promise<string> {
   const buffer = await fs.readFile(filePath)
@@ -136,7 +136,7 @@ export async function generateKlingTransitionVideo(options: KlingStartEndOptions
         input: {
           prompt: options.prompt,
           image_url: startImageUrl,
-          end_image_url: endImageUrl,
+          tail_image_url: endImageUrl,
           duration: options.duration || '5',
           aspect_ratio: options.aspectRatio || '9:16',
           cfg_scale: options.cfgScale ?? 0.5,

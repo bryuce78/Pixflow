@@ -37,6 +37,7 @@ const FINAL_VIDEO_MIN_DURATION_SEC = 8
 const FINAL_VIDEO_MAX_DURATION_SEC = 45
 const FINAL_VIDEO_DEFAULT_DURATION_SEC = 12
 const FINAL_VIDEO_FPS = 30
+const TRANSITION_BATCH_CONCURRENCY = 4
 
 type LifetimeBackgroundMode = (typeof BACKGROUND_MODES)[number]
 type LifetimeGenderHint = 'auto' | 'male' | 'female'
@@ -98,6 +99,8 @@ interface LifetimeRunJob {
   frames: Array<{ age: number; imageUrl: string }>
   sessionId: string
   error: string
+  earlyTransitions: Map<string, LifetimeTransitionRecord>
+  earlyTransitionPromises: Promise<void>[]
 }
 
 const lifetimeRunJobs = new Map<string, LifetimeRunJob>()
@@ -227,6 +230,29 @@ function updateVideoJob(jobId: string, updater: (job: LifetimeVideoJob) => void)
   updater(current)
   current.updatedAt = new Date().toISOString()
   lifetimeVideoJobs.set(jobId, current)
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  let next = 0
+  let failed = false
+  const run = async () => {
+    while (!failed && next < items.length) {
+      const idx = next++
+      try {
+        await worker(items[idx], idx)
+      } catch (err) {
+        failed = true
+        throw err
+      }
+    }
+  }
+  const results = await Promise.allSettled(Array.from({ length: Math.min(limit, items.length) }, () => run()))
+  const firstError = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (firstError) throw firstError.reason
 }
 
 function makeFrameOutputPath(outputDir: string, age: number): string {
@@ -783,6 +809,8 @@ function createJob(backgroundMode: LifetimeBackgroundMode): LifetimeRunJob {
     frames: [],
     sessionId: '',
     error: '',
+    earlyTransitions: new Map(),
+    earlyTransitionPromises: [],
   }
 }
 
@@ -792,6 +820,49 @@ function updateJob(jobId: string, updater: (job: LifetimeRunJob) => void): void 
   updater(current)
   current.updatedAt = new Date().toISOString()
   lifetimeRunJobs.set(jobId, current)
+}
+
+function fireEarlyTransition(params: {
+  jobId: string
+  outputsDir: string
+  outputDir: string
+  fromAge: number
+  fromImagePath: string
+  toAge: number
+  toImagePath: string
+  backgroundMode: LifetimeBackgroundMode
+}): Promise<void> {
+  const { jobId, outputsDir, outputDir, fromAge, fromImagePath, toAge, toImagePath, backgroundMode } = params
+  const key = `${fromAge}-${toAge}`
+
+  return (async () => {
+    try {
+      const prompt = buildTransitionPrompt(fromAge, toAge, backgroundMode)
+      const videoResult = await generateKlingTransitionVideo({
+        startImagePath: fromImagePath,
+        endImagePath: toImagePath,
+        prompt,
+        duration: '5',
+        aspectRatio: '9:16',
+      })
+      const outputPath = makeTransitionOutputPath(outputDir, fromAge, toAge)
+      await downloadKlingVideo(videoResult.videoUrl, outputPath)
+
+      const job = lifetimeRunJobs.get(jobId)
+      if (job) {
+        job.earlyTransitions.set(key, {
+          fromAge,
+          toAge,
+          videoPath: outputPath,
+          videoUrl: toPublicOutputPath(outputsDir, outputPath),
+          prompt,
+        })
+      }
+      console.log(`[Lifetime] Early transition ${key} completed`)
+    } catch (error) {
+      console.warn(`[Lifetime] Early transition ${key} failed (non-critical):`, error)
+    }
+  })()
 }
 
 async function runGenerateFramesJob(params: {
@@ -940,6 +1011,22 @@ async function runGenerateFramesJob(params: {
         job.frames = [...sourceFrameEntry, ...frames.map((item) => ({ age: item.age, imageUrl: item.imageUrl }))]
         job.progress.message = `Generated ${sourceStepOffset + frames.length}/${job.progress.total} steps`
       })
+
+      const prevImagePath = index === 0 ? sourceFramePath : frames[index - 1].imagePath
+      const prevAge = index === 0 ? 0 : frames[index - 1].age
+      const transitionPromise = fireEarlyTransition({
+        jobId,
+        outputsDir,
+        outputDir,
+        fromAge: prevAge,
+        fromImagePath: prevImagePath,
+        toAge: frame.age,
+        toImagePath: frame.imagePath,
+        backgroundMode,
+      })
+      updateJob(jobId, (job) => {
+        job.earlyTransitionPromises.push(transitionPromise)
+      })
     }
 
     const nowIso = new Date().toISOString()
@@ -956,7 +1043,9 @@ async function runGenerateFramesJob(params: {
       genderHint: effectiveGenderHint,
       ages: [...TARGET_AGES],
       frames,
-      transitions: [],
+      transitions: [...(lifetimeRunJobs.get(jobId)?.earlyTransitions.values() ?? [])].sort(
+        (a, b) => a.fromAge - b.fromAge,
+      ),
       finalVideoPath: '',
       finalVideoUrl: '',
       finalVideoDurationSec: 0,
@@ -1027,47 +1116,110 @@ async function runCreateVideosJob(params: {
       metadata: { sessionId, frameCount: timelineFrames.length, backgroundMode: manifest.backgroundMode },
     })
 
-    if (manifest.transitions.length > 0) await removeTransitionFiles(manifest.transitions)
     await removeFinalVideoFile(manifest)
     manifest.finalVideoPath = ''
     manifest.finalVideoUrl = ''
     manifest.finalVideoDurationSec = 0
 
-    const transitions: LifetimeTransitionRecord[] = []
-    for (let index = 0; index < timelineFrames.length - 1; index += 1) {
-      const fromFrame = timelineFrames[index]
-      const toFrame = timelineFrames[index + 1]
-
+    const runJob = [...lifetimeRunJobs.values()].find((j) => j.sessionId === sessionId)
+    if (runJob && runJob.earlyTransitionPromises.length > 0) {
       updateVideoJob(jobId, (job) => {
-        job.progress.currentStep = `Age ${fromFrame.age} → ${toFrame.age}`
-        job.progress.message = `Generating transition: Age ${fromFrame.age} → ${toFrame.age} (${index + 1}/9)`
+        job.progress.message = 'Waiting for in-flight early transitions to finish...'
       })
+      await Promise.allSettled(runJob.earlyTransitionPromises)
+      manifest.transitions = [...runJob.earlyTransitions.values()].sort((a, b) => a.fromAge - b.fromAge)
+      await saveManifest(manifest)
+    }
 
-      const prompt = buildTransitionPrompt(fromFrame.age, toFrame.age, manifest.backgroundMode)
-      const videoResult = await generateKlingTransitionVideo({
-        startImagePath: fromFrame.imagePath,
-        endImagePath: toFrame.imagePath,
-        prompt,
-        duration: '5',
-        aspectRatio: '9:16',
-      })
-      const outputPath = makeTransitionOutputPath(manifest.outputDir, fromFrame.age, toFrame.age)
-      await downloadKlingVideo(videoResult.videoUrl, outputPath)
+    const transitionCount = timelineFrames.length - 1
+    const transitionSlots = new Array<LifetimeTransitionRecord | null>(transitionCount).fill(null)
+    let completedCount = 0
 
-      transitions.push({
-        fromAge: fromFrame.age,
-        toAge: toFrame.age,
-        videoPath: outputPath,
-        videoUrl: toPublicOutputPath(outputsDir, outputPath),
-        prompt,
-      })
+    const existingByKey = new Map(manifest.transitions.map((t) => [`${t.fromAge}-${t.toAge}`, t]))
+    const missingItems: Array<{ index: number; fromFrame: LifetimeTimelineFrame; toFrame: LifetimeTimelineFrame }> = []
 
-      updateVideoJob(jobId, (job) => {
-        job.progress.completed = index + 1
-        job.transitions = transitions.map((t) => ({ fromAge: t.fromAge, toAge: t.toAge, videoUrl: t.videoUrl }))
-        job.progress.message = `Completed transition ${index + 1}/9`
+    for (let i = 0; i < transitionCount; i++) {
+      const fromFrame = timelineFrames[i]
+      const toFrame = timelineFrames[i + 1]
+      const key = `${fromFrame.age}-${toFrame.age}`
+      const existing = existingByKey.get(key)
+      if (existing) {
+        try {
+          await fs.access(existing.videoPath)
+          transitionSlots[i] = existing
+          completedCount += 1
+          continue
+        } catch {
+          // file missing, regenerate
+        }
+      }
+      missingItems.push({ index: i, fromFrame, toFrame })
+    }
+
+    const reusedCount = completedCount
+    if (reusedCount > 0) {
+      console.log(`[Lifetime] Reusing ${reusedCount}/${transitionCount} early transitions`)
+    }
+
+    const totalSteps = missingItems.length + 1
+    updateVideoJob(jobId, (job) => {
+      job.progress.total = totalSteps
+      job.progress.completed = 0
+      job.transitions = transitionSlots
+        .filter((t): t is LifetimeTransitionRecord => t !== null)
+        .map((t) => ({ fromAge: t.fromAge, toAge: t.toAge, videoUrl: t.videoUrl }))
+      job.progress.message =
+        missingItems.length === 0
+          ? 'All transitions ready, assembling video...'
+          : `Generating ${missingItems.length} transitions (${reusedCount} pre-generated)`
+    })
+
+    let missingCompleted = 0
+    if (missingItems.length > 0) {
+      await runWithConcurrency(missingItems, TRANSITION_BATCH_CONCURRENCY, async ({ index, fromFrame, toFrame }) => {
+        updateVideoJob(jobId, (job) => {
+          job.progress.currentStep = `Age ${fromFrame.age} → ${toFrame.age}`
+        })
+
+        const prompt = buildTransitionPrompt(fromFrame.age, toFrame.age, manifest.backgroundMode)
+        const videoResult = await generateKlingTransitionVideo({
+          startImagePath: fromFrame.imagePath,
+          endImagePath: toFrame.imagePath,
+          prompt,
+          duration: '5',
+          aspectRatio: '9:16',
+        })
+        const outputPath = makeTransitionOutputPath(manifest.outputDir, fromFrame.age, toFrame.age)
+        await downloadKlingVideo(videoResult.videoUrl, outputPath)
+
+        transitionSlots[index] = {
+          fromAge: fromFrame.age,
+          toAge: toFrame.age,
+          videoPath: outputPath,
+          videoUrl: toPublicOutputPath(outputsDir, outputPath),
+          prompt,
+        }
+        missingCompleted += 1
+
+        updateVideoJob(jobId, (job) => {
+          job.progress.completed = missingCompleted
+          job.transitions = transitionSlots
+            .filter((t): t is LifetimeTransitionRecord => t !== null)
+            .map((t) => ({ fromAge: t.fromAge, toAge: t.toAge, videoUrl: t.videoUrl }))
+          job.progress.message = `Generating transitions (${missingCompleted}/${missingItems.length})`
+        })
       })
     }
+
+    // Clean up any stale transition files not in current slots
+    const activeTransitionPaths = new Set(transitionSlots.filter(Boolean).map((t) => t!.videoPath))
+    for (const old of manifest.transitions) {
+      if (!activeTransitionPaths.has(old.videoPath)) {
+        await fs.unlink(old.videoPath).catch(() => {})
+      }
+    }
+
+    const transitions = transitionSlots.filter((t): t is LifetimeTransitionRecord => t !== null)
 
     updateVideoJob(jobId, (job) => {
       job.progress.currentStep = 'Assembling final video'
@@ -1088,7 +1240,7 @@ async function runCreateVideosJob(params: {
 
     updateVideoJob(jobId, (job) => {
       job.status = 'completed'
-      job.progress.completed = 10
+      job.progress.completed = job.progress.total
       job.progress.currentStep = ''
       job.progress.message = 'Lifetime video created'
       job.transitions = transitions.map((t) => ({ fromAge: t.fromAge, toAge: t.toAge, videoUrl: t.videoUrl }))
@@ -1233,6 +1385,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       progress: job.progress,
       sourceFrameUrl: job.sourceFrameUrl,
       frames: framesWithSource,
+      earlyTransitionsCompleted: job.earlyTransitions.size,
     })
   })
 
@@ -1445,7 +1598,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
         userId: req.user?.id,
       })
 
-      sendSuccess(res, { jobId: job.jobId, status: job.status, totalSteps: 10 })
+      sendSuccess(res, { jobId: job.jobId, status: job.status })
     } catch (error) {
       console.error('[Lifetime] Failed to start video creation:', error)
       sendError(

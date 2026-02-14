@@ -46,6 +46,7 @@ interface LifetimeRunStatus {
     message: string
   }
   frames?: LifetimeFrame[]
+  earlyTransitionsCompleted?: number
 }
 
 type LifetimeBackgroundMode = 'white_bg' | 'natural_bg'
@@ -109,6 +110,7 @@ export default function LifetimePage() {
   const [hasRequestedVideoCreation, setHasRequestedVideoCreation] = useState(false)
   const [videoProgress, setVideoProgress] = useState(0)
   const [videoProgressMessage, setVideoProgressMessage] = useState('')
+  const [earlyTransitionsCompleted, setEarlyTransitionsCompleted] = useState(0)
 
   const inputPreviewUrl = useMemo(() => {
     if (babyFile) return URL.createObjectURL(babyFile)
@@ -167,6 +169,7 @@ export default function LifetimePage() {
     setSessionId('')
     setSourceFrameUrl('')
     setFrames([])
+    setEarlyTransitionsCompleted(0)
     setVideoDurationSec(VIDEO_DURATION_DEFAULT_SEC)
     if (!preserveVideoOutput) {
       setTransitions([])
@@ -206,6 +209,9 @@ export default function LifetimePage() {
         }
         if (data.sourceFrameUrl) {
           setSourceFrameUrl(data.sourceFrameUrl)
+        }
+        if (typeof data.earlyTransitionsCompleted === 'number') {
+          setEarlyTransitionsCompleted(data.earlyTransitionsCompleted)
         }
 
         if (data.status === 'completed') {
@@ -623,6 +629,11 @@ export default function LifetimePage() {
                 {running ? 'Generating frames...' : 'Generate frames'}
               </Button>
               {running && <ProgressBar value={progress} label={runMessage || 'Generating lifetime frames'} />}
+              {running && earlyTransitionsCompleted > 0 && (
+                <p className="text-xs text-surface-400 mt-1">
+                  Pre-generating transition videos: {earlyTransitionsCompleted}/9
+                </p>
+              )}
             </div>
           </div>
         </div>
