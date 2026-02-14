@@ -839,7 +839,7 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
                       </div>
                       <div className="absolute top-2 right-2 w-5 h-5 rounded bg-surface-900/80 flex items-center justify-center z-10">
                         {isSelected ? (
-                          <Check className="w-3.5 h-3.5 text-brand" />
+                          <Check className="w-4 h-4 text-brand" />
                         ) : (
                           <div className="w-3 h-3 border-2 border-surface-300 rounded" />
                         )}

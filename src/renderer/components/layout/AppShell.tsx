@@ -104,6 +104,12 @@ export function AppShell() {
     loadNotifications()
   }, [authLoading, loadProducts, loadNotifications])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeTab is the intentional trigger — scroll to top on every tab change
+  useEffect(() => {
+    const scroller = document.querySelector('[data-app-scroll-container="true"]') as HTMLElement | null
+    if (scroller) scroller.scrollTop = 0
+  }, [activeTab])
+
   useEffect(() => {
     const pending = consumePendingNavigationPerf()
     if (!pending || pending.toTab !== activeTab) return

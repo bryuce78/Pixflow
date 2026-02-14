@@ -1,5 +1,5 @@
 import { Copy, History, Loader2, Star, ThumbsUp, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { assetUrl } from '../../lib/api'
 import { useHistoryStore } from '../../stores/historyStore'
 import { useImageRatingsStore } from '../../stores/imageRatingsStore'
@@ -8,6 +8,7 @@ import { usePromptStore } from '../../stores/promptStore'
 import type { GeneratedImageRecord, GeneratedPrompt } from '../../types'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { ConfirmationDialog } from '../ui/ConfirmationDialog'
 import { VirtualizedGrid } from '../ui/VirtualizedGrid'
 import { VirtualizedList } from '../ui/VirtualizedList'
 
@@ -27,6 +28,11 @@ export default function LibraryPage() {
   const { setPrompts, setConcepts } = usePromptStore()
   const { navigate } = useNavigationStore()
   const [selectedImage, setSelectedImage] = useState<GeneratedImageRecord | null>(null)
+  const [confirmDeleteFav, setConfirmDeleteFav] = useState<string | null>(null)
+  const favToDelete = favorites.find((f) => f.id === confirmDeleteFav)
+  const handleConfirmDeleteFav = useCallback(() => {
+    if (confirmDeleteFav) removeFromFavorites(confirmDeleteFav)
+  }, [confirmDeleteFav, removeFromFavorites])
 
   useEffect(() => {
     loadAll()
@@ -76,7 +82,7 @@ export default function LibraryPage() {
                       icon={<Trash2 className="w-4 h-4" />}
                       onClick={(e) => {
                         e.stopPropagation()
-                        removeFromFavorites(fav.id)
+                        setConfirmDeleteFav(fav.id)
                       }}
                       className="opacity-0 group-hover:opacity-100"
                     />
@@ -273,6 +279,15 @@ export default function LibraryPage() {
           Added to favorites!
         </div>
       )}
+
+      <ConfirmationDialog
+        open={confirmDeleteFav !== null}
+        onClose={() => setConfirmDeleteFav(null)}
+        onConfirm={handleConfirmDeleteFav}
+        title="Remove from favorites?"
+        description={`Remove "${favToDelete?.name || 'this item'}" from favorites? This cannot be undone.`}
+        confirmLabel="Remove"
+      />
     </div>
   )
 }

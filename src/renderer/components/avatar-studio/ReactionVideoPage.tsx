@@ -148,7 +148,6 @@ export function ReactionVideoPage({
               ) : (
                 <>
                   <Button
-                    variant="success"
                     size="lg"
                     icon={<Video className="w-5 h-5" />}
                     onClick={generateReactionVideo}

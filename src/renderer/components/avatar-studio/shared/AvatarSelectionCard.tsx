@@ -1,11 +1,12 @@
 import { Check, Trash2, Upload, Users, Wand2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { assetUrl } from '../../../lib/api'
 import { notify } from '../../../lib/toast'
 import type { AvatarAgeGroup, AvatarEthnicity, AvatarGender, AvatarOutfit } from '../../../stores/avatarStore'
 import { useAvatarStore } from '../../../stores/avatarStore'
 import { StepHeader } from '../../asset-monster/StepHeader'
 import { Button } from '../../ui/Button'
+import { ConfirmationDialog } from '../../ui/ConfirmationDialog'
 import { EmptyState } from '../../ui/EmptyState'
 import { LoadingState } from '../../ui/LoadingState'
 import { SegmentedTabs } from '../../ui/navigation/SegmentedTabs'
@@ -70,6 +71,30 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
   const [avatarCount, setAvatarCount] = useState(1)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<Set<string>>(new Set())
+  const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState<string | null>(null)
+
+  const handleDeleteAvatar = useCallback(
+    async (filename: string) => {
+      if (deleting.has(filename)) return
+      setDeleting((prev) => new Set(prev).add(filename))
+      try {
+        if (selectedAvatar?.filename === filename) setSelectedAvatar(null)
+        await deleteUploadedAvatar(filename)
+        notify.success('Uploaded avatar removed')
+      } catch (err) {
+        const message =
+          err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Failed to delete uploaded avatar'
+        notify.error(message)
+      } finally {
+        setDeleting((prev) => {
+          const next = new Set(prev)
+          next.delete(filename)
+          return next
+        })
+      }
+    },
+    [deleting, selectedAvatar, setSelectedAvatar, deleteUploadedAvatar],
+  )
 
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -207,27 +232,9 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                     )}
                     <button
                       type="button"
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation()
-                        if (deleting.has(avatar.filename)) return
-                        setDeleting((prev) => new Set(prev).add(avatar.filename))
-                        try {
-                          if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
-                          await deleteUploadedAvatar(avatar.filename)
-                          notify.success('Uploaded avatar removed')
-                        } catch (err) {
-                          const message =
-                            err && typeof err === 'object' && 'message' in err
-                              ? String(err.message)
-                              : 'Failed to delete uploaded avatar'
-                          notify.error(message)
-                        } finally {
-                          setDeleting((prev) => {
-                            const next = new Set(prev)
-                            next.delete(avatar.filename)
-                            return next
-                          })
-                        }
+                        setConfirmDeleteAvatar(avatar.filename)
                       }}
                       className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
                       title="Delete uploaded avatar"
@@ -284,27 +291,9 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                             {canDelete && (
                               <button
                                 type="button"
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation()
-                                  if (deleting.has(avatar.filename)) return
-                                  setDeleting((prev) => new Set(prev).add(avatar.filename))
-                                  try {
-                                    if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
-                                    await deleteUploadedAvatar(avatar.filename)
-                                    notify.success('Avatar removed')
-                                  } catch (err) {
-                                    const message =
-                                      err && typeof err === 'object' && 'message' in err
-                                        ? String(err.message)
-                                        : 'Failed to delete avatar'
-                                    notify.error(message)
-                                  } finally {
-                                    setDeleting((prev) => {
-                                      const next = new Set(prev)
-                                      next.delete(avatar.filename)
-                                      return next
-                                    })
-                                  }
+                                  setConfirmDeleteAvatar(avatar.filename)
                                 }}
                                 className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
                                 title="Delete avatar"
@@ -347,27 +336,9 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                             {canDelete && (
                               <button
                                 type="button"
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation()
-                                  if (deleting.has(avatar.filename)) return
-                                  setDeleting((prev) => new Set(prev).add(avatar.filename))
-                                  try {
-                                    if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
-                                    await deleteUploadedAvatar(avatar.filename)
-                                    notify.success('Avatar removed')
-                                  } catch (err) {
-                                    const message =
-                                      err && typeof err === 'object' && 'message' in err
-                                        ? String(err.message)
-                                        : 'Failed to delete avatar'
-                                    notify.error(message)
-                                  } finally {
-                                    setDeleting((prev) => {
-                                      const next = new Set(prev)
-                                      next.delete(avatar.filename)
-                                      return next
-                                    })
-                                  }
+                                  setConfirmDeleteAvatar(avatar.filename)
                                 }}
                                 className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
                                 title="Delete avatar"
@@ -409,27 +380,9 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                           )}
                           <button
                             type="button"
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation()
-                              if (deleting.has(avatar.filename)) return
-                              setDeleting((prev) => new Set(prev).add(avatar.filename))
-                              try {
-                                if (selectedAvatar?.filename === avatar.filename) setSelectedAvatar(null)
-                                await deleteUploadedAvatar(avatar.filename)
-                                notify.success('Uploaded avatar removed')
-                              } catch (err) {
-                                const message =
-                                  err && typeof err === 'object' && 'message' in err
-                                    ? String(err.message)
-                                    : 'Failed to delete uploaded avatar'
-                                notify.error(message)
-                              } finally {
-                                setDeleting((prev) => {
-                                  const next = new Set(prev)
-                                  next.delete(avatar.filename)
-                                  return next
-                                })
-                              }
+                              setConfirmDeleteAvatar(avatar.filename)
                             }}
                             className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 hover:bg-danger flex items-center justify-center"
                             title="Delete uploaded avatar"
@@ -507,6 +460,16 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
             />
           </div>
         ))}
+      <ConfirmationDialog
+        open={confirmDeleteAvatar !== null}
+        onClose={() => setConfirmDeleteAvatar(null)}
+        onConfirm={() => {
+          if (confirmDeleteAvatar) handleDeleteAvatar(confirmDeleteAvatar)
+        }}
+        title="Delete avatar?"
+        description="This avatar will be permanently removed and cannot be undone."
+        confirmLabel="Delete"
+      />
     </div>
   )
 }

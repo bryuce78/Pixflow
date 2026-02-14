@@ -53,7 +53,7 @@ export function SelectableCardGrid<T>({
               title={removeLabel?.(item, index) ?? 'Remove'}
               aria-label={removeLabel?.(item, index) ?? 'Remove'}
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>

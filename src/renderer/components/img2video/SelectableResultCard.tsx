@@ -70,7 +70,7 @@ export function SelectableResultCard({
         {isSelected ? (
           <Check className="w-4 h-4 text-white" />
         ) : (
-          <div className="w-3.5 h-3.5 border-2 border-white/70 rounded" />
+          <div className="w-4 h-4 border-2 border-white/70 rounded" />
         )}
       </button>
 
@@ -79,12 +79,12 @@ export function SelectableResultCard({
         <div className="absolute bottom-2 left-2 z-10">
           {isLiked && (
             <div className="bg-secondary-600 rounded-full p-1.5">
-              <ThumbsUp className="w-3.5 h-3.5 text-white" />
+              <ThumbsUp className="w-4 h-4 text-white" />
             </div>
           )}
           {isDisliked && (
             <div className="bg-danger rounded-full p-1.5">
-              <ThumbsDown className="w-3.5 h-3.5 text-white" />
+              <ThumbsDown className="w-4 h-4 text-white" />
             </div>
           )}
         </div>

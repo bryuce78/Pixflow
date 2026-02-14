@@ -1342,7 +1342,6 @@ export default function CaptionsPage() {
           </div>
 
           <Button
-            variant="primary"
             size="lg"
             className="w-full"
             onClick={handleSubmit}

@@ -26,6 +26,7 @@ import { usePromptStore } from '../../stores/promptStore'
 import type { GeneratedPrompt } from '../../types'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { Button } from '../ui/Button'
+import { ConfirmationDialog } from '../ui/ConfirmationDialog'
 import { Input } from '../ui/Input'
 import { SegmentedTabs } from '../ui/navigation/SegmentedTabs'
 import { Slider } from '../ui/Slider'
@@ -96,6 +97,8 @@ export default function PromptFactoryPage() {
   const [editSaving, setEditSaving] = useState(false)
   const [editSaved, setEditSaved] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [confirmClearImages, setConfirmClearImages] = useState(false)
+  const [confirmClearPrompts, setConfirmClearPrompts] = useState(false)
   const completedPromptIndexes = prompts.reduce<number[]>((acc, prompt, index) => {
     if (prompt) acc.push(index)
     return acc
@@ -206,7 +209,7 @@ export default function PromptFactoryPage() {
                   <Button
                     variant="ghost"
                     size="xs"
-                    icon={<Upload className="w-3.5 h-3.5" />}
+                    icon={<Upload className="w-4 h-4" />}
                     onClick={() => {
                       const input = document.createElement('input')
                       input.type = 'file'
@@ -223,8 +226,8 @@ export default function PromptFactoryPage() {
                   <Button
                     variant="ghost-danger"
                     size="xs"
-                    icon={<Trash2 className="w-3.5 h-3.5" />}
-                    onClick={clearAnalyzeEntries}
+                    icon={<Trash2 className="w-4 h-4" />}
+                    onClick={() => setConfirmClearImages(true)}
                   >
                     Clear All
                   </Button>
@@ -376,14 +379,14 @@ export default function PromptFactoryPage() {
                           className="p-1 text-surface-300 hover:text-danger transition-colors rounded"
                           title="Remove image"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
                     {entry.error && (
                       <div className="flex items-center gap-2 p-2 bg-danger-muted/30 border border-danger/30 rounded-lg text-danger text-xs">
-                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
                         {entry.error.message}
                       </div>
                     )}
@@ -512,7 +515,6 @@ export default function PromptFactoryPage() {
             </Button>
           ) : (
             <Button
-              variant="primary"
               size="lg"
               icon={<Sparkles className="w-5 h-5" />}
               onClick={generate}
@@ -531,12 +533,10 @@ export default function PromptFactoryPage() {
               <h3 className="text-sm font-semibold text-surface-600">Prompts</h3>
               {prompts.length > 0 && (
                 <Button
-                  variant="ghost"
+                  variant="ghost-danger"
                   size="xs"
-                  icon={<Trash2 className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    usePromptStore.setState({ prompts: [], selectedIndex: 0 })
-                  }}
+                  icon={<Trash2 className="w-4 h-4" />}
+                  onClick={() => setConfirmClearPrompts(true)}
                 >
                   Clear All
                 </Button>
@@ -598,7 +598,7 @@ export default function PromptFactoryPage() {
                 {generationProgress.step === 'done' && 'Complete!'}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-surface-400">
-                <Timer className="w-3.5 h-3.5" />
+                <Timer className="w-4 h-4" />
                 {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
               </div>
             </div>
@@ -752,9 +752,9 @@ export default function PromptFactoryPage() {
                     size="sm"
                     icon={
                       promptSaving ? undefined : promptSaved ? (
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-4 h-4" />
                       ) : (
-                        <Save className="w-3.5 h-3.5" />
+                        <Save className="w-4 h-4" />
                       )
                     }
                     loading={promptSaving}
@@ -777,6 +777,23 @@ export default function PromptFactoryPage() {
           )}
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={confirmClearImages}
+        onClose={() => setConfirmClearImages(false)}
+        onConfirm={clearAnalyzeEntries}
+        title="Clear all images?"
+        description={`This will remove ${analyzeEntries.length} image${analyzeEntries.length === 1 ? '' : 's'} and cannot be undone.`}
+        confirmLabel="Clear All"
+      />
+      <ConfirmationDialog
+        open={confirmClearPrompts}
+        onClose={() => setConfirmClearPrompts(false)}
+        onConfirm={() => usePromptStore.setState({ prompts: [], selectedIndex: 0 })}
+        title="Clear all prompts?"
+        description={`This will remove ${prompts.length} prompt${prompts.length === 1 ? '' : 's'} and cannot be undone.`}
+        confirmLabel="Clear All"
+      />
     </div>
   )
 }

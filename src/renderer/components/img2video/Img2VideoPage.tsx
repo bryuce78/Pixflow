@@ -183,18 +183,13 @@ export default function Img2VideoPage() {
                   <Button
                     variant="ghost"
                     size="xs"
-                    icon={<Upload className="w-3.5 h-3.5" />}
+                    icon={<Upload className="w-4 h-4" />}
                     onClick={handleAddMoreClick}
                     disabled={uploading}
                   >
                     {uploading ? 'Uploading...' : 'Add More'}
                   </Button>
-                  <Button
-                    variant="ghost-danger"
-                    size="xs"
-                    icon={<Trash2 className="w-3.5 h-3.5" />}
-                    onClick={clearEntries}
-                  >
+                  <Button variant="ghost-danger" size="xs" icon={<Trash2 className="w-4 h-4" />} onClick={clearEntries}>
                     Clear All
                   </Button>
                 </div>
@@ -231,7 +226,7 @@ export default function Img2VideoPage() {
                             className="p-1 text-surface-300 hover:text-danger transition-colors rounded"
                             title="Remove image"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -434,7 +429,6 @@ export default function Img2VideoPage() {
                               )}
                               {job?.status === 'completed' && (
                                 <Button
-                                  variant="secondary"
                                   size="xs"
                                   icon={<Play className="w-3 h-3" />}
                                   onClick={() => regenerateSingle(i)}
@@ -517,14 +511,14 @@ export default function Img2VideoPage() {
                   Generated Videos ({completedJobs.length})
                 </h2>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="xs" icon={<Upload className="w-3.5 h-3.5" />} onClick={openFilePicker}>
+                  <Button variant="ghost" size="xs" icon={<Upload className="w-4 h-4" />} onClick={openFilePicker}>
                     Add More
                   </Button>
                   {completedJobs.length > 0 && (
                     <Button
                       variant="success"
                       size="xs"
-                      icon={<Download className="w-3.5 h-3.5" />}
+                      icon={<Download className="w-4 h-4" />}
                       onClick={handleDownloadAll}
                     >
                       Download All
@@ -554,7 +548,7 @@ export default function Img2VideoPage() {
                       <Button
                         variant="ghost"
                         size="xs"
-                        icon={<Download className="w-3.5 h-3.5" />}
+                        icon={<Download className="w-4 h-4" />}
                         onClick={() => handleDownload(job.localPath!)}
                       >
                         Download

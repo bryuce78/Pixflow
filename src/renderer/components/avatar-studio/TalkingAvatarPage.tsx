@@ -577,7 +577,6 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                 />
               </div>
               <Button
-                variant="primary"
                 size="md"
                 icon={scriptGenerating ? undefined : <Wand2 className="w-4 h-4" />}
                 loading={scriptGenerating}
@@ -718,7 +717,6 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
               )}
 
               <Button
-                variant="success"
                 size="lg"
                 icon={translationGenerating || lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
                 loading={translationGenerating || lipsyncGenerating}

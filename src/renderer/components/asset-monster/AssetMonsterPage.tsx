@@ -856,7 +856,6 @@ Examples:
 
         {/* Generate Button */}
         <Button
-          variant="success"
           size="lg"
           icon={batchLoading ? undefined : <Play className="w-5 h-5" />}
           loading={batchLoading}
@@ -1049,7 +1048,7 @@ Examples:
                           className="w-7 h-7 rounded-full bg-black/60 hover:bg-success/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={batchImageIds.has(img.index) ? 'Like' : 'Loading...'}
                         >
-                          <ThumbsUp className="w-3.5 h-3.5 text-white" />
+                          <ThumbsUp className="w-4 h-4 text-white" />
                         </button>
                         <button
                           type="button"
@@ -1065,7 +1064,7 @@ Examples:
                           className="w-7 h-7 rounded-full bg-black/60 hover:bg-danger/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={batchImageIds.has(img.index) ? 'Dislike' : 'Loading...'}
                         >
-                          <ThumbsDown className="w-3.5 h-3.5 text-white" />
+                          <ThumbsDown className="w-4 h-4 text-white" />
                         </button>
                       </div>
                     )}
@@ -1080,7 +1079,7 @@ Examples:
                       <Button
                         variant="ghost"
                         size="xs"
-                        icon={<CheckSquare className="w-3.5 h-3.5" />}
+                        icon={<CheckSquare className="w-4 h-4" />}
                         onClick={() =>
                           selectedResultImages.size ===
                           batchProgress.images.filter((i) => i.status === 'completed').length
