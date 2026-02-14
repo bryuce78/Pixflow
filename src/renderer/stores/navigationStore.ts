@@ -74,11 +74,7 @@ export const useNavigationStore = create<NavigationState>()((set) => ({
       hasSelectedCategory: state.hasSelectedCategory || !state.sidebarCollapsed,
     })),
 
-  setSidebarCollapsed: (collapsed) =>
-    set((state) => ({
-      sidebarCollapsed: collapsed,
-      hasSelectedCategory: state.hasSelectedCategory || !collapsed,
-    })),
+  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
   consumePendingNavigationPerf: () => {
     const current = useNavigationStore.getState().pendingNavigationPerf

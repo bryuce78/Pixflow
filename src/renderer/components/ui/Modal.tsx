@@ -31,7 +31,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center justify-center w-9 h-9 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors shrink-0"
+              className="flex items-center justify-center w-11 h-11 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
