@@ -328,12 +328,12 @@ async function runWithConcurrency<T>(
 function makeFrameOutputPath(outputDir: string, age: number): string {
   return path.join(
     outputDir,
-    `lifetime_age_${String(age).padStart(2, '0')}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`,
+    `lifetime_age_${String(age).padStart(2, '0')}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
   )
 }
 
 function makeSourceFrameOutputPath(outputDir: string): string {
-  return path.join(outputDir, `lifetime_source_baby_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`)
+  return path.join(outputDir, `lifetime_source_baby_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`)
 }
 
 function makeTransitionOutputPath(outputDir: string, fromAge: number, toAge: number): string {
@@ -1366,7 +1366,7 @@ async function runGenerateFramesJob(params: {
         resolution: '2K',
         aspectRatio: '9:16',
         numImages: 1,
-        outputFormat: 'png',
+        outputFormat: 'jpeg',
       })
       const sourceGeneratedUrl = sourceResult.urls[0]
       if (!sourceGeneratedUrl) {
@@ -1419,7 +1419,7 @@ async function runGenerateFramesJob(params: {
         resolution: '2K',
         aspectRatio: '9:16',
         numImages: 1,
-        outputFormat: 'png',
+        outputFormat: 'jpeg',
       })
       const generatedUrl = result.urls[0]
       if (!generatedUrl) {
@@ -1899,7 +1899,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
           resolution: '2K',
           aspectRatio: '9:16',
           numImages: 1,
-          outputFormat: 'png',
+          outputFormat: 'jpeg',
         })
         const sourceGeneratedUrl = sourceResult.urls[0]
         if (!sourceGeneratedUrl) {
@@ -1987,7 +1987,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
         resolution: '2K',
         aspectRatio: '9:16',
         numImages: 1,
-        outputFormat: 'png',
+        outputFormat: 'jpeg',
       })
       const generatedUrl = result.urls[0]
       if (!generatedUrl) {
