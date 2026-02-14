@@ -330,6 +330,7 @@ export default function LifetimePage() {
           if (activeVideoJobIdRef.current !== jobId) return
           stopPolling()
           setCreatingVideos(false)
+          setAssemblyStage('idle')
           notify.error(data.error || 'Failed to create lifetime videos')
         }
       } catch (error) {
@@ -617,23 +618,30 @@ export default function LifetimePage() {
             </div>
           )}
 
-          {hasAnyTransitionStarted && inProgressTransitions.length > 0 && (
+          {hasAnyTransitionStarted && (
             <div className="bg-surface-50 rounded-lg p-4 space-y-4">
               <StepHeader stepNumber={4} title="Neighbor Videos" />
-              <div className="space-y-2">
-                {inProgressTransitions.map((t) => (
-                  <div
-                    key={`${t.fromAge}-${t.toAge}`}
-                    className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
-                  >
-                    <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
-                    <span className="text-sm text-surface-500">
-                      Age {t.fromAge} → {t.toAge}
-                    </span>
-                    <span className="text-xs text-surface-400 ml-auto">Generating...</span>
-                  </div>
-                ))}
-              </div>
+              {inProgressTransitions.length > 0 ? (
+                <div className="space-y-2">
+                  {inProgressTransitions.map((t) => (
+                    <div
+                      key={`${t.fromAge}-${t.toAge}`}
+                      className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
+                    >
+                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                      <span className="text-sm text-surface-500">
+                        Age {t.fromAge} → {t.toAge}
+                      </span>
+                      <span className="text-xs text-surface-400 ml-auto">Generating...</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <Check className="w-4 h-4" />
+                  All videos generated
+                </div>
+              )}
             </div>
           )}
 
@@ -642,19 +650,20 @@ export default function LifetimePage() {
               <StepHeader stepNumber={5} title="Final Video" />
               {!finalVideoUrl && (
                 <div className="space-y-2">
-                  {completedTransitions.map((t) => (
-                    <div
-                      key={`done-${t.fromAge}-${t.toAge}`}
-                      className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
-                    >
-                      <Check className="w-4 h-4 text-green-500 shrink-0" />
-                      <span className="text-sm text-surface-500">
-                        Age {t.fromAge} → {t.toAge}
-                      </span>
-                      <span className="text-xs text-surface-400 ml-auto">Ready</span>
-                    </div>
-                  ))}
-                  {assemblyStage === 'editing' && (
+                  {assemblyStage === 'idle' &&
+                    completedTransitions.map((t) => (
+                      <div
+                        key={`done-${t.fromAge}-${t.toAge}`}
+                        className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
+                      >
+                        <Check className="w-4 h-4 text-green-500 shrink-0" />
+                        <span className="text-sm text-surface-500">
+                          Age {t.fromAge} → {t.toAge}
+                        </span>
+                        <span className="text-xs text-surface-400 ml-auto">Ready</span>
+                      </div>
+                    ))}
+                  {(assemblyStage === 'idle' || assemblyStage === 'editing') && creatingVideos && (
                     <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
                       <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
                       <span className="text-sm text-surface-500">Editing videos</span>
@@ -680,7 +689,7 @@ export default function LifetimePage() {
                     <Check className="w-4 h-4" />
                     Complete
                   </div>
-                  <div className="rounded-lg border border-surface-200 p-3">
+                  <div className="rounded-lg border border-surface-200 p-3 max-w-sm">
                     <div className="text-sm font-semibold mb-2 inline-flex items-center gap-2">
                       <Film className="w-4 h-4 text-brand-500" />
                       Lifetime Video
