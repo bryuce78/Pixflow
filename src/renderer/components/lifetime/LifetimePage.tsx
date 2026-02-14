@@ -1,4 +1,4 @@
-import { Film, RefreshCw, Sparkles, Upload, X } from 'lucide-react'
+import { Check, Film, Loader2, Sparkles, Upload, X } from 'lucide-react'
 import { type ClipboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
@@ -13,11 +13,13 @@ interface LifetimeFrame {
   imageUrl: string
 }
 
-interface LifetimeTransition {
+interface TransitionStatus {
   fromAge: number
   toAge: number
-  videoUrl: string
+  status: 'pending' | 'in_progress' | 'completed'
 }
+
+type AssemblyStage = 'idle' | 'editing' | 'adjusting_time' | 'finalizing' | 'done'
 
 interface LifetimeVideoJobStatus {
   status: 'queued' | 'running' | 'completed' | 'failed'
@@ -29,7 +31,7 @@ interface LifetimeVideoJobStatus {
     currentStep: string
     message: string
   }
-  transitions?: LifetimeTransition[]
+  assemblyStage?: AssemblyStage
   finalVideoUrl?: string
   finalVideoDurationSec?: number
 }
@@ -46,8 +48,7 @@ interface LifetimeRunStatus {
     message: string
   }
   frames?: LifetimeFrame[]
-  earlyTransitionsStarted?: number
-  earlyTransitionsCompleted?: number
+  earlyTransitionStatuses?: TransitionStatus[]
 }
 
 type LifetimeBackgroundMode = 'white_bg' | 'natural_bg'
@@ -92,27 +93,22 @@ export default function LifetimePage() {
   const activeJobIdRef = useRef<string | null>(null)
   const videoPollRef = useRef<number | null>(null)
   const activeVideoJobIdRef = useRef<string | null>(null)
+  const autoVideoTriggeredRef = useRef(false)
   const [babyFile, setBabyFile] = useState<File | null>(null)
   const [babyImageUrl, setBabyImageUrl] = useState('')
   const [backgroundMode, setBackgroundMode] = useState<LifetimeBackgroundMode>('white_bg')
   const [genderHint, setGenderHint] = useState<LifetimeGenderHint>('auto')
   const [running, setRunning] = useState(false)
   const [creatingVideos, setCreatingVideos] = useState(false)
-  const [regeneratingAge, setRegeneratingAge] = useState<number | null>(null)
   const [runMessage, setRunMessage] = useState('')
-  const [sessionId, setSessionId] = useState('')
   const [sourceFrameUrl, setSourceFrameUrl] = useState('')
   const [progress, setProgress] = useState(0)
   const [frames, setFrames] = useState<LifetimeFrame[]>([])
-  const [transitions, setTransitions] = useState<LifetimeTransition[]>([])
   const [videoDurationSec, setVideoDurationSec] = useState(VIDEO_DURATION_DEFAULT_SEC)
   const [finalVideoUrl, setFinalVideoUrl] = useState('')
   const [finalVideoDurationSec, setFinalVideoDurationSec] = useState(0)
-  const [hasRequestedVideoCreation, setHasRequestedVideoCreation] = useState(false)
-  const [videoProgress, setVideoProgress] = useState(0)
-  const [videoProgressMessage, setVideoProgressMessage] = useState('')
-  const [earlyTransitionsStarted, setEarlyTransitionsStarted] = useState(0)
-  const [earlyTransitionsCompleted, setEarlyTransitionsCompleted] = useState(0)
+  const [transitionStatuses, setTransitionStatuses] = useState<TransitionStatus[]>([])
+  const [assemblyStage, setAssemblyStage] = useState<AssemblyStage>('idle')
 
   const inputPreviewUrl = useMemo(() => {
     if (babyFile) return URL.createObjectURL(babyFile)
@@ -136,13 +132,11 @@ export default function LifetimePage() {
     })
   }, [frames, sourceFrameUrl, backgroundMode, running])
 
-  const hasAllGeneratedFrames = useMemo(() => {
-    const hasAllAges = LIFETIME_AGES.every((age) => frames.some((frame) => frame.age === age && !!frame.imageUrl))
-    if (backgroundMode !== 'white_bg') return hasAllAges
-    const hasSource = !!sourceFrameUrl || frames.some((frame) => frame.age === 0 && !!frame.imageUrl)
-    return hasSource && hasAllAges
-  }, [frames, backgroundMode, sourceFrameUrl])
   const shouldShowLifetimeFrames = running || !!sourceFrameUrl || frames.length > 0
+  const allTransitionsCompleted =
+    transitionStatuses.length === 9 && transitionStatuses.every((t) => t.status === 'completed')
+  const hasAnyTransitionStarted = transitionStatuses.some((t) => t.status !== 'pending')
+  const pendingOrInProgressTransitions = transitionStatuses.filter((t) => t.status !== 'completed')
 
   useEffect(() => {
     return () => {
@@ -159,26 +153,55 @@ export default function LifetimePage() {
     }
   }, [])
 
-  const resetLifetimeResults = (options?: { preserveVideoOutput?: boolean }) => {
-    const preserveVideoOutput = options?.preserveVideoOutput === true
+  const resetLifetimeResults = () => {
     if (runPollRef.current) {
       window.clearInterval(runPollRef.current)
       runPollRef.current = null
     }
     activeJobIdRef.current = null
+    if (videoPollRef.current) {
+      window.clearInterval(videoPollRef.current)
+      videoPollRef.current = null
+    }
+    activeVideoJobIdRef.current = null
+    autoVideoTriggeredRef.current = false
+    setRunning(false)
+    setCreatingVideos(false)
     setRunMessage('')
     setProgress(0)
-    setSessionId('')
     setSourceFrameUrl('')
     setFrames([])
-    setEarlyTransitionsStarted(0)
-    setEarlyTransitionsCompleted(0)
-    setVideoDurationSec(VIDEO_DURATION_DEFAULT_SEC)
-    if (!preserveVideoOutput) {
-      setTransitions([])
-      setFinalVideoUrl('')
-      setFinalVideoDurationSec(0)
-      setHasRequestedVideoCreation(false)
+    setTransitionStatuses([])
+    setAssemblyStage('idle')
+    setFinalVideoUrl('')
+    setFinalVideoDurationSec(0)
+  }
+
+  const triggerVideoCreation = async (completedSessionId: string) => {
+    if (autoVideoTriggeredRef.current) return
+    autoVideoTriggeredRef.current = true
+    setCreatingVideos(true)
+    setAssemblyStage('idle')
+    setFinalVideoUrl('')
+    setFinalVideoDurationSec(0)
+    try {
+      const res = await authFetch(apiUrl('/api/lifetime/create-videos'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: completedSessionId, targetDurationSec: videoDurationSec }),
+      })
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to create lifetime videos'))
+      }
+      const raw = await res.json().catch(() => ({}))
+      const data = unwrapApiData<{ jobId: string }>(raw)
+      if (!data.jobId) throw new Error('Video job id missing from server response')
+      startVideoPolling(data.jobId)
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Failed to create lifetime videos')
+      autoVideoTriggeredRef.current = false
+      setCreatingVideos(false)
     }
   }
 
@@ -207,18 +230,9 @@ export default function LifetimePage() {
           setProgress(pct)
           setRunMessage(progressData.message || '')
         }
-        if (data.frames) {
-          setFrames(data.frames)
-        }
-        if (data.sourceFrameUrl) {
-          setSourceFrameUrl(data.sourceFrameUrl)
-        }
-        if (typeof data.earlyTransitionsStarted === 'number') {
-          setEarlyTransitionsStarted(data.earlyTransitionsStarted)
-        }
-        if (typeof data.earlyTransitionsCompleted === 'number') {
-          setEarlyTransitionsCompleted(data.earlyTransitionsCompleted)
-        }
+        if (data.frames) setFrames(data.frames)
+        if (data.sourceFrameUrl) setSourceFrameUrl(data.sourceFrameUrl)
+        if (data.earlyTransitionStatuses) setTransitionStatuses(data.earlyTransitionStatuses)
 
         if (data.status === 'completed') {
           if (activeJobIdRef.current !== jobId) return
@@ -228,10 +242,12 @@ export default function LifetimePage() {
           }
           activeJobIdRef.current = null
           setRunning(false)
-          setSessionId(data.sessionId || '')
+          const resolvedSessionId = data.sessionId || ''
           setRunMessage('Frame generation completed')
           setProgress(100)
-          notify.success('Lifetime frames generated')
+          if (resolvedSessionId) {
+            void triggerVideoCreation(resolvedSessionId)
+          }
           return
         }
 
@@ -293,22 +309,21 @@ export default function LifetimePage() {
 
         const raw = await res.json().catch(() => ({}))
         const data = unwrapApiData<LifetimeVideoJobStatus>(raw)
-        if (data.progress) {
-          const pct = data.progress.total > 0 ? Math.round((data.progress.completed / data.progress.total) * 100) : 0
-          setVideoProgress(pct)
-          setVideoProgressMessage(data.progress.message || '')
+        if (data.assemblyStage) setAssemblyStage(data.assemblyStage)
+        if (data.assemblyStage && data.assemblyStage !== 'idle') {
+          setTransitionStatuses((prev) =>
+            prev.length > 0 ? prev.map((t) => ({ ...t, status: 'completed' as const })) : prev,
+          )
         }
-        if (data.transitions) setTransitions(data.transitions)
 
         if (data.status === 'completed') {
           if (activeVideoJobIdRef.current !== jobId) return
           stopPolling()
           setCreatingVideos(false)
-          setVideoProgress(100)
-          setVideoProgressMessage('Lifetime video created')
+          setAssemblyStage('done')
           setFinalVideoUrl(data.finalVideoUrl || '')
           setFinalVideoDurationSec(data.finalVideoDurationSec || 0)
-          notify.success('Lifetime videos created')
+          notify.success('Lifetime video created')
           return
         }
 
@@ -316,7 +331,6 @@ export default function LifetimePage() {
           if (activeVideoJobIdRef.current !== jobId) return
           stopPolling()
           setCreatingVideos(false)
-          setVideoProgressMessage('Video creation failed')
           notify.error(data.error || 'Failed to create lifetime videos')
         }
       } catch (error) {
@@ -351,7 +365,7 @@ export default function LifetimePage() {
     const file = new File([blob], `clipboard_${Date.now()}.${extension}`, { type: blob.type })
     setBabyFile(file)
     setBabyImageUrl('')
-    resetLifetimeResults({ preserveVideoOutput: creatingVideos })
+    resetLifetimeResults()
     notify.success('Image pasted from clipboard')
   }
 
@@ -364,28 +378,14 @@ export default function LifetimePage() {
       notify.error('Please enter a valid image URL (http/https)')
       return
     }
-    if (creatingVideos) {
-      notify.error('Please wait until current lifetime video generation is complete')
+    if (running || creatingVideos) {
+      notify.error('Please wait until current generation is complete')
       return
     }
 
-    if (runPollRef.current) {
-      window.clearInterval(runPollRef.current)
-      runPollRef.current = null
-    }
-    activeJobIdRef.current = null
-
+    resetLifetimeResults()
     setRunning(true)
     setRunMessage('Queued')
-    setProgress(0)
-    setSessionId('')
-    setSourceFrameUrl('')
-    setTransitions([])
-    setFrames([])
-    setVideoDurationSec(VIDEO_DURATION_DEFAULT_SEC)
-    setFinalVideoUrl('')
-    setFinalVideoDurationSec(0)
-    setHasRequestedVideoCreation(false)
 
     try {
       const formData = new FormData()
@@ -426,93 +426,7 @@ export default function LifetimePage() {
     }
   }
 
-  const handleRegenerateFrame = async (age: number) => {
-    if (!sessionId) {
-      notify.error('Generate lifetime frames first')
-      return
-    }
-
-    setRegeneratingAge(age)
-    setHasRequestedVideoCreation(false)
-    setFinalVideoUrl('')
-    setFinalVideoDurationSec(0)
-    try {
-      const res = await authFetch(apiUrl('/api/lifetime/regenerate-frame'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, age, genderHint }),
-      })
-
-      if (!res.ok) {
-        const raw = await res.json().catch(() => ({}))
-        throw new Error(getApiError(raw, 'Failed to regenerate frame'))
-      }
-
-      const raw = await res.json().catch(() => ({}))
-      const data = unwrapApiData<{
-        sourceFrameUrl?: string
-        frames: LifetimeFrame[]
-        transitions: LifetimeTransition[]
-        finalVideoUrl?: string
-      }>(raw)
-      if (data.sourceFrameUrl) {
-        setSourceFrameUrl(data.sourceFrameUrl)
-      }
-      setFrames(data.frames || [])
-      setTransitions(data.transitions || [])
-      setFinalVideoUrl(data.finalVideoUrl || '')
-      setFinalVideoDurationSec(0)
-      if (age === 0) {
-        notify.success('Source frame regenerated. Generate frames again to rebuild ages.')
-      } else {
-        notify.success(`Age ${age} frame regenerated`)
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to regenerate frame'
-      notify.error(message)
-    } finally {
-      setRegeneratingAge(null)
-    }
-  }
-
-  const handleCreateVideos = async () => {
-    if (!sessionId || !hasAllGeneratedFrames) {
-      notify.error(
-        backgroundMode === 'white_bg'
-          ? 'You need source + 9 age frames before creating videos'
-          : 'You need 9 lifetime frames before creating videos',
-      )
-      return
-    }
-    setCreatingVideos(true)
-    setHasRequestedVideoCreation(true)
-    setTransitions([])
-    setFinalVideoUrl('')
-    setFinalVideoDurationSec(0)
-    setVideoProgress(0)
-    setVideoProgressMessage('Queued')
-    try {
-      const res = await authFetch(apiUrl('/api/lifetime/create-videos'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, targetDurationSec: videoDurationSec }),
-      })
-
-      if (!res.ok) {
-        const raw = await res.json().catch(() => ({}))
-        throw new Error(getApiError(raw, 'Failed to create lifetime videos'))
-      }
-
-      const raw = await res.json().catch(() => ({}))
-      const data = unwrapApiData<{ jobId: string }>(raw)
-      if (!data.jobId) throw new Error('Video job id missing from server response')
-      startVideoPolling(data.jobId)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create lifetime videos'
-      notify.error(message)
-      setCreatingVideos(false)
-    }
-  }
+  const showFinalVideoSection = allTransitionsCompleted || creatingVideos || assemblyStage !== 'idle'
 
   return (
     <div className="space-y-6">
@@ -546,7 +460,7 @@ export default function LifetimePage() {
                   onChange={(e) => {
                     setBabyImageUrl(e.target.value)
                     setBabyFile(null)
-                    resetLifetimeResults({ preserveVideoOutput: creatingVideos })
+                    resetLifetimeResults()
                   }}
                   onPaste={handlePasteUrlInput}
                   placeholder="https://..."
@@ -585,7 +499,7 @@ export default function LifetimePage() {
                       onClick={() => {
                         setBabyFile(null)
                         setBabyImageUrl('')
-                        resetLifetimeResults({ preserveVideoOutput: creatingVideos })
+                        resetLifetimeResults()
                       }}
                       className="inline-flex items-center gap-1 rounded-md border border-surface-200 bg-surface-100 px-2 py-1 text-[10px] font-medium text-surface-400 hover:bg-surface-200 hover:text-surface-100 transition-colors"
                     >
@@ -612,41 +526,44 @@ export default function LifetimePage() {
                   if (!file) return
                   setBabyFile(file)
                   setBabyImageUrl('')
-                  resetLifetimeResults({ preserveVideoOutput: creatingVideos })
+                  resetLifetimeResults()
                   e.target.value = ''
                 }}
               />
+            </div>
+          </div>
 
-              <p className="text-sm text-surface-500">
-                {backgroundMode === 'white_bg'
-                  ? 'Generate 10 frames total (source baby + 9 age frames). Then create lifetime videos as a second step.'
-                  : 'Generate 9 age-progressed frames first. Then create lifetime videos as a second step.'}
-              </p>
-
+          <div className="bg-surface-50 rounded-lg p-4">
+            <StepHeader stepNumber={2} title="Video Duration" />
+            <div className="space-y-4">
+              <Slider
+                label="Final Duration"
+                min={VIDEO_DURATION_MIN_SEC}
+                max={VIDEO_DURATION_MAX_SEC}
+                step={1}
+                value={videoDurationSec}
+                displayValue={`${videoDurationSec}s`}
+                onChange={(event) => setVideoDurationSec(Number(event.target.value))}
+              />
               <Button
                 variant="lime"
                 className="w-full"
                 size="lg"
                 icon={running ? undefined : <Sparkles className="w-4 h-4" />}
-                loading={running}
-                disabled={creatingVideos}
+                loading={running || creatingVideos}
+                disabled={running || creatingVideos}
                 onClick={handleRun}
               >
-                {running ? 'Generating frames...' : 'Generate frames'}
+                {running || creatingVideos ? 'Generating...' : 'Generate Lifetime Video'}
               </Button>
               {running && <ProgressBar value={progress} label={runMessage || 'Generating lifetime frames'} />}
-              {running && earlyTransitionsStarted > 0 && (
-                <p className="text-xs text-surface-400 mt-1">
-                  Transition videos: {earlyTransitionsCompleted}/{earlyTransitionsStarted} ready
-                </p>
-              )}
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
           <div className="bg-surface-50 rounded-lg p-4">
-            <StepHeader stepNumber={2} title="Lifetime Frames" />
+            <StepHeader stepNumber={3} title="Lifetime Frames" />
             {!shouldShowLifetimeFrames ? (
               <p className="text-sm text-surface-500">Frames will appear here after generation.</p>
             ) : (
@@ -669,23 +586,6 @@ export default function LifetimePage() {
                             <div className="w-full h-full animate-pulse bg-gradient-to-b from-surface-100 to-surface-200" />
                           )}
                         </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                          icon={<RefreshCw className="w-3 h-3" />}
-                          loading={regeneratingAge === frame.age}
-                          disabled={
-                            running ||
-                            creatingVideos ||
-                            (frame.age === 0 ? !sessionId : !frame.imageUrl) ||
-                            (regeneratingAge !== null && regeneratingAge !== frame.age)
-                          }
-                          scrollToTopOnClick={false}
-                          onClick={() => handleRegenerateFrame(frame.age)}
-                        >
-                          Regenerate
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -694,67 +594,79 @@ export default function LifetimePage() {
             )}
           </div>
 
-          {hasAllGeneratedFrames && (
+          {hasAnyTransitionStarted && (
             <div className="bg-surface-50 rounded-lg p-4 space-y-4">
-              <StepHeader stepNumber={3} title="Video Duration" />
-              <Slider
-                label="Final Duration"
-                min={VIDEO_DURATION_MIN_SEC}
-                max={VIDEO_DURATION_MAX_SEC}
-                step={1}
-                value={videoDurationSec}
-                displayValue={`${videoDurationSec}s`}
-                onChange={(event) => setVideoDurationSec(Number(event.target.value))}
-              />
-              <Button variant="lime" className="w-full" size="lg" loading={creatingVideos} onClick={handleCreateVideos}>
-                {creatingVideos ? 'Creating Lifetime Videos...' : 'Create lifetime videos'}
-              </Button>
-              {creatingVideos && (
-                <ProgressBar value={videoProgress} label={videoProgressMessage || 'Creating lifetime videos'} />
+              <StepHeader stepNumber={4} title="Neighbor Videos" />
+              {pendingOrInProgressTransitions.length > 0 ? (
+                <div className="space-y-2">
+                  {pendingOrInProgressTransitions.map((t) => (
+                    <div
+                      key={`${t.fromAge}-${t.toAge}`}
+                      className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
+                    >
+                      {t.status === 'in_progress' ? (
+                        <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-surface-300 shrink-0" />
+                      )}
+                      <span className="text-sm text-surface-500">
+                        Age {t.fromAge} → {t.toAge}
+                      </span>
+                      <span className="text-xs text-surface-400 ml-auto">
+                        {t.status === 'in_progress' ? 'Generating...' : 'Pending'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-surface-500">All neighbor videos completed.</p>
               )}
             </div>
           )}
 
-          {hasRequestedVideoCreation && (
+          {showFinalVideoSection && (
             <div className="bg-surface-50 rounded-lg p-4 space-y-4">
-              <StepHeader stepNumber={4} title="Output Videos" />
-              {!finalVideoUrl && transitions.length === 0 && creatingVideos ? (
-                <p className="text-sm text-surface-500">Generating transitions...</p>
-              ) : (
-                <div className="space-y-4">
-                  {transitions.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
-                        Transitions ({transitions.length}/9)
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {transitions.map((t) => (
-                          <div key={`${t.fromAge}-${t.toAge}`} className="rounded-lg border border-surface-200 p-2">
-                            <div className="text-xs font-medium text-surface-500 mb-1">
-                              Age {t.fromAge} → {t.toAge}
-                            </div>
-                            {/* biome-ignore lint/a11y/useMediaCaption: generated preview videos don't provide caption tracks */}
-                            <video src={assetUrl(t.videoUrl)} controls className="w-full rounded-md bg-black" />
-                          </div>
-                        ))}
-                      </div>
+              <StepHeader stepNumber={5} title="Final Video" />
+              {assemblyStage !== 'done' && !finalVideoUrl ? (
+                <div className="space-y-2">
+                  {assemblyStage === 'idle' || assemblyStage === 'editing' ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
+                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                      <span className="text-sm text-surface-500">Editing videos</span>
                     </div>
-                  )}
-                  {finalVideoUrl && (
-                    <div className="rounded-lg border border-surface-200 p-3">
-                      <div className="text-sm font-semibold mb-2 inline-flex items-center gap-2">
-                        <Film className="w-4 h-4 text-brand-500" />
-                        Final Lifetime Video
-                      </div>
-                      {/* biome-ignore lint/a11y/useMediaCaption: generated preview videos don't provide caption tracks */}
-                      <video src={assetUrl(finalVideoUrl)} controls className="w-full rounded-lg bg-black" />
-                      <p className="mt-2 text-xs text-surface-500">
-                        {finalVideoDurationSec > 0 ? `${finalVideoDurationSec}s` : '5s'} · no audio
-                      </p>
+                  ) : null}
+                  {assemblyStage === 'adjusting_time' ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
+                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                      <span className="text-sm text-surface-500">Adjusting time</span>
                     </div>
-                  )}
+                  ) : null}
+                  {assemblyStage === 'finalizing' ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
+                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                      <span className="text-sm text-surface-500">Finalizing</span>
+                    </div>
+                  ) : null}
                 </div>
-              )}
+              ) : finalVideoUrl ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <Check className="w-4 h-4" />
+                    Complete
+                  </div>
+                  <div className="rounded-lg border border-surface-200 p-3">
+                    <div className="text-sm font-semibold mb-2 inline-flex items-center gap-2">
+                      <Film className="w-4 h-4 text-brand-500" />
+                      Lifetime Video
+                    </div>
+                    {/* biome-ignore lint/a11y/useMediaCaption: generated preview videos don't provide caption tracks */}
+                    <video src={assetUrl(finalVideoUrl)} controls className="w-full rounded-lg bg-black" />
+                    <p className="mt-2 text-xs text-surface-500">
+                      {finalVideoDurationSec > 0 ? `${finalVideoDurationSec}s` : '5s'} · no audio
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

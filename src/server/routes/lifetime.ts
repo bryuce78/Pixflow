@@ -165,6 +165,7 @@ interface LifetimeRunJob {
   sessionId: string
   error: string
   earlyTransitionsStarted: number
+  earlyTransitionStartedKeys: Set<string>
   earlyTransitions: Map<string, LifetimeTransitionRecord>
   earlyTransitionPromises: Promise<void>[]
 }
@@ -184,6 +185,7 @@ interface LifetimeVideoJob {
     message: string
   }
   transitions: Array<{ fromAge: number; toAge: number; videoUrl: string }>
+  assemblyStage: 'idle' | 'editing' | 'adjusting_time' | 'finalizing' | 'done'
   finalVideoUrl: string
   finalVideoDurationSec: number
   error: string
@@ -284,6 +286,7 @@ function createVideoJob(sessionId: string): LifetimeVideoJob {
     sessionId,
     progress: { total: 10, completed: 0, currentStep: '', message: 'Queued' },
     transitions: [],
+    assemblyStage: 'idle',
     finalVideoUrl: '',
     finalVideoDurationSec: 0,
     error: '',
@@ -832,7 +835,9 @@ function mediumShotFramingRule(): string {
     'Never output full-body/wide framing.',
     'Both shoulders must remain fully visible; do not crop shoulders.',
     'Upper torso and outfit must be clearly visible in frame.',
-    'Subject must face the camera directly with a front-facing head orientation.',
+    'Subject must be in a relaxed, natural POSE — never caught mid-action, mid-motion, or in dynamic movement.',
+    'The subject should look like they paused naturally for a portrait in their environment.',
+    'Occasional gentle eye contact with the camera is encouraged.',
   ].join(' ')
 }
 
@@ -1206,6 +1211,7 @@ function createJob(backgroundMode: LifetimeBackgroundMode): LifetimeRunJob {
     sessionId: '',
     error: '',
     earlyTransitionsStarted: 0,
+    earlyTransitionStartedKeys: new Set(),
     earlyTransitions: new Map(),
     earlyTransitionPromises: [],
   }
@@ -1235,7 +1241,10 @@ function fireEarlyTransition(params: {
   const key = `${fromAge}-${toAge}`
 
   const job = lifetimeRunJobs.get(jobId)
-  if (job) job.earlyTransitionsStarted += 1
+  if (job) {
+    job.earlyTransitionsStarted += 1
+    job.earlyTransitionStartedKeys.add(key)
+  }
 
   return (async () => {
     try {
@@ -1515,6 +1524,7 @@ async function runCreateVideosJob(params: {
   try {
     updateVideoJob(jobId, (job) => {
       job.status = 'running'
+      job.assemblyStage = 'editing'
       job.progress.message = 'Starting video creation'
     })
 
@@ -1643,8 +1653,9 @@ async function runCreateVideosJob(params: {
     const transitions = transitionSlots.filter((t): t is LifetimeTransitionRecord => t !== null)
 
     updateVideoJob(jobId, (job) => {
+      job.assemblyStage = 'adjusting_time'
       job.progress.currentStep = 'Assembling final video'
-      job.progress.message = 'Assembling final video...'
+      job.progress.message = 'Adjusting time...'
     })
 
     manifest.transitions = transitions
@@ -1654,6 +1665,12 @@ async function runCreateVideosJob(params: {
       transitionVideoPaths: transitions.map((t) => t.videoPath),
       targetDurationSec,
     })
+
+    updateVideoJob(jobId, (job) => {
+      job.assemblyStage = 'finalizing'
+      job.progress.message = 'Finalizing...'
+    })
+
     manifest.finalVideoPath = finalVideo.videoPath
     manifest.finalVideoUrl = finalVideo.videoUrl
     manifest.finalVideoDurationSec = targetDurationSec
@@ -1661,6 +1678,7 @@ async function runCreateVideosJob(params: {
 
     updateVideoJob(jobId, (job) => {
       job.status = 'completed'
+      job.assemblyStage = 'done'
       job.progress.completed = job.progress.total
       job.progress.currentStep = ''
       job.progress.message = 'Lifetime video created'
@@ -1798,6 +1816,15 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
     const framesWithSource =
       job.sourceFrameUrl && !hasSourceInFrames ? [{ age: 0, imageUrl: job.sourceFrameUrl }, ...job.frames] : job.frames
 
+    const allPairs = [0, ...TARGET_AGES]
+    const earlyTransitionStatuses = allPairs.slice(0, -1).map((fromAge, i) => {
+      const toAge = allPairs[i + 1]
+      const key = `${fromAge}-${toAge}`
+      if (job.earlyTransitions.has(key)) return { fromAge, toAge, status: 'completed' as const }
+      if (job.earlyTransitionStartedKeys.has(key)) return { fromAge, toAge, status: 'in_progress' as const }
+      return { fromAge, toAge, status: 'pending' as const }
+    })
+
     sendSuccess(res, {
       jobId: job.jobId,
       status: job.status,
@@ -1808,6 +1835,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       frames: framesWithSource,
       earlyTransitionsStarted: job.earlyTransitionsStarted,
       earlyTransitionsCompleted: job.earlyTransitions.size,
+      earlyTransitionStatuses,
     })
   })
 
@@ -2059,6 +2087,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       error: job.error,
       progress: job.progress,
       transitions: job.transitions,
+      assemblyStage: job.assemblyStage,
       finalVideoUrl: job.finalVideoUrl,
       finalVideoDurationSec: job.finalVideoDurationSec,
     })
