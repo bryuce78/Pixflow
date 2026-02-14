@@ -22,18 +22,19 @@ import { type TabId, useNavigationStore } from '../../stores/navigationStore'
 import { usePromptStore } from '../../stores/promptStore'
 import { useThemeStore } from '../../stores/themeStore'
 import { Badge } from '../ui/Badge'
+import { brandedName, brandedPlainText } from '../ui/BrandedName'
 import { NotificationBell } from './NotificationBell'
 import { UserMenu } from './UserMenu'
 
-const SIDEBAR_ITEMS: { id: TabId; label: string; icon: typeof Wand2 }[] = [
-  { id: 'prompts', label: 'Prompt Factory', icon: Wand2 },
-  { id: 'generate', label: 'Asset Monster', icon: Layers },
-  { id: 'img2video', label: 'Img2 Engine', icon: Film },
-  { id: 'avatars', label: 'Avatar Studio', icon: Video },
-  { id: 'captions', label: 'Captions', icon: MessageSquareText },
-  { id: 'machine', label: 'The Machine', icon: Zap },
-  { id: 'lifetime', label: 'Lifetime', icon: TimerReset },
-  { id: 'history', label: 'Library', icon: BookOpen },
+const SIDEBAR_ITEMS: { id: TabId; icon: typeof Wand2 }[] = [
+  { id: 'prompts', icon: Wand2 },
+  { id: 'generate', icon: Layers },
+  { id: 'img2video', icon: Film },
+  { id: 'avatars', icon: Video },
+  { id: 'captions', icon: MessageSquareText },
+  { id: 'machine', icon: Zap },
+  { id: 'lifetime', icon: TimerReset },
+  { id: 'history', icon: BookOpen },
 ]
 
 const LG_BREAKPOINT = '(min-width: 1024px)'
@@ -98,7 +99,11 @@ export function SideNav() {
           title="Home"
         >
           <span className="text-brand-400 inline-block align-baseline text-3xl">⚡</span>
-          {!sidebarCollapsed && <span className="leading-none text-3xl">Pixflow</span>}
+          {!sidebarCollapsed && (
+            <span className="leading-none text-3xl">
+              <span className="text-brand-500">Pix</span>flow
+            </span>
+          )}
         </button>
         {!sidebarCollapsed && (
           <span className="text-surface-400 text-xs uppercase leading-none translate-y-[36px]">beta</span>
@@ -119,7 +124,7 @@ export function SideNav() {
               key={item.id}
               type="button"
               onClick={() => navigate(item.id)}
-              title={item.label}
+              title={brandedPlainText(item.id)}
               className={`relative flex items-center w-full rounded-lg py-3 text-sm font-semibold transition ${
                 sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
               } ${
@@ -130,7 +135,7 @@ export function SideNav() {
             >
               <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
                 <item.icon className="w-4 h-4" />
-                {!sidebarCollapsed && <span>{item.label}</span>}
+                {!sidebarCollapsed && <span>{brandedName(item.id)}</span>}
               </div>
               {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
               {sidebarCollapsed && item.badge && (

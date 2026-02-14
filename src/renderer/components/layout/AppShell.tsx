@@ -20,6 +20,7 @@ import { useNotificationStore } from '../../stores/notificationStore'
 import { useProductStore } from '../../stores/productStore'
 import { useThemeStore } from '../../stores/themeStore'
 import { FeedbackWidget } from '../feedback/FeedbackWidget'
+import { brandedName } from '../ui/BrandedName'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { Skeleton } from '../ui/Skeleton'
 import { AvatarPreviewOverlay } from './AvatarPreviewOverlay'
@@ -48,18 +49,6 @@ const PAGES = {
   machine: MachinePage,
   history: LibraryPage,
 } as const
-
-const PAGE_TITLES: Record<keyof typeof PAGES, string> = {
-  home: 'Pixflow',
-  prompts: 'Prompt Factory',
-  generate: 'Asset Monster',
-  lifetime: 'Lifetime',
-  img2video: 'Img2 Engine',
-  avatars: 'Avatar Studio',
-  captions: 'Captions',
-  machine: 'The Machine',
-  history: 'Library',
-}
 
 const PAGE_ICONS: Record<keyof typeof PAGES, typeof Wand2> = {
   home: LayoutGrid,
@@ -154,7 +143,6 @@ export function AppShell() {
   }
 
   const ActivePage = PAGES[activeTab]
-  const pageTitle = PAGE_TITLES[activeTab]
   const PageIcon = PAGE_ICONS[activeTab]
 
   return (
@@ -165,7 +153,7 @@ export function AppShell() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 h-[84px] flex items-baseline pb-[12px]">
             <h1 className="text-[2.06rem] font-semibold text-surface-900 flex items-center gap-3 leading-none translate-y-[36px]">
               <PageIcon className="w-8 h-8 text-brand-500 inline-block align-middle" />
-              <span className="leading-none">{pageTitle}</span>
+              <span className="leading-none">{brandedName(activeTab)}</span>
             </h1>
           </div>
         </div>

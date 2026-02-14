@@ -1,51 +1,45 @@
 import { Film, Layers, LayoutGrid, MessageSquareText, TimerReset, Video, Wand2, Zap } from 'lucide-react'
 import { useNavigationStore } from '../../stores/navigationStore'
+import { BrandedName, brandedName } from '../ui/BrandedName'
 
 const CATEGORIES = [
   {
     id: 'prompts' as const,
-    title: 'Prompt Factory',
     icon: Wand2,
     description:
       'Generate structured, research‑augmented prompts from concepts or images. Built for consistent, production‑ready outputs.',
   },
   {
     id: 'generate' as const,
-    title: 'Asset Monster',
     icon: Layers,
     description:
       'Batch-generate image assets from prompts and references. Control aspect ratio, resolution, and format at scale.',
   },
   {
     id: 'img2video' as const,
-    title: 'Img2 Engine',
     icon: Film,
     description:
       'Turn images into motion with prompt‑driven video generation. Manage queues and presets for consistent results.',
   },
   {
     id: 'avatars' as const,
-    title: 'Avatar Studio',
     icon: Video,
     description:
       'Create talking avatars, scripts, voices, lipsync, and reactions. Designed for fast, repeatable workflows.',
   },
   {
     id: 'captions' as const,
-    title: 'Captions',
     icon: MessageSquareText,
     description: 'Generate styled subtitles and burn them into video. Save presets for consistent visual language.',
   },
   {
     id: 'machine' as const,
-    title: 'The Machine',
     icon: Zap,
     description:
       'End‑to‑end pipeline from concept to final media. Orchestrates prompts, images, scripts, TTS, and lipsync.',
   },
   {
     id: 'lifetime' as const,
-    title: 'Lifetime',
     icon: TimerReset,
     description:
       'Build an age progression timeline from a baby photo. Generate white-background age frames and transition videos end-to-end.',
@@ -62,10 +56,12 @@ export default function HomePage() {
           <LayoutGrid className="w-6 h-6 text-brand-500" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-surface-900">Welcome to Pixflow</h2>
+          <h2 className="text-xl font-semibold text-surface-900">
+            Welcome to <BrandedName prefix="Pix" suffix="flow" />
+          </h2>
           <p className="text-sm text-surface-500">
-            Pixflow helps content creators, social media teams, and marketing artists ship high‑quality assets faster,
-            with less manual work and more consistent results.
+            <BrandedName prefix="Pix" suffix="flow" /> helps content creators, social media teams, and marketing artists
+            ship high‑quality assets faster, with less manual work and more consistent results.
           </p>
         </div>
       </div>
@@ -86,7 +82,7 @@ export default function HomePage() {
                   <Icon className="w-5 h-5 text-brand-500" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-base font-semibold text-surface-900">{category.title}</h3>
+                  <h3 className="text-base font-semibold text-surface-900">{brandedName(category.id)}</h3>
                   <p className="text-sm text-surface-500">{category.description}</p>
                 </div>
               </div>
