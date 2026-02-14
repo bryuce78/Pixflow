@@ -165,6 +165,7 @@ interface LifetimeRunJob {
   sessionId: string
   error: string
   earlyTransitionsStarted: number
+  earlyTransitionsInFlight: number
   earlyTransitionStartedKeys: Set<string>
   earlyTransitions: Map<string, LifetimeTransitionRecord>
   earlyTransitionPromises: Promise<void>[]
@@ -1211,6 +1212,7 @@ function createJob(backgroundMode: LifetimeBackgroundMode): LifetimeRunJob {
     sessionId: '',
     error: '',
     earlyTransitionsStarted: 0,
+    earlyTransitionsInFlight: 0,
     earlyTransitionStartedKeys: new Set(),
     earlyTransitions: new Map(),
     earlyTransitionPromises: [],
@@ -1223,6 +1225,21 @@ function updateJob(jobId: string, updater: (job: LifetimeRunJob) => void): void 
   updater(current)
   current.updatedAt = new Date().toISOString()
   lifetimeRunJobs.set(jobId, current)
+}
+
+function acquireEarlyTransitionSlot(jobId: string): boolean {
+  const job = lifetimeRunJobs.get(jobId)
+  if (!job) return true
+  if (job.earlyTransitionsInFlight < TRANSITION_BATCH_CONCURRENCY) {
+    job.earlyTransitionsInFlight += 1
+    return true
+  }
+  return false
+}
+
+function releaseEarlyTransitionSlot(jobId: string): void {
+  const job = lifetimeRunJobs.get(jobId)
+  if (job) job.earlyTransitionsInFlight -= 1
 }
 
 function fireEarlyTransition(params: {
@@ -1247,6 +1264,10 @@ function fireEarlyTransition(params: {
   }
 
   return (async () => {
+    while (!acquireEarlyTransitionSlot(jobId)) {
+      await new Promise((r) => setTimeout(r, 500))
+    }
+
     try {
       const prompt = buildTransitionPrompt(fromAge, toAge, backgroundMode, narrativeTrack)
       const videoResult = await generateKlingTransitionVideo({
@@ -1259,9 +1280,9 @@ function fireEarlyTransition(params: {
       const outputPath = makeTransitionOutputPath(outputDir, fromAge, toAge)
       await downloadKlingVideo(videoResult.videoUrl, outputPath)
 
-      const job = lifetimeRunJobs.get(jobId)
-      if (job) {
-        job.earlyTransitions.set(key, {
+      const doneJob = lifetimeRunJobs.get(jobId)
+      if (doneJob) {
+        doneJob.earlyTransitions.set(key, {
           fromAge,
           toAge,
           videoPath: outputPath,
@@ -1272,6 +1293,8 @@ function fireEarlyTransition(params: {
       console.log(`[Lifetime] Early transition ${key} completed`)
     } catch (error) {
       console.warn(`[Lifetime] Early transition ${key} failed (non-critical):`, error)
+    } finally {
+      releaseEarlyTransitionSlot(jobId)
     }
   })()
 }

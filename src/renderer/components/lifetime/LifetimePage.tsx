@@ -133,10 +133,9 @@ export default function LifetimePage() {
   }, [frames, sourceFrameUrl, backgroundMode, running])
 
   const shouldShowLifetimeFrames = running || !!sourceFrameUrl || frames.length > 0
-  const allTransitionsCompleted =
-    transitionStatuses.length === 9 && transitionStatuses.every((t) => t.status === 'completed')
   const hasAnyTransitionStarted = transitionStatuses.some((t) => t.status !== 'pending')
-  const pendingOrInProgressTransitions = transitionStatuses.filter((t) => t.status !== 'completed')
+  const inProgressTransitions = transitionStatuses.filter((t) => t.status === 'in_progress')
+  const completedTransitions = transitionStatuses.filter((t) => t.status === 'completed')
 
   useEffect(() => {
     return () => {
@@ -426,7 +425,7 @@ export default function LifetimePage() {
     }
   }
 
-  const showFinalVideoSection = allTransitionsCompleted || creatingVideos || assemblyStage !== 'idle'
+  const showFinalVideoSection = completedTransitions.length > 0 || creatingVideos || assemblyStage !== 'idle'
 
   return (
     <div className="space-y-6">
@@ -467,27 +466,6 @@ export default function LifetimePage() {
                   className="w-full rounded-lg border border-surface-200 bg-surface-0 px-3 py-2 text-sm text-surface-500 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/60"
                 />
               </label>
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Gender</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={genderHint === 'male' ? 'purple' : 'secondary'}
-                    className="w-full border-0 shadow-none"
-                    onClick={() => setGenderHint('male')}
-                    scrollToTopOnClick={false}
-                  >
-                    Male
-                  </Button>
-                  <Button
-                    variant={genderHint === 'female' ? 'purple' : 'secondary'}
-                    className="w-full border-0 shadow-none"
-                    onClick={() => setGenderHint('female')}
-                    scrollToTopOnClick={false}
-                  >
-                    Female
-                  </Button>
-                </div>
-              </div>
               {inputPreviewUrl && (
                 <div className="rounded-lg border border-surface-200 bg-surface-0 p-2">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -516,6 +494,27 @@ export default function LifetimePage() {
                   </div>
                 </div>
               )}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Gender</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={genderHint === 'male' ? 'purple' : 'secondary'}
+                    className="w-full border-0 shadow-none"
+                    onClick={() => setGenderHint('male')}
+                    scrollToTopOnClick={false}
+                  >
+                    Male
+                  </Button>
+                  <Button
+                    variant={genderHint === 'female' ? 'purple' : 'secondary'}
+                    className="w-full border-0 shadow-none"
+                    onClick={() => setGenderHint('female')}
+                    scrollToTopOnClick={false}
+                  >
+                    Female
+                  </Button>
+                </div>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -535,38 +534,35 @@ export default function LifetimePage() {
 
           <div className="bg-surface-50 rounded-lg p-4">
             <StepHeader stepNumber={2} title="Video Duration" />
-            <div className="space-y-4">
-              <Slider
-                label="Final Duration"
-                min={VIDEO_DURATION_MIN_SEC}
-                max={VIDEO_DURATION_MAX_SEC}
-                step={1}
-                value={videoDurationSec}
-                displayValue={`${videoDurationSec}s`}
-                onChange={(event) => setVideoDurationSec(Number(event.target.value))}
-              />
-              <Button
-                variant="lime"
-                className="w-full"
-                size="lg"
-                icon={running ? undefined : <Sparkles className="w-4 h-4" />}
-                loading={running || creatingVideos}
-                disabled={running || creatingVideos}
-                onClick={handleRun}
-              >
-                {running || creatingVideos ? 'Generating...' : 'Generate Lifetime Video'}
-              </Button>
-              {running && <ProgressBar value={progress} label={runMessage || 'Generating lifetime frames'} />}
-            </div>
+            <Slider
+              label="Final Duration"
+              min={VIDEO_DURATION_MIN_SEC}
+              max={VIDEO_DURATION_MAX_SEC}
+              step={1}
+              value={videoDurationSec}
+              displayValue={`${videoDurationSec}s`}
+              onChange={(event) => setVideoDurationSec(Number(event.target.value))}
+            />
           </div>
+
+          <Button
+            variant="lime"
+            className="w-full"
+            size="lg"
+            icon={running ? undefined : <Sparkles className="w-4 h-4" />}
+            loading={running || creatingVideos}
+            disabled={running || creatingVideos}
+            onClick={handleRun}
+          >
+            {running || creatingVideos ? 'Generating...' : 'Generate Lifetime Video'}
+          </Button>
+          {running && <ProgressBar value={progress} label={runMessage || 'Generating lifetime frames'} />}
         </div>
 
         <div className="space-y-6">
-          <div className="bg-surface-50 rounded-lg p-4">
-            <StepHeader stepNumber={3} title="Lifetime Frames" />
-            {!shouldShowLifetimeFrames ? (
-              <p className="text-sm text-surface-500">Frames will appear here after generation.</p>
-            ) : (
+          {shouldShowLifetimeFrames && (
+            <div className="bg-surface-50 rounded-lg p-4">
+              <StepHeader stepNumber={3} title="Lifetime Frames" />
               <div className="space-y-4">
                 <div className="overflow-x-auto">
                   <div className="flex gap-3 min-w-max">
@@ -591,64 +587,67 @@ export default function LifetimePage() {
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {hasAnyTransitionStarted && (
+          {hasAnyTransitionStarted && inProgressTransitions.length > 0 && (
             <div className="bg-surface-50 rounded-lg p-4 space-y-4">
               <StepHeader stepNumber={4} title="Neighbor Videos" />
-              {pendingOrInProgressTransitions.length > 0 ? (
-                <div className="space-y-2">
-                  {pendingOrInProgressTransitions.map((t) => (
-                    <div
-                      key={`${t.fromAge}-${t.toAge}`}
-                      className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
-                    >
-                      {t.status === 'in_progress' ? (
-                        <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border-2 border-surface-300 shrink-0" />
-                      )}
-                      <span className="text-sm text-surface-500">
-                        Age {t.fromAge} → {t.toAge}
-                      </span>
-                      <span className="text-xs text-surface-400 ml-auto">
-                        {t.status === 'in_progress' ? 'Generating...' : 'Pending'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-surface-500">All neighbor videos completed.</p>
-              )}
+              <div className="space-y-2">
+                {inProgressTransitions.map((t) => (
+                  <div
+                    key={`${t.fromAge}-${t.toAge}`}
+                    className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
+                  >
+                    <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
+                    <span className="text-sm text-surface-500">
+                      Age {t.fromAge} → {t.toAge}
+                    </span>
+                    <span className="text-xs text-surface-400 ml-auto">Generating...</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {showFinalVideoSection && (
             <div className="bg-surface-50 rounded-lg p-4 space-y-4">
               <StepHeader stepNumber={5} title="Final Video" />
-              {assemblyStage !== 'done' && !finalVideoUrl ? (
+              {!finalVideoUrl && (
                 <div className="space-y-2">
-                  {assemblyStage === 'idle' || assemblyStage === 'editing' ? (
+                  {completedTransitions.map((t) => (
+                    <div
+                      key={`done-${t.fromAge}-${t.toAge}`}
+                      className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2"
+                    >
+                      <Check className="w-4 h-4 text-green-500 shrink-0" />
+                      <span className="text-sm text-surface-500">
+                        Age {t.fromAge} → {t.toAge}
+                      </span>
+                      <span className="text-xs text-surface-400 ml-auto">Ready</span>
+                    </div>
+                  ))}
+                  {assemblyStage === 'editing' && (
                     <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
                       <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
                       <span className="text-sm text-surface-500">Editing videos</span>
                     </div>
-                  ) : null}
-                  {assemblyStage === 'adjusting_time' ? (
+                  )}
+                  {assemblyStage === 'adjusting_time' && (
                     <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
                       <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
                       <span className="text-sm text-surface-500">Adjusting time</span>
                     </div>
-                  ) : null}
-                  {assemblyStage === 'finalizing' ? (
+                  )}
+                  {assemblyStage === 'finalizing' && (
                     <div className="flex items-center gap-3 rounded-lg border border-surface-200 bg-surface-0 px-3 py-2">
                       <Loader2 className="w-4 h-4 text-brand-500 animate-spin shrink-0" />
                       <span className="text-sm text-surface-500">Finalizing</span>
                     </div>
-                  ) : null}
+                  )}
                 </div>
-              ) : finalVideoUrl ? (
+              )}
+              {finalVideoUrl && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-green-600">
                     <Check className="w-4 h-4" />
@@ -666,7 +665,7 @@ export default function LifetimePage() {
                     </p>
                   </div>
                 </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>
