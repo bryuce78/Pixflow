@@ -27,6 +27,7 @@ const CATEGORY_NAMES: Record<string, NameDef> = {
   machine: { prefix: 'The', suffix: 'Machine' },
   lifetime: { prefix: 'Life', suffix: 'time' },
   history: { prefix: 'Lib', suffix: 'rary' },
+  competitors: { prefix: 'Competitor', suffix: ' Report' },
   home: { prefix: 'Pix', suffix: 'flow' },
 }
 

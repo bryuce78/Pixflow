@@ -12,13 +12,16 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { GREENBOX_REFERENCE_PROMPT } from '../../../constants/referencePrompts'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
 import { useAvatarStore } from '../../stores/avatarStore'
 import { useMachineStore } from '../../stores/machineStore'
+import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { ScriptRefinementToolbar } from '../avatar-studio/ScriptRefinementToolbar'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingState } from '../ui/LoadingState'
@@ -37,8 +40,7 @@ const STEP_LABELS = {
 } as const
 
 const STEP_ORDER = ['prompts', 'images', 'script', 'tts', 'lipsync'] as const
-const GREENBOX_PROMPT =
-  'Using the provided reference image, preserve the face, identity, age, and pose exactly. Isolate the subject cleanly and place them on a solid chroma green (#00FF00) background. No extra objects or text. Keep clothing and proportions unchanged. High-quality cutout.'
+const GREENBOX_PROMPT = GREENBOX_REFERENCE_PROMPT
 const GREEN_THRESHOLD = {
   minGreen: 120,
   minDominance: 35,
@@ -91,6 +93,7 @@ async function downloadVideo(url: string, filename: string) {
 export default function MachinePage() {
   const machineRefInputRef = useRef<HTMLInputElement>(null)
   const avatarUploadInputRef = useRef<HTMLInputElement>(null)
+  const activeMachineHistoryIdRef = useRef<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [assetsDownloading, setAssetsDownloading] = useState(false)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
@@ -134,6 +137,15 @@ export default function MachinePage() {
     run,
     cancel,
   } = useMachineStore()
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'machine'),
+    [outputHistoryEntries],
+  )
 
   const { avatars, avatarsLoading, voices, voicesLoading, loadAvatars } = useAvatarStore()
   const [showImproveOptions, setShowImproveOptions] = useState(false)
@@ -268,6 +280,64 @@ export default function MachinePage() {
   const previewImage = previewIndex != null ? completedImages[previewIndex] : null
   const hasPrevPreview = previewIndex != null && previewIndex > 0
   const hasNextPreview = previewIndex != null && previewIndex < completedImages.length - 1
+
+  const handleRunMachine = async (resumeFrom?: (typeof STEP_ORDER)[number]) => {
+    const historyId = createOutputHistoryId('machine')
+    activeMachineHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'machine',
+      title: concept.trim() ? `Machine: ${concept.trim()}` : 'Machine Run',
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Running pipeline...',
+      artifacts: [],
+    })
+
+    await run(resumeFrom)
+    if (activeMachineHistoryIdRef.current !== historyId) return
+
+    const state = useMachineStore.getState()
+    if (state.step === 'done') {
+      const doneImages = state.batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
+      patchHistory(historyId, {
+        status: 'completed',
+        message: `Completed with ${doneImages.length} image${doneImages.length === 1 ? '' : 's'}`,
+        artifacts: [
+          ...(state.videoUrl
+            ? [{ id: `${historyId}_video`, label: 'Avatar Video', type: 'video' as const, url: state.videoUrl }]
+            : []),
+          ...(state.audioUrl
+            ? [{ id: `${historyId}_audio`, label: 'Voiceover Audio', type: 'audio' as const, url: state.audioUrl }]
+            : []),
+          ...doneImages.slice(0, 4).map((img, idx) => ({
+            id: `${historyId}_img_${idx}`,
+            label: `Image #${idx + 1}`,
+            type: 'image' as const,
+            url: img.url || undefined,
+          })),
+        ],
+      })
+    } else if (state.step === 'error') {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: state.error?.message || 'Machine run failed',
+      })
+    } else {
+      removeHistory(historyId)
+    }
+
+    activeMachineHistoryIdRef.current = null
+  }
+
+  const handleCancelMachine = () => {
+    if (activeMachineHistoryIdRef.current) {
+      removeHistory(activeMachineHistoryIdRef.current)
+      activeMachineHistoryIdRef.current = null
+    }
+    cancel()
+  }
 
   useEffect(() => {
     if (previewIndex == null) return
@@ -645,19 +715,20 @@ export default function MachinePage() {
                   options={TONE_OPTIONS}
                 />
               </div>
+              <div className="pt-4 mt-4 border-t border-surface-200/60">
+                <Button
+                  variant="lime"
+                  size="lg"
+                  onClick={() => handleRunMachine()}
+                  disabled={!concept.trim() || !selectedAvatar || !selectedVoice || isRunning}
+                  icon={<Zap className="w-6 h-6" />}
+                  className="w-full py-4 text-lg font-semibold"
+                >
+                  {isRunning ? 'Running...' : 'Run The Machine'}
+                </Button>
+              </div>
             </div>
           </div>
-
-          <Button
-            variant="lime"
-            size="lg"
-            onClick={() => run()}
-            disabled={!concept.trim() || !selectedAvatar || !selectedVoice || isRunning}
-            icon={<Zap className="w-6 h-6" />}
-            className="w-full py-4 text-lg font-semibold"
-          >
-            {isRunning ? 'Running...' : 'Run The Machine'}
-          </Button>
         </div>
 
         <div className="space-y-6">
@@ -673,14 +744,14 @@ export default function MachinePage() {
                 <div className="flex gap-3">
                   {failedStep !== 'idle' && (
                     <Button
-                      onClick={() => run(failedStep)}
+                      onClick={() => handleRunMachine(failedStep)}
                       icon={<RefreshCw className="w-5 h-5" />}
                       className="flex-1 py-3"
                     >
                       Retry from {capitalize(failedStep)}
                     </Button>
                   )}
-                  <Button variant="secondary" onClick={cancel} className="flex-1 py-3">
+                  <Button variant="secondary" onClick={handleCancelMachine} className="flex-1 py-3">
                     Start Over
                   </Button>
                 </div>
@@ -777,7 +848,12 @@ export default function MachinePage() {
                 )}
               </div>
 
-              <Button variant="danger" onClick={cancel} icon={<X className="w-5 h-5" />} className="w-full py-3">
+              <Button
+                variant="danger"
+                onClick={handleCancelMachine}
+                icon={<X className="w-5 h-5" />}
+                className="w-full py-3"
+              >
                 Cancel
               </Button>
             </>
@@ -873,6 +949,11 @@ export default function MachinePage() {
               </div>
             </div>
           )}
+          <PreviousGenerationsPanel
+            entries={historyEntries}
+            onDeleteEntry={removeHistory}
+            onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+          />
         </div>
       </div>
 

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
 import { useCaptionsPresetStore } from '../../stores/captionsPresetStore'
+import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
@@ -275,8 +277,18 @@ export default function CaptionsPage() {
   const dragStartYRef = useRef(0)
   const dragStartOffsetRef = useRef(0)
   const dragPointerIdRef = useRef<number | null>(null)
+  const activeCaptionHistoryIdRef = useRef<string | null>(null)
   const previousPositionRef = useRef<'bottom' | 'center' | 'top'>('bottom')
   const segmentRequestIdRef = useRef(0)
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'captions'),
+    [outputHistoryEntries],
+  )
 
   const fontOptions = useMemo(() => {
     const hasCustom = fontName && !FONT_OPTIONS.some((opt) => opt.value === fontName)
@@ -730,6 +742,18 @@ export default function CaptionsPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return
+    const historyId = createOutputHistoryId('captions')
+    activeCaptionHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'captions',
+      title: 'Captioned Video',
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating captioned video...',
+      artifacts: [],
+    })
     setSubmitting(true)
     setOutputUrl(null)
     setTranscription(null)
@@ -816,8 +840,24 @@ export default function CaptionsPage() {
       })
       setSelectionRevision(0)
       setLastAutoAppliedRevision(0)
+      patchHistory(historyId, {
+        status: 'completed',
+        message: 'Captioned video generated',
+        artifacts: [
+          {
+            id: `${historyId}_video`,
+            label: 'Captioned Output',
+            type: 'video',
+            url: data.videoUrl,
+          },
+        ],
+      })
       notify.success('Captions generated')
     } catch (err) {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: err instanceof Error ? err.message : 'Failed to generate captions',
+      })
       notify.error(err instanceof Error ? err.message : 'Failed to generate captions')
     } finally {
       setSubmitting(false)
@@ -877,6 +917,20 @@ export default function CaptionsPage() {
         const data = unwrapApiData<{ videoUrl: string }>(raw)
         setOutputUrl(data.videoUrl)
         setTranscription(enabledSegments.map((segment) => segment.text).join(' '))
+        if (activeCaptionHistoryIdRef.current) {
+          patchHistory(activeCaptionHistoryIdRef.current, {
+            status: 'completed',
+            message: 'Updated with sentence selection',
+            artifacts: [
+              {
+                id: `${activeCaptionHistoryIdRef.current}_video`,
+                label: 'Captioned Output',
+                type: 'video',
+                url: data.videoUrl,
+              },
+            ],
+          })
+        }
         if (!options?.silent) {
           notify.success('Rendered with selected sentences')
         }
@@ -1339,17 +1393,18 @@ export default function CaptionsPage() {
                 </div>
               </div>
             )}
+            <div className="pt-4 mt-1 border-t border-surface-200/60">
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={!canSubmit || submitting}
+                loading={submitting}
+              >
+                {submitting ? 'Generating...' : 'Generate Captioned Video'}
+              </Button>
+            </div>
           </div>
-
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={!canSubmit || submitting}
-            loading={submitting}
-          >
-            {submitting ? 'Generating...' : 'Generate Captioned Video'}
-          </Button>
         </div>
 
         <div className="bg-surface-50 rounded-lg p-4 space-y-4">
@@ -1381,6 +1436,15 @@ export default function CaptionsPage() {
             {transcription && (
               <div className="rounded-lg border border-surface-200 bg-surface-0 p-4 text-xs text-surface-500 whitespace-pre-wrap">
                 {transcription}
+              </div>
+            )}
+            {historyEntries.length > 0 && (
+              <div className="pt-2 border-t border-surface-200">
+                <PreviousGenerationsPanel
+                  entries={historyEntries}
+                  onDeleteEntry={removeHistory}
+                  onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+                />
               </div>
             )}
           </div>

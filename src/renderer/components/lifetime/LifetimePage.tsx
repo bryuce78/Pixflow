@@ -2,7 +2,9 @@ import { Check, Download, Film, Loader2, Sparkles, Upload, X } from 'lucide-reac
 import { type ClipboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
+import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
 import { SegmentedTabs } from '../ui/navigation/SegmentedTabs'
 import { ProgressBar } from '../ui/ProgressBar'
@@ -93,6 +95,7 @@ export default function LifetimePage() {
   const activeJobIdRef = useRef<string | null>(null)
   const videoPollRef = useRef<number | null>(null)
   const activeVideoJobIdRef = useRef<string | null>(null)
+  const activeLifetimeHistoryIdRef = useRef<string | null>(null)
   const autoVideoTriggeredRef = useRef(false)
   const [babyFile, setBabyFile] = useState<File | null>(null)
   const [babyImageUrl, setBabyImageUrl] = useState('')
@@ -110,6 +113,15 @@ export default function LifetimePage() {
   const [finalVideoDurationSec, setFinalVideoDurationSec] = useState(0)
   const [transitionStatuses, setTransitionStatuses] = useState<TransitionStatus[]>([])
   const [assemblyStage, setAssemblyStage] = useState<AssemblyStage>('idle')
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'lifetime'),
+    [outputHistoryEntries],
+  )
 
   const inputPreviewUrl = useMemo(() => {
     if (babyFile) return URL.createObjectURL(babyFile)
@@ -247,6 +259,12 @@ export default function LifetimePage() {
           setOutputSessionId(resolvedSessionId)
           setRunMessage('Frame generation completed')
           setProgress(100)
+          if (activeLifetimeHistoryIdRef.current) {
+            patchHistory(activeLifetimeHistoryIdRef.current, {
+              status: 'running',
+              message: 'Frames completed, creating final video...',
+            })
+          }
           if (resolvedSessionId) {
             void triggerVideoCreation(resolvedSessionId)
           }
@@ -262,6 +280,13 @@ export default function LifetimePage() {
           activeJobIdRef.current = null
           setRunning(false)
           setRunMessage('Frame generation failed')
+          if (activeLifetimeHistoryIdRef.current) {
+            patchHistory(activeLifetimeHistoryIdRef.current, {
+              status: 'failed',
+              message: data.error || 'Failed to generate lifetime frames',
+            })
+            activeLifetimeHistoryIdRef.current = null
+          }
           notify.error(data.error || 'Failed to generate lifetime frames')
         }
       } catch (error) {
@@ -272,6 +297,13 @@ export default function LifetimePage() {
         }
         activeJobIdRef.current = null
         setRunning(false)
+        if (activeLifetimeHistoryIdRef.current) {
+          patchHistory(activeLifetimeHistoryIdRef.current, {
+            status: 'failed',
+            message: error instanceof Error ? error.message : 'Failed to track frame generation',
+          })
+          activeLifetimeHistoryIdRef.current = null
+        }
         notify.error(error instanceof Error ? error.message : 'Failed to track frame generation')
       }
     }
@@ -325,6 +357,36 @@ export default function LifetimePage() {
           setAssemblyStage('done')
           setFinalVideoUrl(data.finalVideoUrl || '')
           setFinalVideoDurationSec(data.finalVideoDurationSec || 0)
+          if (activeLifetimeHistoryIdRef.current) {
+            const sessionLink = data.sessionId || outputSessionId
+            patchHistory(activeLifetimeHistoryIdRef.current, {
+              status: 'completed',
+              message: `Final video ready (${data.finalVideoDurationSec || 0}s)`,
+              artifacts: [
+                ...(data.finalVideoUrl
+                  ? [
+                      {
+                        id: `${activeLifetimeHistoryIdRef.current}_video`,
+                        label: 'Lifetime Video',
+                        type: 'video' as const,
+                        url: data.finalVideoUrl,
+                      },
+                    ]
+                  : []),
+                ...(sessionLink
+                  ? [
+                      {
+                        id: `${activeLifetimeHistoryIdRef.current}_folder`,
+                        label: 'Output Folder',
+                        type: 'folder' as const,
+                        url: `/outputs/${sessionLink}/`,
+                      },
+                    ]
+                  : []),
+              ],
+            })
+            activeLifetimeHistoryIdRef.current = null
+          }
           notify.success('Lifetime video created')
           return
         }
@@ -334,6 +396,13 @@ export default function LifetimePage() {
           stopPolling()
           setCreatingVideos(false)
           setAssemblyStage('idle')
+          if (activeLifetimeHistoryIdRef.current) {
+            patchHistory(activeLifetimeHistoryIdRef.current, {
+              status: 'failed',
+              message: data.error || 'Failed to create lifetime videos',
+            })
+            activeLifetimeHistoryIdRef.current = null
+          }
           notify.error(data.error || 'Failed to create lifetime videos')
         }
       } catch (error) {
@@ -342,6 +411,13 @@ export default function LifetimePage() {
         if (pollFailures >= 3) {
           stopPolling()
           setCreatingVideos(false)
+          if (activeLifetimeHistoryIdRef.current) {
+            patchHistory(activeLifetimeHistoryIdRef.current, {
+              status: 'failed',
+              message: error instanceof Error ? error.message : 'Failed to track video creation',
+            })
+            activeLifetimeHistoryIdRef.current = null
+          }
           notify.error(error instanceof Error ? error.message : 'Failed to track video creation')
         }
       }
@@ -386,6 +462,19 @@ export default function LifetimePage() {
       return
     }
 
+    const historyId = createOutputHistoryId('lifetime')
+    activeLifetimeHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'lifetime',
+      title: `Lifetime (${backgroundMode === 'white_bg' ? 'White BG' : 'Natural BG'})`,
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating lifetime frames...',
+      artifacts: [],
+    })
+
     resetLifetimeResults()
     setRunning(true)
     setRunMessage('Queued')
@@ -424,6 +513,13 @@ export default function LifetimePage() {
       const message = normalizeLifetimeErrorMessage(
         err instanceof Error ? err.message : 'Failed to generate lifetime images',
       )
+      if (activeLifetimeHistoryIdRef.current) {
+        patchHistory(activeLifetimeHistoryIdRef.current, {
+          status: 'failed',
+          message,
+        })
+        activeLifetimeHistoryIdRef.current = null
+      }
       notify.error(message)
       setRunning(false)
     }
@@ -562,19 +658,20 @@ export default function LifetimePage() {
               displayValue={`${videoDurationSec}s`}
               onChange={(event) => setVideoDurationSec(Number(event.target.value))}
             />
+            <div className="pt-4 mt-4 border-t border-surface-200/60">
+              <Button
+                variant="lime"
+                className="w-full"
+                size="lg"
+                icon={running ? undefined : <Sparkles className="w-4 h-4" />}
+                loading={running || creatingVideos}
+                disabled={running || creatingVideos}
+                onClick={handleRun}
+              >
+                {running || creatingVideos ? 'Generating...' : 'Generate Lifetime Video'}
+              </Button>
+            </div>
           </div>
-
-          <Button
-            variant="lime"
-            className="w-full"
-            size="lg"
-            icon={running ? undefined : <Sparkles className="w-4 h-4" />}
-            loading={running || creatingVideos}
-            disabled={running || creatingVideos}
-            onClick={handleRun}
-          >
-            {running || creatingVideos ? 'Generating...' : 'Generate Lifetime Video'}
-          </Button>
           {running && <ProgressBar value={progress} label={runMessage || 'Generating lifetime frames'} />}
         </div>
 
@@ -721,6 +818,11 @@ export default function LifetimePage() {
               )}
             </div>
           )}
+          <PreviousGenerationsPanel
+            entries={historyEntries}
+            onDeleteEntry={removeHistory}
+            onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+          />
         </div>
       </div>
     </div>

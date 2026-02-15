@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BookOpen,
   Film,
   Layers,
@@ -23,6 +24,7 @@ import { FeedbackWidget } from '../feedback/FeedbackWidget'
 import { brandedName } from '../ui/BrandedName'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { Skeleton } from '../ui/Skeleton'
+import { JobMonitorWidget } from '../shared/JobMonitorWidget'
 import { AvatarPreviewOverlay } from './AvatarPreviewOverlay'
 import { ImagePreviewOverlay } from './ImagePreviewOverlay'
 import { PageTransition } from './PageTransition'
@@ -36,6 +38,7 @@ const AvatarStudioPage = lazy(() => import('../avatar-studio/AvatarStudioPage'))
 const CaptionsPage = lazy(() => import('../captions/CaptionsPage'))
 const MachinePage = lazy(() => import('../machine/MachinePage'))
 const LibraryPage = lazy(() => import('../library/LibraryPage'))
+const CompetitorReportPage = lazy(() => import('../competitor-report/CompetitorReportPage'))
 const HomePage = lazy(() => import('../home/HomePage'))
 
 const PAGES = {
@@ -48,6 +51,7 @@ const PAGES = {
   captions: CaptionsPage,
   machine: MachinePage,
   history: LibraryPage,
+  competitors: CompetitorReportPage,
 } as const
 
 const PAGE_ICONS: Record<keyof typeof PAGES, typeof Wand2> = {
@@ -60,6 +64,7 @@ const PAGE_ICONS: Record<keyof typeof PAGES, typeof Wand2> = {
   captions: MessageSquareText,
   machine: Zap,
   history: BookOpen,
+  competitors: BarChart3,
 }
 
 function PageSkeleton() {
@@ -150,7 +155,7 @@ export function AppShell() {
       <SideNav />
       <div className="flex-1 flex flex-col">
         <div className="sticky top-0 z-30 border-b border-surface-100 bg-surface-0 drag-region">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 h-[84px] flex items-baseline pb-[12px]">
+          <div className="w-full max-w-6xl px-4 sm:px-6 xl:px-8 h-[84px] flex items-baseline pb-[12px]">
             <h1 className="text-[2.06rem] font-black text-surface-900 flex items-center gap-3 leading-none translate-y-[36px]">
               <PageIcon className="w-8 h-8 text-brand-500 inline-block align-middle" />
               <span className="leading-none">{brandedName(activeTab)}</span>
@@ -158,7 +163,7 @@ export function AppShell() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto" data-app-scroll-container="true">
-          <div className="max-w-6xl mx-auto p-4 sm:p-6 xl:p-8">
+          <div className="w-full max-w-6xl p-4 sm:p-6 xl:p-8">
             <PageTransition pageKey={activeTab}>
               <ErrorBoundary key={activeTab} fallbackTitle="This tab failed to load">
                 <Suspense fallback={<PageSkeleton />}>
@@ -172,6 +177,7 @@ export function AppShell() {
       <ImagePreviewOverlay />
       <AvatarPreviewOverlay />
       <FeedbackWidget />
+      <JobMonitorWidget />
       <Toaster
         position="bottom-right"
         toastOptions={{

@@ -55,7 +55,7 @@ beforeEach(() => {
 })
 
 describe('transcribeAudio', () => {
-  it('forces transcribe task and language auto-detect (no english default lock)', async () => {
+  it('uses minimal compatible payload by default', async () => {
     subscribeMock.mockResolvedValue({
       data: {
         text: 'Merhaba dunya',
@@ -75,14 +75,52 @@ describe('transcribeAudio', () => {
         input: expect.objectContaining({
           audio_url: 'https://fal.storage/audio.mp3',
           task: 'transcribe',
-          language: null,
         }),
       }),
     )
+    const subscribeInput = subscribeMock.mock.calls[0]?.[1]?.input as Record<string, unknown>
+    expect(subscribeInput.language).toBeNull()
+    expect(subscribeInput.chunk_level).toBeUndefined()
     expect(result).toEqual({
       transcript: 'Merhaba dunya',
       duration: 7.2,
       language: 'tr',
+    })
+  })
+
+  it('falls back to segment payload on validation errors', async () => {
+    subscribeMock
+      .mockRejectedValueOnce({
+        status: 422,
+        body: { detail: [{ loc: ['body', 'task'], msg: 'invalid' }] },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          text: 'Fallback transcript',
+          duration: 5.1,
+          languages: ['en'],
+        },
+      })
+
+    const result = await transcribeAudio('/tmp/source-audio.mp3')
+
+    expect(subscribeMock).toHaveBeenCalledTimes(2)
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      2,
+      'fal-ai/wizper',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          audio_url: 'https://fal.storage/audio.mp3',
+          task: 'transcribe',
+          chunk_level: 'segment',
+        }),
+      }),
+    )
+
+    expect(result).toEqual({
+      transcript: 'Fallback transcript',
+      duration: 5.1,
+      language: 'en',
     })
   })
 

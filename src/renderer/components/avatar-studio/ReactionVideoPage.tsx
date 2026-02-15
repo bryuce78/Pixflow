@@ -1,13 +1,16 @@
 import { AlertTriangle, Download, Loader2, RefreshCw, Video, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useMemo, useRef } from 'react'
 import { assetUrl } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import { REACTION_DEFINITIONS, useAvatarStore } from '../../stores/avatarStore'
+import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
 import type { ReactionType } from '../../types'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { AvatarSelectionCard } from './shared/AvatarSelectionCard'
+import type { ReactNode } from 'react'
 
 interface ReactionVideoPageProps {
   fullSizeAvatarUrl: string | null
@@ -20,6 +23,7 @@ export function ReactionVideoPage({
   setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
   modeTabs,
 }: ReactionVideoPageProps) {
+  const activeReactionHistoryIdRef = useRef<string | null>(null)
   const {
     selectedAvatar,
     generatedUrls,
@@ -35,6 +39,67 @@ export function ReactionVideoPage({
     generateReactionVideo,
     cancelReactionVideo,
   } = useAvatarStore()
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'avatars_reaction'),
+    [outputHistoryEntries],
+  )
+  const activeAvatarUrl = (selectedAvatar?.url || generatedUrls[selectedGeneratedIndex] || '').trim()
+  const hasSelectedAvatar = Boolean(activeAvatarUrl)
+
+  const handleGenerateReaction = async () => {
+    const historyId = createOutputHistoryId('reaction')
+    activeReactionHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'avatars_reaction',
+      title: selectedReaction ? `Reaction: ${REACTION_DEFINITIONS[selectedReaction].label}` : 'Reaction Video',
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating reaction video...',
+      artifacts: [],
+    })
+
+    await generateReactionVideo()
+    if (activeReactionHistoryIdRef.current !== historyId) return
+
+    const state = useAvatarStore.getState()
+    if (state.reactionVideoUrl) {
+      patchHistory(historyId, {
+        status: 'completed',
+        message: `${state.reactionAspectRatio} · ${state.reactionDuration}s`,
+        artifacts: [
+          {
+            id: `${historyId}_video`,
+            label: state.selectedReaction ? REACTION_DEFINITIONS[state.selectedReaction].label : 'Reaction',
+            type: 'video',
+            url: state.reactionVideoUrl,
+          },
+        ],
+      })
+    } else {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: state.reactionError?.message || 'Failed to generate reaction video',
+      })
+    }
+
+    activeReactionHistoryIdRef.current = null
+  }
+
+  const handleCancelReaction = () => {
+    const activeId = activeReactionHistoryIdRef.current
+    if (activeId) {
+      removeHistory(activeId)
+      activeReactionHistoryIdRef.current = null
+    }
+    cancelReactionVideo()
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -124,7 +189,7 @@ export function ReactionVideoPage({
                 <div className="space-y-4 flex flex-col items-center">
                   <div className="relative w-1/2">
                     <img
-                      src={assetUrl(generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '')}
+                      src={assetUrl(activeAvatarUrl)}
                       alt="Generating reaction"
                       className="w-full aspect-[9/16] object-cover rounded-lg opacity-50"
                     />
@@ -139,7 +204,7 @@ export function ReactionVideoPage({
                     variant="ghost"
                     size="md"
                     icon={<X className="w-4 h-4" />}
-                    onClick={cancelReactionVideo}
+                    onClick={handleCancelReaction}
                     className="w-full"
                   >
                     Cancel
@@ -150,16 +215,16 @@ export function ReactionVideoPage({
                   <Button
                     size="lg"
                     icon={<Video className="w-5 h-5" />}
-                    onClick={generateReactionVideo}
-                    disabled={(!selectedAvatar && generatedUrls.length === 0) || !selectedReaction}
+                    onClick={handleGenerateReaction}
+                    disabled={!hasSelectedAvatar || !selectedReaction}
                     className="w-full"
                   >
                     Generate Reaction Video
                   </Button>
-                  {((!selectedAvatar && generatedUrls.length === 0) || !selectedReaction) && (
+                  {(!hasSelectedAvatar || !selectedReaction) && (
                     <p className="text-xs text-warning/80 flex items-center gap-1.5 mt-1">
                       <AlertTriangle className="w-3 h-3 shrink-0" />
-                      {!selectedAvatar && generatedUrls.length === 0
+                      {!hasSelectedAvatar
                         ? 'Select an avatar first (Step 1)'
                         : 'Choose a reaction (Step 2)'}
                     </p>
@@ -226,6 +291,11 @@ export function ReactionVideoPage({
             )}
           </div>
         )}
+        <PreviousGenerationsPanel
+          entries={historyEntries}
+          onDeleteEntry={removeHistory}
+          onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+        />
       </div>
     </div>
   )

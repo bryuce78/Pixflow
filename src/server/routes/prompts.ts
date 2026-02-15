@@ -6,7 +6,7 @@ import { PROMPT_GENERATE_DEFAULT, PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } fro
 import type { AuthRequest } from '../middleware/auth.js'
 import { addToHistory } from '../services/history.js'
 import { generatePrompts, textToPrompt, validateAllPrompts, validateVariety } from '../services/promptGenerator.js'
-import { analyzeResearchResults, performResearch } from '../services/research.js'
+import { analyzeResearchResults, performResearch, performResearchWithMeta } from '../services/research.js'
 import { createPipelineSpan } from '../services/telemetry.js'
 import { analyzeImage } from '../services/vision.js'
 import { sendError, sendSuccess } from '../utils/http.js'
@@ -58,7 +58,7 @@ async function runPromptGenerationPipeline({
   console.log('[Streaming Phase 2] Starting research...')
   emit?.('status', { step: 'research', message: `Researching "${concept}"...` })
 
-  const researchBrief = await performResearch(concept)
+  const { brief: researchBrief, meta: researchMeta } = await performResearchWithMeta(concept)
   const analysis = analyzeResearchResults(researchBrief)
   console.log(`[Research] ${analysis.summary}`)
 
@@ -71,6 +71,15 @@ async function runPromptGenerationPipeline({
     insights: analysis.keyInsights,
     warnings: analysis.warnings,
     subThemes: researchBrief.sub_themes.map((s) => s.name),
+    grounding: {
+      requestedMode: researchMeta.requested_mode,
+      effectiveMode: researchMeta.effective_mode,
+      sources: researchMeta.source_count,
+      domains: researchMeta.source_domains.length,
+      groundingScore: researchMeta.grounding_score,
+      cacheHitRate: Number((researchMeta.cache_hit_rate * 100).toFixed(1)),
+      usedWebSearch: researchMeta.used_web_search,
+    },
   }
 
   emit?.('research', research)
@@ -467,9 +476,9 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
     }
 
     try {
-      const researchBrief = await performResearch(concept)
+      const { brief: researchBrief, meta } = await performResearchWithMeta(concept)
       const analysis = analyzeResearchResults(researchBrief)
-      sendSuccess(res, { research: researchBrief, analysis })
+      sendSuccess(res, { research: researchBrief, analysis, grounding: meta })
     } catch (error) {
       console.error('[Prompts] Research failed:', error)
       sendError(
@@ -477,6 +486,75 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
         500,
         'Failed to perform research',
         'RESEARCH_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
+    }
+  })
+
+  router.post('/research-benefit', apiLimiter, async (req, res) => {
+    const concept = sanitizeConcept(req.body?.concept)
+    const rawCount = req.body?.count ?? 4
+    const parsedCount = typeof rawCount === 'string' ? Number.parseInt(rawCount, 10) : Number(rawCount)
+    const count = Number.isInteger(parsedCount)
+      ? Math.max(PROMPT_GENERATE_MIN, Math.min(PROMPT_GENERATE_MAX, parsedCount))
+      : 4
+
+    if (!concept) {
+      sendError(res, 400, 'Concept is required (1-300 characters)', 'INVALID_CONCEPT')
+      return
+    }
+
+    try {
+      const [modelResearch, webResearch] = await Promise.all([
+        performResearchWithMeta(concept, { mode: 'model', forceRefresh: true }),
+        performResearchWithMeta(concept, { mode: 'web', forceRefresh: true }),
+      ])
+
+      const [modelGeneration, webGeneration] = await Promise.all([
+        generatePrompts(concept, count, modelResearch.brief),
+        generatePrompts(concept, count, webResearch.brief),
+      ])
+
+      const modelQuality = calculatePromptQualityMetrics(modelGeneration.prompts as PromptOutput[], 'gpt-4o')
+      const webQuality = calculatePromptQualityMetrics(webGeneration.prompts as PromptOutput[], 'gpt-4o')
+
+      const delta = {
+        overall: webQuality.overall_score - modelQuality.overall_score,
+        specificity: webQuality.specificity_score - modelQuality.specificity_score,
+        completeness: webQuality.completeness_score - modelQuality.completeness_score,
+        variety: webGeneration.varietyScore.score - modelGeneration.varietyScore.score,
+      }
+
+      sendSuccess(res, {
+        concept,
+        count,
+        modelOnly: {
+          research: modelResearch.meta,
+          quality: {
+            overall: modelQuality.overall_score,
+            specificity: modelQuality.specificity_score,
+            completeness: modelQuality.completeness_score,
+            variety: modelGeneration.varietyScore.score,
+          },
+        },
+        webGrounded: {
+          research: webResearch.meta,
+          quality: {
+            overall: webQuality.overall_score,
+            specificity: webQuality.specificity_score,
+            completeness: webQuality.completeness_score,
+            variety: webGeneration.varietyScore.score,
+          },
+        },
+        delta,
+      })
+    } catch (error) {
+      console.error('[Prompts] Research benefit comparison failed:', error)
+      sendError(
+        res,
+        500,
+        'Failed to compare research benefit',
+        'RESEARCH_BENEFIT_FAILED',
         error instanceof Error ? error.message : 'Unknown error',
       )
     }

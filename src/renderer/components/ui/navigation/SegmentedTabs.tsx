@@ -101,7 +101,7 @@ export function SegmentedTabs<T extends SegmentedTabId>({
             onClick={() => {
               if (!item.disabled) onChange(item.id)
             }}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors whitespace-nowrap ${sizeClass} ${
+            className={`flex-1 min-w-0 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors ${sizeClass} ${
               isActive
                 ? 'bg-brand-600 text-white shadow-sm'
                 : item.disabled
@@ -110,7 +110,7 @@ export function SegmentedTabs<T extends SegmentedTabId>({
             }`}
           >
             {item.icon}
-            <span>{item.label}</span>
+            <span className="truncate">{item.label}</span>
             {item.badge}
           </button>
         )

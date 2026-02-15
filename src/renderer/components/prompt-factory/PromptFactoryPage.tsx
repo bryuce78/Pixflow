@@ -18,7 +18,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { apiUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { useGenerationStore } from '../../stores/generationStore'
@@ -50,6 +50,126 @@ const PROMPT_SECTIONS: { key: keyof GeneratedPrompt; label: string }[] = [
   { key: 'effects', label: 'Effects' },
 ]
 
+interface VisualFieldConfig {
+  label: string
+  path: string[]
+  multiline?: boolean
+  array?: boolean
+}
+
+const VISUAL_EDIT_FIELDS: Array<{ key: keyof GeneratedPrompt; label: string; fields: VisualFieldConfig[] }> = [
+  { key: 'style', label: 'Style', fields: [{ label: 'Style', path: ['style'], multiline: true }] },
+  {
+    key: 'pose',
+    label: 'Pose',
+    fields: [
+      { label: 'Framing', path: ['pose', 'framing'], multiline: true },
+      { label: 'Body Position', path: ['pose', 'body_position'], multiline: true },
+      { label: 'Arms', path: ['pose', 'arms'], multiline: true },
+      { label: 'Posture', path: ['pose', 'posture'], multiline: true },
+      { label: 'Expression (Facial)', path: ['pose', 'expression', 'facial'], multiline: true },
+      { label: 'Expression (Eyes)', path: ['pose', 'expression', 'eyes'], multiline: true },
+      { label: 'Expression (Mouth)', path: ['pose', 'expression', 'mouth'], multiline: true },
+    ],
+  },
+  {
+    key: 'lighting',
+    label: 'Lighting',
+    fields: [
+      { label: 'Setup', path: ['lighting', 'setup'], multiline: true },
+      { label: 'Key Light', path: ['lighting', 'key_light'], multiline: true },
+      { label: 'Fill Light', path: ['lighting', 'fill_light'], multiline: true },
+      { label: 'Shadows', path: ['lighting', 'shadows'], multiline: true },
+      { label: 'Mood', path: ['lighting', 'mood'], multiline: true },
+    ],
+  },
+  {
+    key: 'set_design',
+    label: 'Set Design',
+    fields: [
+      { label: 'Backdrop', path: ['set_design', 'backdrop'], multiline: true },
+      { label: 'Surface', path: ['set_design', 'surface'], multiline: true },
+      { label: 'Props (comma separated)', path: ['set_design', 'props'], array: true, multiline: true },
+      { label: 'Atmosphere', path: ['set_design', 'atmosphere'], multiline: true },
+    ],
+  },
+  {
+    key: 'outfit',
+    label: 'Outfit',
+    fields: [
+      { label: 'Main', path: ['outfit', 'main'], multiline: true },
+      { label: 'Underneath', path: ['outfit', 'underneath'], multiline: true },
+      { label: 'Accessories', path: ['outfit', 'accessories'], multiline: true },
+      { label: 'Styling', path: ['outfit', 'styling'], multiline: true },
+    ],
+  },
+  {
+    key: 'camera',
+    label: 'Camera',
+    fields: [
+      { label: 'Lens', path: ['camera', 'lens'] },
+      { label: 'Aperture', path: ['camera', 'aperture'] },
+      { label: 'Angle', path: ['camera', 'angle'], multiline: true },
+      { label: 'Focus', path: ['camera', 'focus'], multiline: true },
+      { label: 'Distortion', path: ['camera', 'distortion'] },
+    ],
+  },
+  {
+    key: 'hairstyle',
+    label: 'Hairstyle',
+    fields: [
+      { label: 'Style', path: ['hairstyle', 'style'], multiline: true },
+      { label: 'Parting', path: ['hairstyle', 'parting'] },
+      { label: 'Details', path: ['hairstyle', 'details'], multiline: true },
+      { label: 'Finish', path: ['hairstyle', 'finish'] },
+    ],
+  },
+  {
+    key: 'makeup',
+    label: 'Makeup',
+    fields: [
+      { label: 'Style', path: ['makeup', 'style'], multiline: true },
+      { label: 'Skin', path: ['makeup', 'skin'], multiline: true },
+      { label: 'Eyes', path: ['makeup', 'eyes'], multiline: true },
+      { label: 'Lips', path: ['makeup', 'lips'], multiline: true },
+    ],
+  },
+  {
+    key: 'effects',
+    label: 'Effects',
+    fields: [
+      { label: 'Vignette', path: ['effects', 'vignette'], multiline: true },
+      { label: 'Color Grade', path: ['effects', 'color_grade'], multiline: true },
+      { label: 'Contrast', path: ['effects', 'contrast'] },
+      { label: 'Lens Flare', path: ['effects', 'lens_flare'], multiline: true },
+      { label: 'Atmosphere', path: ['effects', 'atmosphere'], multiline: true },
+      { label: 'Grain', path: ['effects', 'grain'] },
+    ],
+  },
+]
+
+function getPathValue(target: unknown, path: string[]): unknown {
+  let cursor: unknown = target
+  for (const key of path) {
+    if (!cursor || typeof cursor !== 'object') return undefined
+    cursor = (cursor as Record<string, unknown>)[key]
+  }
+  return cursor
+}
+
+function setPathValue(target: Record<string, unknown>, path: string[], value: unknown): void {
+  let cursor: Record<string, unknown> = target
+  for (let i = 0; i < path.length - 1; i += 1) {
+    const key = path[i]
+    const next = cursor[key]
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
+      cursor[key] = {}
+    }
+    cursor = cursor[key] as Record<string, unknown>
+  }
+  cursor[path[path.length - 1]] = value
+}
+
 function formatValue(val: unknown): string | null {
   if (val == null) return null
   if (typeof val === 'string') return val || null
@@ -66,7 +186,68 @@ function formatValue(val: unknown): string | null {
   return String(val)
 }
 
-function PromptPreview({ prompt }: { prompt: GeneratedPrompt }) {
+function PromptPreview({
+  prompt,
+  editable = false,
+  onFieldChange,
+}: {
+  prompt: GeneratedPrompt
+  editable?: boolean
+  onFieldChange?: (path: string[], value: string, array?: boolean) => void
+}) {
+  if (editable) {
+    return (
+      <div className="space-y-4 overflow-y-auto">
+        {VISUAL_EDIT_FIELDS.map((section) => (
+          <div key={section.key} className="space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">{section.label}</span>
+            <div className="grid grid-cols-1 gap-2">
+              {section.fields.map((field) => {
+                const raw = getPathValue(prompt, field.path)
+                const value = Array.isArray(raw)
+                  ? raw.join(', ')
+                  : typeof raw === 'string'
+                    ? raw
+                    : raw == null
+                      ? ''
+                      : String(raw)
+                return (
+                  <label key={field.path.join('.')} className="space-y-1 block">
+                    <span className="text-[11px] text-surface-400">{field.label}</span>
+                    {field.multiline ? (
+                      <textarea
+                        value={value}
+                        onChange={(e) => {
+                          onFieldChange?.(field.path, e.target.value, field.array)
+                          e.target.style.height = 'auto'
+                          e.target.style.height = `${e.target.scrollHeight}px`
+                        }}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = 'auto'
+                            el.style.height = `${el.scrollHeight}px`
+                          }
+                        }}
+                        className="w-full bg-surface-100 border border-surface-200 rounded-lg px-2.5 py-2 text-xs text-surface-700 focus:outline-none focus:border-brand-500 resize-none overflow-hidden"
+                        spellCheck={false}
+                      />
+                    ) : (
+                      <input
+                        value={value}
+                        onChange={(e) => onFieldChange?.(field.path, e.target.value, field.array)}
+                        className="w-full bg-surface-100 border border-surface-200 rounded-lg px-2.5 py-2 text-xs text-surface-700 focus:outline-none focus:border-brand-500"
+                      />
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3 overflow-y-auto">
       {PROMPT_SECTIONS.map(({ key, label }) => {
@@ -177,6 +358,29 @@ export default function PromptFactoryPage() {
     return acc
   }, [])
   const completedPromptCount = completedPromptIndexes.length
+  const selectedPrompt = selectedIndex !== null ? prompts[selectedIndex] : null
+  const visualDraftPrompt = useMemo(() => {
+    if (!selectedPrompt) return null
+    if (!editingPromptText?.trim()) return selectedPrompt
+    try {
+      return JSON.parse(editingPromptText) as GeneratedPrompt
+    } catch {
+      return selectedPrompt
+    }
+  }, [selectedPrompt, editingPromptText])
+
+  const handleVisualFieldChange = (path: string[], rawValue: string, isArray?: boolean) => {
+    if (!selectedPrompt) return
+    const base = visualDraftPrompt ? (JSON.parse(JSON.stringify(visualDraftPrompt)) as Record<string, unknown>) : {}
+    const nextValue = isArray
+      ? rawValue
+          .split(',')
+          .map((part) => part.trim())
+          .filter(Boolean)
+      : rawValue
+    setPathValue(base, path, nextValue)
+    setEditingPromptText(JSON.stringify(base, null, 2))
+  }
 
   const progressStartedAt = generationProgress?.startedAt ?? 0
   const progressDone = !generationProgress || generationProgress.step === 'done'
@@ -215,11 +419,6 @@ export default function PromptFactoryPage() {
     applyMonsterSelection(completedPromptIndexes)
   }
 
-  const handleSendSelectedToMonster = () => {
-    if (selectedIndex === null || !prompts[selectedIndex]) return
-    applyMonsterSelection([selectedIndex])
-  }
-
   const analyzeDropzone = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
@@ -232,6 +431,7 @@ export default function PromptFactoryPage() {
   const anyLoading = analyzeEntries.some((e) => e.loading)
   const analyzedCount = analyzeEntries.filter((e) => e.prompt).length
   const allAnalyzed = analyzeEntries.length > 0 && analyzedCount === analyzeEntries.length
+  const pendingAnalyzeCount = analyzeEntries.filter((e) => !e.prompt).length
   const promptModeTabs: { id: 'concept' | 'image'; label: string; icon: JSX.Element }[] = [
     { id: 'concept', label: 'Create Prompts', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'image', label: 'Image to Prompt', icon: <ScanSearch className="w-4 h-4" /> },
@@ -239,9 +439,9 @@ export default function PromptFactoryPage() {
 
   if (promptMode === 'image') {
     return (
-      <div className="grid grid-cols-1 xl:grid-cols-[35%_65%] gap-6 xl:h-[calc(100vh-12rem)]">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:h-[calc(100vh-12rem)]">
         {/* LEFT PANEL - Inputs & Controls */}
-        <div className="bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+        <div className="xl:col-span-1 self-start bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
           <StepHeader stepNumber={1} title="Create Prompts" />
           <SegmentedTabs value={promptMode} items={promptModeTabs} onChange={setPromptMode} ariaLabel="Prompt mode" />
 
@@ -259,19 +459,32 @@ export default function PromptFactoryPage() {
           </div>
 
           {analyzeEntries.length === 0 ? (
-            <div
-              {...analyzeDropzone.getRootProps()}
-              className={`bg-surface-50 rounded-xl p-10 text-center border-2 border-dashed transition-colors cursor-pointer ${
-                analyzeDropzone.isDragActive
-                  ? 'border-brand-400 bg-brand-600/5'
-                  : 'border-surface-100 hover:border-surface-200'
-              }`}
-            >
-              <input {...analyzeDropzone.getInputProps()} />
-              <ScanSearch className="w-10 h-10 text-surface-300 mx-auto mb-3" />
-              <p className="text-surface-400 text-base mb-1">Drop images here or click to upload</p>
-              <p className="text-surface-300 text-sm">Upload one or more images to extract prompts via GPT-4o Vision</p>
-            </div>
+            <>
+              <div
+                {...analyzeDropzone.getRootProps()}
+                className={`bg-surface-50 rounded-xl p-10 text-center border-2 border-dashed transition-colors cursor-pointer ${
+                  analyzeDropzone.isDragActive
+                    ? 'border-brand-400 bg-brand-600/5'
+                    : 'border-surface-100 hover:border-surface-200'
+                }`}
+              >
+                <input {...analyzeDropzone.getInputProps()} />
+                <ScanSearch className="w-10 h-10 text-surface-300 mx-auto mb-3" />
+                <p className="text-surface-400 text-base mb-1">Drop images here or click to upload</p>
+                <p className="text-surface-300 text-sm">
+                  Upload one or more images to extract prompts via GPT-4o Vision
+                </p>
+              </div>
+              <Button
+                variant="lime"
+                size="lg"
+                icon={<ScanSearch className="w-5 h-5" />}
+                disabled
+                className="w-full"
+              >
+                Generate Prompts
+              </Button>
+            </>
           ) : (
             <>
               <div className="flex items-center justify-between">
@@ -321,22 +534,23 @@ export default function PromptFactoryPage() {
                 </div>
               </div>
 
+              <Button
+                variant="lime"
+                size="lg"
+                icon={anyLoading ? undefined : <ScanSearch className="w-5 h-5" />}
+                loading={anyLoading}
+                onClick={analyzeAllEntries}
+                disabled={anyLoading || pendingAnalyzeCount === 0}
+                className="w-full"
+              >
+                {anyLoading
+                  ? `Generating ${analyzeEntries.filter((e) => e.loading).length}...`
+                  : pendingAnalyzeCount > 0
+                    ? `Generate ${pendingAnalyzeCount} Prompt${pendingAnalyzeCount === 1 ? '' : 's'}`
+                    : 'Generated'}
+              </Button>
+
               <div className="bg-surface-50 rounded-xl p-4 space-y-3">
-                {!allAnalyzed && (
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    icon={anyLoading ? undefined : <ScanSearch className="w-5 h-5" />}
-                    loading={anyLoading}
-                    onClick={analyzeAllEntries}
-                    disabled={anyLoading}
-                    className="w-full"
-                  >
-                    {anyLoading
-                      ? `Analyzing ${analyzeEntries.filter((e) => e.loading).length}...`
-                      : `Analyze ${analyzeEntries.filter((e) => !e.prompt).length} Image${analyzeEntries.filter((e) => !e.prompt).length !== 1 ? 's' : ''}`}
-                  </Button>
-                )}
                 {analyzedCount > 0 && (
                   <Button
                     variant="purple"
@@ -360,7 +574,7 @@ export default function PromptFactoryPage() {
         </div>
 
         {/* RIGHT PANEL - Outputs */}
-        <div className="flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+        <div className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
           <div className="bg-surface-100/50 rounded-xl border border-surface-200/50 p-6">
             <StepHeader stepNumber={2} title="Generated Prompts" />
             {analyzeEntries.length === 0 ? (
@@ -549,9 +763,9 @@ export default function PromptFactoryPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[35%_65%] gap-6 xl:h-[calc(100vh-12rem)]">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:h-[calc(100vh-12rem)]">
       {/* LEFT PANEL - Inputs & Controls */}
-      <div className="bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+      <div className="xl:col-span-1 self-start bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
         <StepHeader stepNumber={1} title="Create Prompts" />
         {/* Mode Toggle */}
         <SegmentedTabs value={promptMode} items={promptModeTabs} onChange={setPromptMode} ariaLabel="Prompt mode" />
@@ -646,23 +860,30 @@ export default function PromptFactoryPage() {
               </div>
             )}
 
-            {!loading && completedPromptCount > 0 && (
-              <Button
-                variant="primary"
-                size="lg"
-                icon={<ArrowRight className="w-4 h-4" />}
-                onClick={handleSendAllToMonster}
-                className="w-full"
-              >
-                Send to Monster
-              </Button>
+            {research.grounding && (
+              <div className="p-2 bg-surface-50 rounded text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-surface-400">Research Mode</span>
+                  <span className="font-semibold text-surface-700">
+                    {research.grounding.effectiveMode === 'web' ? 'Web-grounded' : 'Model-only'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-surface-400">Sources</span>
+                  <span className="text-surface-700">{research.grounding.sources}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-surface-400">Grounding Score</span>
+                  <span className="text-surface-700">{research.grounding.groundingScore}/100</span>
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
 
       {/* RIGHT PANEL - Outputs */}
-      <div className="flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+      <div className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
         <div className="flex-1 bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-hidden">
           <div className="flex items-center justify-between">
             <StepHeader stepNumber={2} title="Generated Prompts" />
@@ -715,6 +936,18 @@ export default function PromptFactoryPage() {
                 )
               })}
             </div>
+          )}
+
+          {!loading && completedPromptCount > 0 && (
+            <Button
+              variant="lime"
+              size="lg"
+              icon={<ArrowRight className="w-4 h-4" />}
+              onClick={handleSendAllToMonster}
+              className="w-full"
+            >
+              Send All to Monster
+            </Button>
           )}
 
           {/* Progress Indicator */}
@@ -821,14 +1054,6 @@ export default function PromptFactoryPage() {
                     }}
                   />
                   <Button
-                    variant="purple"
-                    size="sm"
-                    icon={<ArrowRight className="w-4 h-4" />}
-                    onClick={handleSendSelectedToMonster}
-                  >
-                    Send This to Monster
-                  </Button>
-                  <Button
                     variant={promptSaved ? 'primary' : 'lime'}
                     size="sm"
                     icon={
@@ -857,7 +1082,11 @@ export default function PromptFactoryPage() {
                 />
               ) : (
                 <div className="flex-1 min-h-0 overflow-y-auto bg-surface-50/50 border border-surface-200 rounded-lg p-4">
-                  <PromptPreview prompt={prompts[selectedIndex]} />
+                  <PromptPreview
+                    prompt={visualDraftPrompt || prompts[selectedIndex]}
+                    editable
+                    onFieldChange={handleVisualFieldChange}
+                  />
                 </div>
               )}
             </div>

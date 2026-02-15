@@ -1,4 +1,4 @@
-import { Film, Layers, LayoutGrid, MessageSquareText, TimerReset, Video, Wand2, Zap } from 'lucide-react'
+import { BarChart3, Film, Layers, LayoutGrid, MessageSquareText, TimerReset, Video, Wand2, Zap } from 'lucide-react'
 import { useNavigationStore } from '../../stores/navigationStore'
 import { BrandedName, brandedName } from '../ui/BrandedName'
 
@@ -43,6 +43,12 @@ const CATEGORIES = [
     icon: TimerReset,
     description:
       'Build an age progression timeline from a baby photo. Generate white-background age frames and transition videos end-to-end.',
+  },
+  {
+    id: 'competitors' as const,
+    icon: BarChart3,
+    description:
+      'Track competitor creatives from the last 7 days with a focused report. Start with Clone AI and expand to richer market signals.',
   },
 ]
 

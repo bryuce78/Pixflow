@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { createWriteStream } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
@@ -7,7 +8,12 @@ import rateLimit from 'express-rate-limit'
 import multer from 'multer'
 import type { AuthRequest } from '../middleware/auth.js'
 import { transcribeVideo } from '../services/wizper.js'
-import { detectPlatform, downloadVideoWithYtDlp, isFacebookAdsLibraryUrl } from '../services/ytdlp.js'
+import {
+  detectPlatform,
+  downloadVideoWithYtDlp,
+  extractFacebookAdsVideoUrl,
+  isFacebookAdsLibraryUrl,
+} from '../services/ytdlp.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 interface VideosRouterConfig {
@@ -74,41 +80,82 @@ export function createVideosRouter(config: VideosRouterConfig) {
    * Download video from external URL to temp file
    */
   async function downloadVideoFromUrl(url: string): Promise<string> {
+    const userAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    const maxRedirects = 5
+
     return new Promise((resolve, reject) => {
       const tempPath = path.join(outputsDir, `temp_download_${Date.now()}.mp4`)
-      const file = fs.open(tempPath, 'w')
+      const stream = createWriteStream(tempPath)
+      let settled = false
 
-      const protocol = url.startsWith('https') ? https : http
+      const complete = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        fn()
+      }
 
-      file
-        .then((handle) => {
-          const stream = handle.createWriteStream()
+      const cleanupAndReject = (error: Error) => {
+        stream.destroy()
+        fs.unlink(tempPath).catch(() => {})
+        complete(() => reject(error))
+      }
 
-          protocol
-            .get(url, (response) => {
-              if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download video: HTTP ${response.statusCode}`))
+      stream.on('error', (err) => {
+        cleanupAndReject(err instanceof Error ? err : new Error(String(err)))
+      })
+
+      const requestUrl = (targetUrl: string, redirectCount: number) => {
+        const protocol = targetUrl.startsWith('https') ? https : http
+        const request = protocol.get(
+          targetUrl,
+          {
+            headers: {
+              'user-agent': userAgent,
+              accept: '*/*',
+            },
+          },
+          (response) => {
+            const status = response.statusCode ?? 0
+            const location = response.headers.location
+
+            if (
+              location &&
+              (status === 301 || status === 302 || status === 303 || status === 307 || status === 308)
+            ) {
+              if (redirectCount >= maxRedirects) {
+                cleanupAndReject(new Error('Failed to download video: too many redirects'))
                 return
               }
 
-              response.pipe(stream)
+              const nextUrl = new URL(location, targetUrl).toString()
+              response.resume()
+              requestUrl(nextUrl, redirectCount + 1)
+              return
+            }
 
-              stream.on('finish', () => {
-                stream.close()
-                resolve(tempPath)
-              })
+            if (status !== 200 && status !== 206) {
+              response.resume()
+              cleanupAndReject(new Error(`Failed to download video: HTTP ${status}`))
+              return
+            }
 
-              stream.on('error', (err) => {
-                fs.unlink(tempPath).catch(() => {})
-                reject(err)
-              })
+            response.pipe(stream, { end: false })
+            response.on('end', () => {
+              stream.end(() => complete(() => resolve(tempPath)))
             })
-            .on('error', (err) => {
-              fs.unlink(tempPath).catch(() => {})
-              reject(err)
+            response.on('error', (err) => {
+              cleanupAndReject(err instanceof Error ? err : new Error(String(err)))
             })
+          },
+        )
+
+        request.on('error', (err) => {
+          cleanupAndReject(err instanceof Error ? err : new Error(String(err)))
         })
-        .catch(reject)
+      }
+
+      requestUrl(url, 0)
     })
   }
 
@@ -231,9 +278,29 @@ export function createVideosRouter(config: VideosRouterConfig) {
             })
           } catch (error) {
             console.error('[Videos] Facebook Ads yt-dlp download failed:', error)
-            throw new Error(
-              `Failed to download Facebook Ads video: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            )
+            console.log('[Videos] Falling back to browser extraction for Facebook Ads...', { clientRequestId })
+            try {
+              const directVideoUrl = await extractFacebookAdsVideoUrl(videoUrl)
+              console.log('[Videos] Extracted direct Facebook Ads video URL:', {
+                clientRequestId,
+                directVideoUrl: directVideoUrl.slice(0, 160),
+              })
+
+              videoPath = await downloadVideoFromUrl(directVideoUrl)
+              tempDownloadPath = videoPath
+              console.log('[Videos] Facebook Ads direct video download complete:', {
+                clientRequestId,
+                videoPath,
+              })
+            } catch (fallbackError) {
+              console.error('[Videos] Facebook Ads fallback extraction failed:', fallbackError)
+              const primaryMessage = error instanceof Error ? error.message : 'Unknown yt-dlp error'
+              const fallbackMessage =
+                fallbackError instanceof Error ? fallbackError.message : 'Unknown browser extraction error'
+              throw new Error(
+                `Failed to download Facebook Ads video. yt-dlp error: ${primaryMessage}. Fallback error: ${fallbackMessage}`,
+              )
+            }
           }
         }
         // Check if it's a platform video (Facebook, Instagram, TikTok, etc.)

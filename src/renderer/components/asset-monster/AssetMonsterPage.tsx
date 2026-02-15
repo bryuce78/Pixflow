@@ -852,42 +852,41 @@ Examples:
               options={OUTPUT_FORMATS.map((f) => ({ value: f, label: f.toUpperCase() }))}
             />
           </div>
-        </div>
-
-        {/* Generate Button */}
-        <Button
-          size="lg"
-          icon={batchLoading ? undefined : <Play className="w-5 h-5" />}
-          loading={batchLoading}
-          onClick={handleBatchGenerate}
-          disabled={
-            batchLoading ||
-            referenceImages.length === 0 ||
-            (promptSource === 'generated'
-              ? selectedPrompts.size === 0
-              : promptSource === 'custom'
-                ? selectedCustomPrompts.size === 0
-                : selectedLibraryPrompts.size === 0)
-          }
-          className="w-full"
-        >
-          {batchLoading ? (
-            <span className="flex items-center gap-2">
-              Generating {completedCount}/{totalCount}...
-              {completedCount > 0 && (
-                <span className="text-white/60">
-                  ~
-                  {remainingSeconds >= 60
-                    ? `${Math.floor(remainingSeconds / 60)}m ${remainingSeconds % 60}s`
-                    : `${remainingSeconds}s`}{' '}
-                  remaining
+          <div className="pt-4 mt-4 border-t border-surface-200/60">
+            <Button
+              size="lg"
+              icon={batchLoading ? undefined : <Play className="w-5 h-5" />}
+              loading={batchLoading}
+              onClick={handleBatchGenerate}
+              disabled={
+                batchLoading ||
+                (promptSource === 'generated'
+                  ? selectedPrompts.size === 0
+                  : promptSource === 'custom'
+                    ? selectedCustomPrompts.size === 0
+                    : selectedLibraryPrompts.size === 0)
+              }
+              className="w-full"
+            >
+              {batchLoading ? (
+                <span className="flex items-center gap-2">
+                  Generating {completedCount}/{totalCount}...
+                  {completedCount > 0 && (
+                    <span className="text-white/60">
+                      ~
+                      {remainingSeconds >= 60
+                        ? `${Math.floor(remainingSeconds / 60)}m ${remainingSeconds % 60}s`
+                        : `${remainingSeconds}s`}{' '}
+                      remaining
+                    </span>
+                  )}
                 </span>
+              ) : (
+                `Generate ${totalImages} Image${totalImages !== 1 ? 's' : ''}`
               )}
-            </span>
-          ) : (
-            `Generate ${totalImages} Image${totalImages !== 1 ? 's' : ''}`
-          )}
-        </Button>
+            </Button>
+          </div>
+        </div>
 
         {batchError && (
           <StatusBanner

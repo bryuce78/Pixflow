@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-02-15T17:33:48.162Z",
+  "protectedFiles": [
+    {
+      "path": "src/server/routes/prompts.ts",
+      "sha256": "feb88c36057f13cd676e6cda90df85f47e2878745f05224a2d04ca45bdbc422a"
+    },
+    {
+      "path": "src/server/routes/videos.ts",
+      "sha256": "5d05133332a5011ff2bd8c91a62e1c19554dca656ac251d7aa3a18836dc8bf72"
+    },
+    {
+      "path": "src/server/services/promptGenerator.ts",
+      "sha256": "0b80d397cef1b5ed8f39b4f256269f0f969fd54b129320835445fc6644770544"
+    },
+    {
+      "path": "src/server/services/research.ts",
+      "sha256": "feef01cebe5c35d929033e1422ef355323296d405bf057be073d166ef65dad87"
+    },
+    {
+      "path": "src/server/services/ytdlp.ts",
+      "sha256": "6735ccbf15bb749aef092fb27acd1a06373ad0f667daa631c74444ee8247bb50"
+    },
+    {
+      "path": "src/server/services/wizper.ts",
+      "sha256": "adc89a91ae4106e26d557319567b3b84f98cc87210fcef311bbd0038ec8da665"
+    },
+    {
+      "path": "src/server/utils/prompts.ts",
+      "sha256": "eab97e2fa7235b987b2be55352c8a50fea8894729cae770eef305d5a9d43a2fb"
+    },
+    {
+      "path": "docs/PIPELINE.md",
+      "sha256": "de05e5f364010bedb715db3edf32c2fd6ed52ceca6df3726d2d9dc85c075ff0c"
+    }
+  ],
+  "unlockNote": "Lock transcript-media pipeline per user request"
+}

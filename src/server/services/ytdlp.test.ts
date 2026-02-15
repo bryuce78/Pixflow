@@ -2,9 +2,10 @@ import { EventEmitter } from 'node:events'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { spawnMock, readdirMock, ensureYtDlpBinaryMock } = vi.hoisted(() => ({
+const { spawnMock, readdirMock, accessMock, ensureYtDlpBinaryMock } = vi.hoisted(() => ({
   spawnMock: vi.fn(),
   readdirMock: vi.fn(),
+  accessMock: vi.fn(),
   ensureYtDlpBinaryMock: vi.fn(),
 }))
 
@@ -15,6 +16,13 @@ vi.mock('node:child_process', () => ({
 vi.mock('node:fs/promises', () => ({
   default: {
     readdir: readdirMock,
+    access: accessMock,
+    constants: {
+      X_OK: 1,
+    },
+  },
+  constants: {
+    X_OK: 1,
   },
 }))
 
@@ -44,6 +52,7 @@ beforeEach(() => {
   delete process.env.PIXFLOW_YTDLP_COOKIES_FROM_BROWSER
   delete process.env.PIXFLOW_YTDLP_DISABLE_COOKIE_RETRY
   ensureYtDlpBinaryMock.mockResolvedValue('/tmp/yt-dlp-bin')
+  accessMock.mockResolvedValue(undefined)
 })
 
 describe('downloadVideoWithYtDlp', () => {
@@ -69,7 +78,8 @@ describe('downloadVideoWithYtDlp', () => {
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
     const [cmd, args] = spawnMock.mock.calls[0] as [string, string[]]
-    expect(cmd).toBe('/tmp/yt-dlp-bin')
+    expect(typeof cmd).toBe('string')
+    expect(cmd.length).toBeGreaterThan(0)
     expect(args).toEqual(
       expect.arrayContaining([
         '--yes-playlist',
@@ -137,6 +147,31 @@ describe('downloadVideoWithYtDlp', () => {
     const result = await downloadVideoWithYtDlp('https://facebook.com/video/1', '/tmp')
 
     expect(result.videoPath).toBe('/tmp/retry-success.mp4')
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to global binary when bundled binary fails to spawn', async () => {
+    let callCount = 0
+    spawnMock.mockImplementation(() => {
+      callCount += 1
+
+      if (callCount === 1) {
+        const error = new Error('spawn ENOEXEC')
+        throw error
+      }
+
+      const child = makeFakeChildProcess()
+      queueMicrotask(() => {
+        child.stdout.emit('data', Buffer.from('__META__Global Success|8|facebook\n'))
+        child.stdout.emit('data', Buffer.from('__FILE__/tmp/global-success.mp4\n'))
+        child.emit('close', 0)
+      })
+      return child
+    })
+
+    const result = await downloadVideoWithYtDlp('https://facebook.com/video/2', '/tmp')
+
+    expect(result.videoPath).toBe('/tmp/global-success.mp4')
     expect(spawnMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -8,6 +8,7 @@ import { requireAuth } from './middleware/auth.js'
 import { createAuthRouter } from './routes/auth.js'
 import { createAvatarsRouter } from './routes/avatars.js'
 import { createCaptionsRouter } from './routes/captions.js'
+import { createCompetitorReportRouter } from './routes/competitorReport.js'
 import { createFeedbackRouter } from './routes/feedback.js'
 import { createGenerateRouter } from './routes/generate.js'
 import { createHistoryRouter } from './routes/history.js'
@@ -71,6 +72,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/api/notifications', requireAuth, createNotificationsRouter())
   app.use('/api/images', requireAuth, createImageRatingsRouter())
   app.use('/api/telemetry', requireAuth, createTelemetryRouter())
+  app.use('/api/competitor-report', requireAuth, createCompetitorReportRouter())
 
   app.get('/api/settings/status', requireAuth, (_req, res) => {
     sendSuccess(res, {

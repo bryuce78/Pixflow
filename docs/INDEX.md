@@ -4,6 +4,15 @@ Last updated: 2026-02-15
 
 This file defines the active documentation set to avoid duplication and drift.
 
+## Command Alias
+
+`docs sync` (and typo `dosc sync`) means:
+1. Use this index as the source of truth.
+2. Update active docs only (core/supporting, as needed).
+3. Do not modify `docs/archive/*` unless explicitly requested.
+4. Keep output concise: list updated files + why.
+5. Commit only when user explicitly says `go`.
+
 ## Core (active, maintain regularly)
 
 1. `README.md` - Product overview, setup, run/build, and key commands.

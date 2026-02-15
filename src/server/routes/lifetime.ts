@@ -5,6 +5,7 @@ import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import ffmpegStatic from 'ffmpeg-static'
 import multer from 'multer'
+import { REFERENCE_IDENTITY_SOURCE_CRITICAL } from '../../constants/referencePrompts.js'
 import type { AuthRequest } from '../middleware/auth.js'
 import { downloadImage, generateImage } from '../services/fal.js'
 import { downloadKlingVideo, generateKlingTransitionVideo } from '../services/kling.js'
@@ -1040,7 +1041,7 @@ function buildNormalizePrompt(
   const framingRule = mediumShotFramingRule()
   const genderRule = genderHintRule(genderHint)
   return [
-    'CRITICAL: Use the provided reference image as mandatory identity source.',
+    REFERENCE_IDENTITY_SOURCE_CRITICAL,
     'CRITICAL: Prioritize highest possible facial resemblance to the reference identity.',
     'CRITICAL: Do not change identity, ethnicity, skin tone, eye color, or defining facial landmarks.',
     'Treat the subject as a baby from the reference photo.',
@@ -1123,7 +1124,7 @@ function buildSourceFramePrompt(mode: LifetimeBackgroundMode, genderHint: Lifeti
   const genderRule = genderHintRule(genderHint)
   if (mode === 'white_bg') {
     return [
-      'CRITICAL: Use the provided reference image as mandatory identity source.',
+      REFERENCE_IDENTITY_SOURCE_CRITICAL,
       'CRITICAL: Keep the exact same baby identity, facial structure, skin tone, and age.',
       genderRule,
       'Remove the existing background completely and replace it with pure white (#FFFFFF).',
@@ -1134,7 +1135,7 @@ function buildSourceFramePrompt(mode: LifetimeBackgroundMode, genderHint: Lifeti
     ].join(' ')
   }
   return [
-    'CRITICAL: Use the provided reference image as mandatory identity source.',
+    REFERENCE_IDENTITY_SOURCE_CRITICAL,
     'Keep the exact same baby identity and apparent age.',
     genderRule,
     'Create a clean, natural-looking 9:16 portrait with realistic environment continuity.',

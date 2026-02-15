@@ -73,6 +73,15 @@ export interface ResearchData {
   insights: string[]
   warnings: string[]
   subThemes: string[]
+  grounding?: {
+    requestedMode: 'web' | 'model'
+    effectiveMode: 'web' | 'model'
+    sources: number
+    domains: number
+    groundingScore: number
+    cacheHitRate: number
+    usedWebSearch: boolean
+  }
 }
 
 export interface VarietyScore {

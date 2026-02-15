@@ -19,6 +19,27 @@ export interface TranscriptionResult {
   }>
 }
 
+interface FalValidationErrorShape {
+  status?: number
+  body?: {
+    detail?: unknown
+  }
+}
+
+function isValidationError(error: unknown): error is FalValidationErrorShape {
+  const err = error as FalValidationErrorShape
+  return err?.status === 422
+}
+
+function serializeValidationDetail(error: unknown): string {
+  const detail = (error as FalValidationErrorShape)?.body?.detail
+  try {
+    return JSON.stringify(detail)
+  } catch {
+    return String(detail)
+  }
+}
+
 const toFiniteNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) {
@@ -223,11 +244,11 @@ export async function extractAudioFromVideo(videoPath: string): Promise<string> 
       '-acodec',
       'libmp3lame',
       '-ar',
-      '44100', // 44.1kHz sample rate
+      '16000', // 16kHz is sufficient for speech transcription and much faster to upload/process
       '-ac',
-      '2', // Stereo
+      '1', // Mono speech track
       '-b:a',
-      '192k', // 192kbps bitrate
+      '64k', // Smaller transcription payload
       tempAudioPath,
     ])
 
@@ -297,33 +318,70 @@ export async function transcribeAudio(audioPath: string): Promise<TranscriptionR
 
   // Upload audio to fal.ai
   const audioUrl = await uploadToFal(audioPath)
-
-  const result = await runWithRetries(
-    () =>
-      fal.subscribe(WIZPER_MODEL, {
-        input: {
-          audio_url: audioUrl,
-          task: 'transcribe',
-          // Wizper defaults to English when language is omitted; null enables auto-detect.
-          language: null as unknown as string,
-          chunk_level: 'word',
-          merge_chunks: false,
-          max_segment_len: 8,
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_PROGRESS' && update.logs) {
-            // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
-            update.logs.forEach((log) => console.log(`[fal.ai Wizper] ${log.message}`))
-          }
-        },
-      }),
+  const payloadAttempts: Array<{ name: string; payload: Record<string, unknown> }> = [
     {
-      pipeline: 'avatars.transcribe.provider',
-      provider: 'fal',
-      metadata: { audioPath },
+      name: 'minimal',
+      payload: {
+        audio_url: audioUrl,
+        task: 'transcribe',
+        // Force source-language transcription (no implicit English default).
+        language: null,
+      },
     },
-  )
+    {
+      name: 'segment',
+      payload: {
+        audio_url: audioUrl,
+        task: 'transcribe',
+        // Keep auto-detect on fallback payload as well.
+        language: null,
+        chunk_level: 'segment',
+        merge_chunks: true,
+        max_segment_len: 29,
+      },
+    },
+  ]
+
+  let result: Awaited<ReturnType<typeof fal.subscribe>> | null = null
+  let lastError: unknown = null
+
+  for (const attempt of payloadAttempts) {
+    try {
+      result = await runWithRetries(
+        () =>
+          fal.subscribe(WIZPER_MODEL, {
+            input: attempt.payload,
+            logs: true,
+            onQueueUpdate: (update) => {
+              if (update.status === 'IN_PROGRESS' && update.logs) {
+                // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect logging
+                update.logs.forEach((log) => console.log(`[fal.ai Wizper] ${log.message}`))
+              }
+            },
+          }),
+        {
+          pipeline: 'avatars.transcribe.provider',
+          provider: 'fal',
+          metadata: { audioPath, attempt: attempt.name },
+        },
+      )
+      break
+    } catch (error) {
+      lastError = error
+      if (!isValidationError(error)) {
+        throw error
+      }
+
+      console.warn('[Wizper] Validation error; retrying with fallback payload', {
+        attempt: attempt.name,
+        detail: serializeValidationDetail(error),
+      })
+    }
+  }
+
+  if (!result) {
+    throw (lastError instanceof Error ? lastError : new Error('Wizper transcription failed'))
+  }
 
   const transcript = result.data?.text
   if (!transcript) {

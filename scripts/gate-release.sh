@@ -17,6 +17,7 @@ run_step() {
 }
 
 run_step "Lint (Biome)" npm run lint:biome
+run_step "PGP Lock Guard" npm run pgp:lock:check
 run_step "Validate Playbooks" npm run validate:playbooks
 run_step "Typecheck" npm run lint
 run_step "Unit Tests" npm run test

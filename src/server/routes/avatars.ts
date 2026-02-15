@@ -4,6 +4,7 @@ import path from 'node:path'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
+import { GREENBOX_REFERENCE_PROMPT } from '../../constants/referencePrompts.js'
 import type { AuthRequest } from '../middleware/auth.js'
 import { generateAvatar, generateAvatarFromReference } from '../services/avatar.js'
 import { createHedraVideo, downloadHedraVideo } from '../services/hedra.js'
@@ -82,8 +83,7 @@ const VALID_REACTIONS = [
   'worried',
   'happy',
 ]
-const GREENBOX_PROMPT =
-  'Using the provided reference image, preserve the face, identity, age, and pose exactly. Isolate the subject cleanly and place them on a solid chroma green (#00FF00) background. No extra objects or text. Keep clothing and proportions unchanged. High-quality cutout.'
+const GREENBOX_PROMPT = GREENBOX_REFERENCE_PROMPT
 
 function mimeTypeFromImagePath(imagePath: string): string {
   const ext = path.extname(imagePath).toLowerCase()

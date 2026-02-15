@@ -7,7 +7,7 @@
 
 Pixflow is a web app for AI asset production workflows:
 - Prompt Factory (concept/image to structured prompts)
-- Asset Monster (batch image generation)
+- Asset Monster (batch image generation; prompt-only or multi-reference)
 - Img2Engine (image-to-video generation)
 - Avatar Studio (avatar, script, TTS, lipsync)
 - Captions (AI-generated video captions with sentence selection)
@@ -57,14 +57,31 @@ npm run pgp:lock:check   # Verify Prompt Generation Pipeline lock (must pass in 
 npm run pgp:lock:update  # Update PGP lock fingerprint (requires explicit unlock token)
 ```
 
+## Docs Sync Trigger Protocol
+
+Trigger phrases:
+- `docs sync`
+- `dosc sync` (common typo; treat as `docs sync`)
+
+Required behavior when triggered:
+1. Read `docs/INDEX.md` first.
+2. Update only active/core docs affected by recent work.
+3. Do not edit `docs/archive/*` unless explicitly requested.
+4. Keep redirect stubs minimal (`docs/PIXFLOW_HANDOFF_FEB2026.md`, etc.).
+5. Return a concise changelog of updated docs.
+6. If user says `go`, create one docs-only commit.
+
 ## PGP Lock Protocol (Do Not Bypass)
 
-Prompt Generation Pipeline (PGP) is protected by a lock guard and must not be modified casually.
+Critical pipelines are protected by a lock guard and must not be modified casually.
 
 Protected scope:
 - `src/server/routes/prompts.ts`
+- `src/server/routes/videos.ts`
 - `src/server/services/promptGenerator.ts`
 - `src/server/services/research.ts`
+- `src/server/services/ytdlp.ts`
+- `src/server/services/wizper.ts`
 - `src/server/utils/prompts.ts`
 - `docs/PIPELINE.md`
 - `docs/ops/pgp-lock.json` (lock fingerprint output)
@@ -120,6 +137,25 @@ src/
 ### API Envelope
 All API responses: `{ success: boolean, data?: T, error?: string, details?: string }`.
 Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `assetUrl()` for file URLs (handles absolute URLs as pass-through).
+
+### FAL Model Selection (Asset Monster)
+- `/api/generate/batch` accepts `0..5` reference images.
+- Model selection rule (server-side, `src/server/services/fal.ts`):
+  - If reference images provided: `fal-ai/nano-banana-pro/edit`
+  - If no reference images: `fal-ai/nano-banana-pro`
+
+### Output History + Job Monitor
+- Canonical job/event store: `src/renderer/stores/outputHistoryStore.ts`
+- Global always-visible overlay: `src/renderer/components/shared/JobMonitorWidget.tsx`
+- Purpose:
+  - show running/done/failed jobs without switching tabs
+  - keep last 50 jobs visible
+  - allow user to dismiss individual jobs from the widget
+- Explicit exclusions: `Library` + `Competitor Report`
+- Notable categories:
+  - `prompt_factory` (Prompt Factory SSE prompt generation)
+  - `asset_monster` (Asset Monster batch generation)
+  - `img2img`, `img2video`, `startend`, `captions`, `machine`, `lifetime`, `avatars_*`
 
 ### Zustand Stores
 - State + actions in single `create()` call

@@ -13,6 +13,7 @@ const TAB_ORDER: TabId[] = [
   'captions',
   'machine',
   'history',
+  'competitors',
 ]
 
 export function useKeyboardShortcuts() {
@@ -29,11 +30,19 @@ export function useKeyboardShortcuts() {
       )
         return
 
-      if (e.metaKey && e.key >= '1' && e.key <= '9') {
-        e.preventDefault()
-        const idx = Number(e.key) - 1
-        if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
-        return
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key >= '1' && e.key <= '9') {
+          e.preventDefault()
+          const idx = Number(e.key) - 1
+          if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
+          return
+        }
+        if (e.key === '0') {
+          e.preventDefault()
+          const idx = 9
+          if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
+          return
+        }
       }
 
       if (e.key === 'Escape') {

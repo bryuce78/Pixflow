@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-15 (PGP restoration lock + competitor report web-grounding fixes)
+Last updated: 2026-02-15 (docs sync: job monitor + Prompt Factory job history + Img2Engine output standardization + layout alignment)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,28 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.6) UI Output + Job Monitor Update (2026-02-15)
+
+- Added a global bottom-right job monitor overlay:
+  - shows last 50 jobs across the app (running/done/failed)
+  - allows dismissing jobs from the widget
+  - excludes `Library` and `Competitor Report`
+  - implementation: `src/renderer/components/shared/JobMonitorWidget.tsx`
+- Wired Prompt Factory prompt generation into Output History:
+  - Prompt Factory SSE generation now emits `prompt_factory` jobs to Output History so it appears in the job monitor.
+  - implementation: `src/renderer/stores/promptStore.ts` + `src/renderer/stores/outputHistoryStore.ts`
+- Wired Asset Monster batch generation into Output History:
+  - Asset Monster batch generation now emits `asset_monster` jobs to Output History so it appears in the job monitor.
+  - implementation: `src/renderer/stores/generationStore.ts` + `src/renderer/stores/outputHistoryStore.ts`
+- Standardized Img2Engine `img2video` outputs:
+  - renamed UI block to `Generated Videos`
+  - switched to `StepHeader` + `DownloadToolbar`
+  - aspect ratio-aware thumbnails; hover preview no longer rewinds on mouse leave
+  - implementation: `src/renderer/components/img2video/Img2VideoQueuePage.tsx`
+- Layout adjustment:
+  - content is now left-aligned relative to the sidebar (no centering drift on ultra-wide screens)
+  - implementation: `src/renderer/components/layout/AppShell.tsx`
 
 ### 0.1) Latest Delta (2026-02-13)
 
@@ -157,6 +179,21 @@ Project root: `/Users/pixery/Projects/pixflow`
   - `docs/PIXFLOW_AI_VERSIONING_HANDOFF_ARCHIVE_20260209.md`
   - `docs/PIXFLOW_UI_INTERACTION_STANDARDIZATION_PLAN_FEB2026.md`
   - `docs/PIXFLOW_README.md`
+
+### 0.8) UI + Asset Monster Prompt-Only Mode (2026-02-15)
+
+- Prompt Factory (Image to Prompt):
+  - Added `Generate Prompts` button directly under the image drop area (single primary action).
+  - Fixed segmented tab overflow by truncating long labels in `SegmentedTabs`.
+- Sidebar:
+  - Added a separator before `Competitor Report`.
+  - Styled first word ("Competitor") as lime via `brandedName('competitors', 'text-secondary-500')`.
+- Asset Monster:
+  - Reference images are optional; prompt-only generation is allowed.
+  - Backend model selection:
+    - with references: `fal-ai/nano-banana-pro/edit`
+    - without references: `fal-ai/nano-banana-pro`
+  - `/api/generate/batch` now accepts `0..5` reference images (previously required at least 1).
 
 ---
 

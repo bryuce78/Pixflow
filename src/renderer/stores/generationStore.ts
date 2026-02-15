@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
+import { createOutputHistoryId, useOutputHistoryStore } from './outputHistoryStore'
 import type { Avatar, BatchProgress, ErrorInfo, GeneratedPrompt } from '../types'
 import { parseError } from '../types'
 
@@ -43,6 +44,7 @@ interface GenerationState {
   previewImage: string | null
   selectedResultImages: Set<number>
   completedBatches: CompletedBatch[]
+  assetMonsterHistoryId: string | null
 
   promptSource: 'generated' | 'custom' | 'library'
   currentCustomPromptInput: string
@@ -107,6 +109,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
   previewImage: null,
   selectedResultImages: new Set<number>(),
   completedBatches: [],
+  assetMonsterHistoryId: null,
 
   promptSource: 'generated',
   currentCustomPromptInput: '',
@@ -269,11 +272,16 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
       outputFormat,
       batchProgress,
       completedBatches,
+      assetMonsterHistoryId,
     } = get()
 
-    if (referenceImages.length === 0) {
-      set({ batchError: { message: 'Please add at least one reference image', type: 'warning' } })
-      return
+    // If a previous run is active, mark it as cancelled to avoid leaving it "running" forever.
+    if (assetMonsterHistoryId) {
+      useOutputHistoryStore.getState().patch(assetMonsterHistoryId, {
+        status: 'failed',
+        message: 'Cancelled',
+        artifacts: [],
+      })
     }
 
     batchAbort?.abort()
@@ -296,6 +304,19 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
     })
 
     try {
+      const historyId = createOutputHistoryId('asset_monster')
+      set({ assetMonsterHistoryId: historyId })
+      useOutputHistoryStore.getState().upsert({
+        id: historyId,
+        category: 'asset_monster',
+        title: 'Asset Monster Batch',
+        status: 'running',
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+        message: 'Starting…',
+        artifacts: [],
+      })
+
       const formData = new FormData()
       // biome-ignore lint/suspicious/useIterableCallbackReturn: side-effect FormData append
       referenceImages.forEach((f) => formData.append('referenceImages', f))
@@ -335,6 +356,9 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
           images: [],
         },
       })
+      useOutputHistoryStore.getState().patch(historyId, {
+        message: `Running… (0/${data.totalImages})`,
+      })
 
       let failedPolls = 0
       while (!controller.signal.aborted) {
@@ -349,6 +373,39 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
           const progressRaw = await pollRes.json()
           const progress = unwrapApiData<BatchProgress>(progressRaw)
           set({ batchProgress: progress })
+          useOutputHistoryStore.getState().patch(historyId, {
+            status: progress.status === 'failed' ? 'failed' : progress.status === 'completed' ? 'completed' : 'running',
+            message:
+              progress.status === 'completed'
+                ? `Done (${progress.completedImages}/${progress.totalImages})`
+                : progress.status === 'failed'
+                  ? 'Failed'
+                  : `Running… (${progress.completedImages}/${progress.totalImages})`,
+            artifacts:
+              progress.status === 'completed'
+                ? [
+                    ...progress.images
+                      .filter((img) => img.status === 'completed' && img.url)
+                      .slice(0, 12)
+                      .map((img) => ({
+                        id: `${historyId}_img_${img.index}`,
+                        label: `Image ${img.index + 1}`,
+                        type: 'image' as const,
+                        url: img.url,
+                      })),
+                    ...(progress.outputDir
+                      ? [
+                          {
+                            id: `${historyId}_folder`,
+                            label: 'Output Folder',
+                            type: 'folder' as const,
+                            url: `/outputs/${String(progress.outputDir).split('/').filter(Boolean).pop() || ''}/`,
+                          },
+                        ]
+                      : []),
+                  ]
+                : [],
+          })
           if (progress.status === 'completed' || progress.status === 'failed') break
         } catch (err) {
           if (err instanceof DOMException && err.name === 'AbortError') return
@@ -359,15 +416,33 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       set({ batchError: parseError(err) })
+      const historyId = get().assetMonsterHistoryId
+      if (historyId) {
+        useOutputHistoryStore.getState().patch(historyId, {
+          status: 'failed',
+          message: err instanceof Error ? err.message : 'Batch failed',
+          artifacts: [],
+        })
+      }
     } finally {
       set({ batchLoading: false })
       if (batchAbort === controller) batchAbort = null
+      set({ assetMonsterHistoryId: null })
     }
   },
 
   cancelBatch: () => {
     batchAbort?.abort()
     batchAbort = null
+    const historyId = get().assetMonsterHistoryId
+    if (historyId) {
+      useOutputHistoryStore.getState().patch(historyId, {
+        status: 'failed',
+        message: 'Cancelled',
+        artifacts: [],
+      })
+    }
+    set({ assetMonsterHistoryId: null })
     set({ batchLoading: false })
   },
 

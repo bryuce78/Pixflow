@@ -1,9 +1,13 @@
 import { AlertCircle, CheckCircle, Download, Link, Loader2, Upload, Video, Volume2, Wand2 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import type { ScriptTone } from '../../stores/avatarStore'
 import { TALKING_AVATAR_LANGUAGE_CARDS, useAvatarStore } from '../../stores/avatarStore'
+import {
+  createOutputHistoryId,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { AudioPlayer } from '../ui/AudioPlayer'
 import { Button } from '../ui/Button'
@@ -13,6 +17,7 @@ import { SegmentedTabs } from '../ui/navigation/SegmentedTabs'
 import { ProgressBar } from '../ui/ProgressBar'
 import { Select } from '../ui/Select'
 import { Textarea } from '../ui/Textarea'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { ScriptRefinementToolbar } from './ScriptRefinementToolbar'
 import { AvatarSelectionCard } from './shared/AvatarSelectionCard'
 
@@ -32,6 +37,7 @@ interface TalkingAvatarPageProps {
 
 export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl, modeTabs }: TalkingAvatarPageProps) {
   const videoFileInputRef = useRef<HTMLInputElement>(null)
+  const activeTalkingHistoryIdRef = useRef<string | null>(null)
   const [videoSource, setVideoSource] = useState<'url' | 'upload'>('url')
   const [videoUrl, setVideoUrl] = useState('')
   const [uploadingVideo, setUploadingVideo] = useState(false)
@@ -86,6 +92,15 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
     clearTranslations,
     generateTalkingAvatarVideosBatch,
   } = useAvatarStore()
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'avatars_talking'),
+    [outputHistoryEntries],
+  )
 
   useEffect(() => {
     loadVoices()
@@ -158,7 +173,56 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
     { id: 'url', label: 'Video URL', icon: <Link className="w-4 h-4" /> },
     { id: 'upload', label: 'Upload File', icon: <Upload className="w-4 h-4" /> },
   ]
-  const hasSelectedAvatar = Boolean((generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || '').trim())
+  const selectedAvatarUrl = (selectedAvatar?.url || generatedUrls[selectedGeneratedIndex] || '').trim()
+  const hasSelectedAvatar = Boolean(selectedAvatarUrl)
+  const showTranscribedAvatarThumb = scriptMode === 'fetch' && Boolean(generatedScript.trim()) && hasSelectedAvatar
+
+  const handleGenerateTalkingBatch = async () => {
+    const historyId = createOutputHistoryId('talking')
+    activeTalkingHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'avatars_talking',
+      title: `Talking Avatar (${translationLanguages.length} language${translationLanguages.length === 1 ? '' : 's'})`,
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating videos...',
+      artifacts: [],
+    })
+
+    await generateTalkingAvatarVideosBatch()
+    if (activeTalkingHistoryIdRef.current !== historyId) return
+
+    const state = useAvatarStore.getState()
+    const completed = state.translatedVideos.filter((item) => item.status === 'completed' && item.videoUrl)
+    const failed = state.translatedVideos.filter((item) => item.status === 'failed')
+
+    if (completed.length === 0) {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: state.translationError?.message || 'No video output generated.',
+        artifacts: [],
+      })
+      activeTalkingHistoryIdRef.current = null
+      return
+    }
+
+    patchHistory(historyId, {
+      status: failed.length > 0 ? 'completed' : 'completed',
+      message:
+        failed.length > 0
+          ? `${completed.length} completed, ${failed.length} failed`
+          : `${completed.length} video${completed.length === 1 ? '' : 's'} completed`,
+      artifacts: completed.map((item) => ({
+        id: `${historyId}_${item.language}`,
+        label: item.language,
+        type: 'video',
+        url: item.videoUrl || undefined,
+      })),
+    })
+    activeTalkingHistoryIdRef.current = null
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -361,61 +425,71 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
 
               {/* Success - Transcribed Script */}
               {generatedScript && !transcribingVideo && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-surface-400">Script</span>
-                    <div className="flex items-center gap-2">
-                      {!scriptGenerating && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowVariationOptions(!showVariationOptions)}
-                        >
-                          Improve
-                        </Button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGeneratedScript('')
-                          useAvatarStore.setState({ transcriptionError: null })
-                        }}
-                        className="text-xs text-surface-400 hover:text-surface-300"
-                      >
-                        Try another
-                      </button>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                  {showTranscribedAvatarThumb && (
+                    <div className="md:w-[116px] shrink-0">
+                      <p className="text-[11px] uppercase tracking-wide text-surface-400 mb-2">Selected Avatar</p>
+                      <div className="w-full aspect-[9/16] rounded-lg overflow-hidden border border-surface-200 bg-surface-0">
+                        <img src={assetUrl(selectedAvatarUrl)} alt="Selected avatar" className="w-full h-full object-cover" />
+                      </div>
                     </div>
-                  </div>
-                  {showVariationOptions && (
-                    <ScriptRefinementToolbar
-                      onImprove={() => handleRefineScript('improved')}
-                      onShorter={() => handleRefineScript('shorter')}
-                      onLonger={() => handleRefineScript('longer')}
-                      onDuration={(duration) =>
-                        refineScript(
-                          `Adjust this script to be exactly ${duration} seconds long (approximately ${Math.round(duration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`,
-                          duration,
-                        )
-                      }
-                      onUndo={undoScript}
-                      onRedo={redoScript}
-                      isGenerating={scriptGenerating}
-                      canUndo={scriptHistoryIndex > 0}
-                      canRedo={scriptHistoryIndex < scriptHistory.length - 1}
-                      targetDuration={targetDuration}
-                      onTargetDurationChange={setTargetDuration}
-                    />
                   )}
-                  <Textarea
-                    value={generatedScript}
-                    onChange={(e) => setGeneratedScript(e.target.value)}
-                    rows={6}
-                    disabled={scriptGenerating}
-                  />
-                  <p className="text-xs text-surface-400">
-                    {generatedScript.split(/\s+/).filter(Boolean).length} words (~
-                    {Math.ceil((generatedScript.split(/\s+/).filter(Boolean).length / 150) * 60)}s)
-                  </p>
+                  <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-surface-400">Script</span>
+                      <div className="flex items-center gap-2">
+                        {!scriptGenerating && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowVariationOptions(!showVariationOptions)}
+                          >
+                            Improve
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGeneratedScript('')
+                            useAvatarStore.setState({ transcriptionError: null })
+                          }}
+                          className="text-xs text-surface-400 hover:text-surface-300"
+                        >
+                          Try another
+                        </button>
+                      </div>
+                    </div>
+                    {showVariationOptions && (
+                      <ScriptRefinementToolbar
+                        onImprove={() => handleRefineScript('improved')}
+                        onShorter={() => handleRefineScript('shorter')}
+                        onLonger={() => handleRefineScript('longer')}
+                        onDuration={(duration) =>
+                          refineScript(
+                            `Adjust this script to be exactly ${duration} seconds long (approximately ${Math.round(duration * 2.5)} words). If too long, remove unnecessary words/phrases. If too short, add relevant details between existing sentences. Keep the original structure and flow - only add or remove minimal content to reach the target duration.`,
+                            duration,
+                          )
+                        }
+                        onUndo={undoScript}
+                        onRedo={redoScript}
+                        isGenerating={scriptGenerating}
+                        canUndo={scriptHistoryIndex > 0}
+                        canRedo={scriptHistoryIndex < scriptHistory.length - 1}
+                        targetDuration={targetDuration}
+                        onTargetDurationChange={setTargetDuration}
+                      />
+                    )}
+                    <Textarea
+                      value={generatedScript}
+                      onChange={(e) => setGeneratedScript(e.target.value)}
+                      rows={6}
+                      disabled={scriptGenerating}
+                    />
+                    <p className="text-xs text-surface-400">
+                      {generatedScript.split(/\s+/).filter(Boolean).length} words (~
+                      {Math.ceil((generatedScript.split(/\s+/).filter(Boolean).length / 150) * 60)}s)
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -720,7 +794,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                 size="lg"
                 icon={translationGenerating || lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}
                 loading={translationGenerating || lipsyncGenerating}
-                onClick={generateTalkingAvatarVideosBatch}
+                onClick={handleGenerateTalkingBatch}
                 disabled={
                   voicesLoading ||
                   !selectedVoice ||
@@ -803,6 +877,11 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
             </div>
           </div>
         )}
+        <PreviousGenerationsPanel
+          entries={historyEntries}
+          onDeleteEntry={removeHistory}
+          onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+        />
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { PROMPT_GENERATE_MAX, PROMPT_GENERATE_MIN } from '../../constants/limits'
 import { apiUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
+import { createOutputHistoryId, useOutputHistoryStore } from './outputHistoryStore'
 import type { ErrorInfo, GeneratedPrompt, ResearchData, VarietyScore } from '../types'
 import { parseError } from '../types'
 
@@ -57,6 +58,7 @@ interface PromptState {
   varietyScore: VarietyScore | null
   qualityMetrics: QualityMetrics | null
   generationProgress: GenerationProgress | null
+  promptFactoryHistoryId: string | null
 
   promptMode: 'concept' | 'image'
   analyzeEntries: AnalyzeEntry[]
@@ -113,6 +115,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
   varietyScore: null,
   qualityMetrics: null,
   generationProgress: null,
+  promptFactoryHistoryId: null,
 
   promptMode: 'concept',
   analyzeEntries: [],
@@ -177,6 +180,18 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
     abortController = null
 
     const startedAt = Date.now()
+    const historyId = createOutputHistoryId('prompt_factory')
+    set({ promptFactoryHistoryId: historyId })
+    useOutputHistoryStore.getState().upsert({
+      id: historyId,
+      category: 'prompt_factory',
+      title: `Prompt Factory (${count})`,
+      status: 'running',
+      startedAt,
+      updatedAt: startedAt,
+      message: `Generating ${count} prompts…`,
+      artifacts: [],
+    })
 
     set({
       loading: true,
@@ -208,6 +223,14 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
           }
 
           const completed = prompts.filter((p) => p !== null).length
+          const activeHistoryId = get().promptFactoryHistoryId
+          if (activeHistoryId) {
+            useOutputHistoryStore.getState().patch(activeHistoryId, {
+              status: 'running',
+              message: `Generating… (${completed}/${count})`,
+              artifacts: [],
+            })
+          }
 
           return {
             prompts,
@@ -243,6 +266,14 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
       // Handle status updates
       eventSource.addEventListener('status', (e: MessageEvent) => {
         const { step, message } = JSON.parse(e.data)
+        const activeHistoryId = get().promptFactoryHistoryId
+        if (activeHistoryId) {
+          useOutputHistoryStore.getState().patch(activeHistoryId, {
+            status: 'running',
+            message: message || `Generating… (${get().prompts.filter((p) => p !== null).length}/${count})`,
+            artifacts: [],
+          })
+        }
         set((state) => ({
           generationProgress: {
             ...state.generationProgress!,
@@ -255,6 +286,14 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
       // Handle progress updates
       eventSource.addEventListener('progress', (e: MessageEvent) => {
         const { step, completed, total, message } = JSON.parse(e.data)
+        const activeHistoryId = get().promptFactoryHistoryId
+        if (activeHistoryId) {
+          useOutputHistoryStore.getState().patch(activeHistoryId, {
+            status: 'running',
+            message: message || `Generating… (${completed}/${total})`,
+            artifacts: [],
+          })
+        }
         set((state) => ({
           generationProgress: {
             step,
@@ -292,6 +331,16 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
           },
         })
 
+        const activeHistoryId = get().promptFactoryHistoryId
+        if (activeHistoryId) {
+          useOutputHistoryStore.getState().patch(activeHistoryId, {
+            status: 'completed',
+            message: `Done (${count}/${count})`,
+            artifacts: [],
+          })
+        }
+        set({ promptFactoryHistoryId: null })
+
         eventSource?.close()
         eventSource = null
       })
@@ -311,6 +360,15 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
               type: 'warning',
             },
           })
+          const activeHistoryId = get().promptFactoryHistoryId
+          if (activeHistoryId) {
+            useOutputHistoryStore.getState().patch(activeHistoryId, {
+              status: 'completed',
+              message: `Done (partial ${currentPrompts.length}/${count})`,
+              artifacts: [],
+            })
+            set({ promptFactoryHistoryId: null })
+          }
         } else {
           // Total failure
           set({
@@ -320,6 +378,15 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
               type: 'error',
             },
           })
+          const activeHistoryId = get().promptFactoryHistoryId
+          if (activeHistoryId) {
+            useOutputHistoryStore.getState().patch(activeHistoryId, {
+              status: 'failed',
+              message: 'Failed',
+              artifacts: [],
+            })
+            set({ promptFactoryHistoryId: null })
+          }
         }
 
         eventSource?.close()
@@ -328,6 +395,15 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
     } catch (err) {
       const errorInfo = parseError(err)
       set({ error: errorInfo, loading: false })
+      const activeHistoryId = get().promptFactoryHistoryId
+      if (activeHistoryId) {
+        useOutputHistoryStore.getState().patch(activeHistoryId, {
+          status: 'failed',
+          message: errorInfo.message || 'Failed',
+          artifacts: [],
+        })
+      }
+      set({ promptFactoryHistoryId: null })
       eventSource?.close()
       eventSource = null
     }
@@ -338,7 +414,16 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
     eventSource = null
     abortController?.abort()
     abortController = null
+    const activeHistoryId = get().promptFactoryHistoryId
+    if (activeHistoryId) {
+      useOutputHistoryStore.getState().patch(activeHistoryId, {
+        status: 'failed',
+        message: 'Cancelled',
+        artifacts: [],
+      })
+    }
     set({ loading: false, generationProgress: null })
+    set({ promptFactoryHistoryId: null })
   },
 
   copyPrompt: async () => {

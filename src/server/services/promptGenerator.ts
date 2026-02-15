@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { REFERENCE_STYLE_PREFIX } from '../../constants/referencePrompts.js'
 import type { PromptOutput, ResearchBrief, SubTheme, VarietyScore } from '../utils/prompts.js'
 import { calculateVarietyScore, isVagueOutfit, validateOutfitSpecificity, validatePrompt } from '../utils/prompts.js'
 import type { AnalyzedPrompt } from './vision.js'
@@ -38,17 +39,14 @@ function safeJsonParse<T>(content: string, fallback: T): T {
   }
 }
 
-const REFERENCE_PROMPT_PREFIX =
-  'Using the provided reference image, preserve identity, facial structure, age, expression, and subject count exactly. Do not add or replace people.'
-
 const REFERENCE_HAIR_RULE =
   'Match reference hair length and overall style exactly; do not change cut or introduce a new hairstyle.'
 
 function ensureReferenceStylePrefix(style?: string): string {
   const normalized = (style || '').trim()
-  if (!normalized) return REFERENCE_PROMPT_PREFIX
+  if (!normalized) return REFERENCE_STYLE_PREFIX
   if (/reference image|provided reference|source image|input image/i.test(normalized)) return normalized
-  return `${REFERENCE_PROMPT_PREFIX} ${normalized}`.trim()
+  return `${REFERENCE_STYLE_PREFIX} ${normalized}`.trim()
 }
 
 function enforceReferenceDrivenPrompt(prompt: PromptOutput): PromptOutput {
@@ -402,7 +400,14 @@ export async function generatePrompts(
 
       for (let attempt = 1; attempt <= RETRY_LIMIT; attempt += 1) {
         try {
-          const batchedPromptPromise = generatePromptBatch(client, concept, [theme], researchBrief, index, imageInsights)
+          const batchedPromptPromise = generatePromptBatch(
+            client,
+            concept,
+            [theme],
+            researchBrief,
+            index,
+            imageInsights,
+          )
           const timeoutPromise = new Promise<PromptOutput>((_, reject) =>
             setTimeout(
               () => reject(new Error(`Prompt ${index + 1} timeout after ${SINGLE_PROMPT_TIMEOUT / 1000}s`)),

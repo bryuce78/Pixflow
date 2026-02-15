@@ -11,6 +11,7 @@ export type TabId =
   | 'captions'
   | 'machine'
   | 'history'
+  | 'competitors'
 
 interface NavigationOptions {
   promptMode?: 'concept' | 'image'

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fal } from '@fal-ai/client'
 import { v4 as uuidv4 } from 'uuid'
+import { REFERENCE_IDENTITY_SOURCE_CRITICAL } from '../../constants/referencePrompts.js'
 import { ensureFalConfig } from './falConfig.js'
 import { saveBatchImages } from './imageRatings.js'
 import { notify } from './notifications.js'
@@ -15,6 +16,7 @@ import {
 import { createPipelineSpan } from './telemetry.js'
 
 const MODEL_ID = 'fal-ai/nano-banana-pro/edit'
+const TEXT_TO_IMAGE_MODEL_ID = 'fal-ai/nano-banana-pro'
 
 export interface GeneratedImage {
   id: string
@@ -82,7 +84,11 @@ export async function generateImage(
 
   ensureFalConfig()
 
-  const paths = Array.isArray(referenceImagePaths) ? referenceImagePaths : [referenceImagePaths]
+  const paths = Array.isArray(referenceImagePaths)
+    ? referenceImagePaths.filter(Boolean)
+    : referenceImagePaths
+      ? [referenceImagePaths]
+      : []
 
   const imageUrls = await Promise.all(
     paths.map(async (p) => {
@@ -96,12 +102,13 @@ export async function generateImage(
 
   const numImages = options.numImages || 1
 
+  const modelId = imageUrls.length > 0 ? MODEL_ID : TEXT_TO_IMAGE_MODEL_ID
   const result = await runWithRetries(
     () =>
-      fal.subscribe(MODEL_ID, {
+      fal.subscribe(modelId, {
         input: {
           prompt,
-          image_urls: imageUrls,
+          ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
           resolution: (options.resolution || '2K') as '1K' | '2K' | '4K',
           aspect_ratio: (options.aspectRatio || '9:16') as
             | '9:16'
@@ -314,11 +321,13 @@ export function formatPromptForFal(
   promptJson: Record<string, unknown>,
   options: { referenceImageCount?: number } = {},
 ): string {
-  const referenceImageCount = Math.max(1, options.referenceImageCount ?? 1)
+  const referenceImageCount = Math.max(0, options.referenceImageCount ?? 0)
   const personWord = referenceImageCount === 1 ? 'person' : 'people'
   const identityGuardrail =
-    referenceImageCount === 1
-      ? 'CRITICAL: Use the provided reference image as mandatory identity source. Preserve the exact person identity, facial structure, age, expression, and proportions. Do not replace the person, do not add extra people.'
+    referenceImageCount === 0
+      ? ''
+      : referenceImageCount === 1
+      ? `${REFERENCE_IDENTITY_SOURCE_CRITICAL} Preserve the exact person identity, facial structure, age, expression, and proportions. Do not replace the person, do not add extra people.`
       : `CRITICAL: Use ALL provided reference images as mandatory identity sources. The final output must clearly include exactly ${referenceImageCount} distinct ${personWord} from the references. Do not omit any referenced person. Do not merge identities. Do not add new people. Preserve each person's face, age, expression, and proportions.`
 
   const style = (promptJson.style as string) || ''

@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BookOpen,
   Film,
   Layers,
@@ -14,7 +15,7 @@ import {
   Wand2,
   Zap,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { Fragment, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { useHistoryStore } from '../../stores/historyStore'
 import { useMachineStore } from '../../stores/machineStore'
@@ -35,6 +36,7 @@ const SIDEBAR_ITEMS: { id: TabId; icon: typeof Wand2 }[] = [
   { id: 'machine', icon: Zap },
   { id: 'lifetime', icon: TimerReset },
   { id: 'history', icon: BookOpen },
+  { id: 'competitors', icon: BarChart3 },
 ]
 
 const LG_BREAKPOINT = '(min-width: 1024px)'
@@ -120,29 +122,34 @@ export function SideNav() {
       <nav className={`flex-1 py-4 space-y-1 ${sidebarCollapsed ? 'px-2' : 'px-1'}`}>
         {items.map((item) => {
           const isActive = activeTab === item.id
+          const isCompetitor = item.id === 'competitors'
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => navigate(item.id)}
-              title={brandedPlainText(item.id)}
-              className={`relative flex items-center w-full rounded-lg py-3 text-base font-black transition ${
-                sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
-              } ${
-                isActive
-                  ? 'bg-brand-500/10 text-surface-900 border border-transparent shadow-sm'
-                  : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
-              }`}
-            >
-              <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-500' : ''}`} />
-                {!sidebarCollapsed && <span>{brandedName(item.id)}</span>}
-              </div>
-              {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
-              {sidebarCollapsed && item.badge && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-500" />
-              )}
-            </button>
+            <Fragment key={item.id}>
+              {isCompetitor && <div className="my-2 border-t border-surface-200/70" aria-hidden="true" />}
+              <button
+                type="button"
+                onClick={() => navigate(item.id)}
+                title={brandedPlainText(item.id)}
+                className={`relative flex items-center w-full rounded-lg py-3 text-base font-black transition ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
+                } ${
+                  isActive
+                    ? 'bg-brand-500/10 text-surface-900 border border-transparent shadow-sm'
+                    : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
+                }`}
+              >
+                <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-500' : ''}`} />
+                  {!sidebarCollapsed && (
+                    <span>{brandedName(item.id, isCompetitor ? 'text-secondary-500' : undefined)}</span>
+                  )}
+                </div>
+                {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
+                {sidebarCollapsed && item.badge && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-500" />
+                )}
+              </button>
+            </Fragment>
           )
         })}
       </nav>

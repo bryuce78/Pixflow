@@ -25,6 +25,18 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - Keep step labels short and action-oriented.
 - **Never use custom step circles or ad-hoc numbering.** Migrate to `StepHeader`.
 
+## Outputs
+- Outputs live in the right column and should be grouped into a single card per major phase.
+- Use `StepHeader` for the main output container title (e.g. `Generated Images`, `Generated Videos`).
+- Avoid page-specific naming like `Final Outputs` unless the output is literally final (e.g. Lifetime compilation).
+- Use `PreviousGenerationsPanel` for archived outputs (keep history visible until user deletes).
+- Video output grids: prefer `grid-cols-2` for large previews.
+- Image output grids: default `grid-cols-2 sm:grid-cols-3 xl:grid-cols-4` unless the product explicitly requires otherwise.
+
+## Global Progress
+- Use the global `Job Monitor` (bottom-right overlay) for cross-tab job visibility.
+- The monitor shows the last 50 jobs and excludes `Library` and `Competitor Report`.
+
 ## Status and Feedback
 - Status chips: `StatusPill` (queued/generating/completed/failed/neutral).
 - Banners: `StatusBanner` only. Do not introduce custom banners.

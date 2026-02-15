@@ -7,7 +7,7 @@ Pixflow is a web-first AI production workspace for social/media creative pipelin
 ## Product Areas
 
 - `Prompt Factory`: research-backed structured prompt generation (concept/image input).
-- `Asset Monster`: batch image generation with multi-reference inputs.
+- `Asset Monster`: batch image generation (prompt-only or multi-reference identity anchoring).
 - `Img2Engine`: image-to-video generation with queue-based execution.
 - `Avatar Studio`: script, voice, and talking-avatar generation flows.
 - `Captions`: subtitle generation, sentence selection, and burned-in rendering.
@@ -15,6 +15,10 @@ Pixflow is a web-first AI production workspace for social/media creative pipelin
 - `Lifetime`: baby photo -> age frames -> transition videos -> merged timeline video.
 - `Library`: saved history, favorites, and reusable assets.
 - `Competitor Report`: last-7-day creative intelligence report (currently Clone AI).
+
+## Global UI Utilities
+
+- `Job Monitor`: bottom-right overlay showing the last 50 jobs across the app (excludes Library + Competitor Report).
 
 ## Stack
 
@@ -79,9 +83,9 @@ npm run smoke:journey
 npm run gate:release
 ```
 
-## Prompt Generation Pipeline Lock (PGP)
+## Pipeline Lock (PGP)
 
-Prompt Factory core pipeline is protected against accidental edits.
+Prompt Factory and Transcript Media core pipelines are protected against accidental edits.
 
 ```bash
 npm run pgp:lock:check
@@ -110,6 +114,7 @@ avatars/      # Curated avatar assets
 ## Documentation Map
 
 Use `docs/INDEX.md` to see active vs archived documentation.
+Command alias: `docs sync` (or `dosc sync`) means update active docs via `docs/INDEX.md`.
 
 ## Environment Notes
 

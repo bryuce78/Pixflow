@@ -1,8 +1,10 @@
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
   Film,
   Image,
@@ -14,7 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { assetUrl } from '../../lib/api'
 import {
@@ -25,8 +27,12 @@ import {
   IMG2IMG_FORMATS,
   IMG2IMG_RESOLUTIONS,
   type QueueItem,
+  type WorkflowType,
   useImg2VideoQueueStore,
 } from '../../stores/img2videoQueueStore'
+import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import { StepHeader } from '../asset-monster/StepHeader'
+import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
 import { SegmentedTabs } from '../ui/navigation/SegmentedTabs'
 import { Select } from '../ui/Select'
@@ -41,12 +47,40 @@ import { SelectableThumbnail } from './SelectableThumbnail'
 
 type ImageLabTab = 'img2img' | 'img2video' | 'startEnd'
 
+const resolveArtifactUrl = (item: QueueItem): string | undefined =>
+  item.result?.localPath || item.result?.videoUrl || item.result?.imageUrl || item.imageUrl
+
+const collectCompletedForWorkflow = (
+  queueItems: Record<string, QueueItem>,
+  workflowType: WorkflowType,
+  excludeIds: Set<string>,
+) =>
+  Object.values(queueItems).filter(
+    (item) => item.workflowType === workflowType && item.status === 'completed' && !excludeIds.has(item.id),
+  )
+
+const VIDEO_ASPECT_CLASS_BY_RATIO: Record<string, string> = {
+  '9:16': 'aspect-[9/16]',
+  '16:9': 'aspect-video',
+  '1:1': 'aspect-square',
+  '4:3': 'aspect-[4/3]',
+  '3:4': 'aspect-[3/4]',
+  '4:5': 'aspect-[4/5]',
+  '5:4': 'aspect-[5/4]',
+  '3:2': 'aspect-[3/2]',
+  '2:3': 'aspect-[2/3]',
+  '21:9': 'aspect-[21/9]',
+}
+
 export default function Img2VideoQueuePage() {
   const { queueItems, queueOrder } = useImg2VideoQueueStore()
   const [activeTab, setActiveTab] = useState<ImageLabTab>('img2img')
 
-  // Auto-switch to tab with content when current tab is empty
+  // Auto-switch to tab with content only when queue items change (not on tab change)
+  const prevQueueOrderRef = useRef(queueOrder)
   useEffect(() => {
+    if (prevQueueOrderRef.current === queueOrder) return
+    prevQueueOrderRef.current = queueOrder
     const counts = {
       img2img: queueOrder.filter((id) => queueItems[id]?.workflowType === 'img2img').length,
       img2video: queueOrder.filter((id) => queueItems[id]?.workflowType === 'img2video').length,
@@ -59,25 +93,28 @@ export default function Img2VideoQueuePage() {
     }
   }, [queueItems, queueOrder, activeTab])
 
-  const workflowTabs = (
-    <SegmentedTabs
-      ariaLabel="Image Lab workflow"
-      value={activeTab}
-      onChange={setActiveTab}
-      items={[
-        { id: 'img2img', label: 'img2img', icon: <Image className="w-4 h-4" /> },
-        { id: 'img2video', label: 'img2video', icon: <Film className="w-4 h-4" /> },
-        { id: 'startEnd', label: 'Start2End', icon: <ArrowRight className="w-4 h-4" /> },
-      ]}
-      className="w-full"
-    />
+  const modeStep = (
+    <div className="bg-surface-50 rounded-lg p-4 space-y-4">
+      <StepHeader stepNumber={1} title="Mode" />
+      <SegmentedTabs
+        ariaLabel="Image Lab workflow"
+        value={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { id: 'img2img', label: 'img2img', icon: <Image className="w-4 h-4" /> },
+          { id: 'img2video', label: 'img2video', icon: <Film className="w-4 h-4" /> },
+          { id: 'startEnd', label: 'Start2End', icon: <ArrowRight className="w-4 h-4" /> },
+        ]}
+        className="w-full"
+      />
+    </div>
   )
 
   return (
     <div className="space-y-6">
-      {activeTab === 'img2img' && <Img2ImgContent tabs={workflowTabs} />}
-      {activeTab === 'img2video' && <Img2VideoContent tabs={workflowTabs} />}
-      {activeTab === 'startEnd' && <StartEndContent tabs={workflowTabs} />}
+      {activeTab === 'img2img' && <Img2ImgContent modeStep={modeStep} />}
+      {activeTab === 'img2video' && <Img2VideoContent modeStep={modeStep} />}
+      {activeTab === 'startEnd' && <StartEndContent modeStep={modeStep} />}
     </div>
   )
 }
@@ -86,9 +123,10 @@ export default function Img2VideoQueuePage() {
 // IMG2IMG TAB
 // ============================================================================
 
-function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
+function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
   const { queueItems, queueOrder, selectedId, uploading, selectItem, transformBatch, removeItem, uploadFiles } =
     useImg2VideoQueueStore()
+  const activeHistoryIdRef = useRef<string | null>(null)
 
   const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set())
   const [batchPrompt, setBatchPrompt] = useState('')
@@ -102,6 +140,15 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
   const [modalItemId, setModalItemId] = useState<string | null>(null)
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set())
   const [dislikedItems, setDislikedItems] = useState<Set<string>>(new Set())
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'img2img'),
+    [outputHistoryEntries],
+  )
 
   // Filter for img2img items only
   const img2imgItems = queueOrder.map((id) => queueItems[id]).filter((item) => item.workflowType === 'img2img')
@@ -157,19 +204,71 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
     setSelectedResults(new Set())
   }
 
+  const handleTransformBatch = async () => {
+    const ids = referenceItems.map((item) => item.id)
+    if (!batchPrompt.trim() || ids.length === 0) return
+
+    const beforeCompletedIds = new Set(
+      Object.values(useImg2VideoQueueStore.getState().queueItems)
+        .filter((item) => item.workflowType === 'img2img' && item.status === 'completed')
+        .map((item) => item.id),
+    )
+
+    const historyId = createOutputHistoryId('img2img')
+    activeHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'img2img',
+      title: `img2img (${ids.length} input, ${batchSettings.numberOfOutputs} output)`,
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Transforming images...',
+      artifacts: [],
+    })
+
+    await transformBatch(ids, batchPrompt, batchSettings)
+    if (activeHistoryIdRef.current !== historyId) return
+
+    const state = useImg2VideoQueueStore.getState()
+    const newlyCompleted = collectCompletedForWorkflow(state.queueItems, 'img2img', beforeCompletedIds)
+    const failedCount = ids.filter((id) => state.queueItems[id]?.status === 'failed').length
+
+    if (newlyCompleted.length > 0) {
+      patchHistory(historyId, {
+        status: 'completed',
+        message:
+          failedCount > 0
+            ? `${newlyCompleted.length} output completed, ${failedCount} failed`
+            : `${newlyCompleted.length} output completed`,
+        artifacts: newlyCompleted
+          .map((item) => ({
+            id: `${historyId}_${item.id}`,
+            label: `Output ${item.id.slice(-4)}`,
+            type: 'image' as const,
+            url: resolveArtifactUrl(item),
+          }))
+          .filter((artifact) => Boolean(artifact.url)),
+      })
+    } else {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: 'No output image generated',
+        artifacts: [],
+      })
+    }
+
+    activeHistoryIdRef.current = null
+  }
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* LEFT COLUMN: INPUTS */}
       <div className="space-y-6">
-        {/* Step 1: Select Images */}
+        {modeStep}
+        {/* Step 2: Select Images */}
         <div className="bg-surface-50 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              1
-            </span>
-            Select Images
-          </h2>
-          <div className="mb-4">{tabs}</div>
+          <StepHeader stepNumber={2} title="Select Images" />
           <div
             {...getRootProps()}
             className={`min-h-[200px] border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
@@ -203,7 +302,6 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
               </div>
             )}
           </div>
-          {/* Queue stats */}
           {img2imgItems.length > 0 && (
             <div className="flex gap-2 mt-3 text-xs">
               <StatusPill status="neutral" size="xs" label={`${totalCount} Total`} />
@@ -213,16 +311,11 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
           )}
         </div>
 
-        {/* Step 2: Prompt */}
+        {/* Step 3: Prompt */}
         <div
           className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
         >
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              2
-            </span>
-            Prompt
-          </h2>
+          <StepHeader stepNumber={3} title="Prompt" />
           <Textarea
             value={batchPrompt}
             onChange={(e) => setBatchPrompt(e.target.value)}
@@ -232,16 +325,11 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
           />
         </div>
 
-        {/* Step 3: Settings */}
+        {/* Step 4: Settings */}
         <div
           className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
         >
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              3
-            </span>
-            Settings
-          </h2>
+          <StepHeader stepNumber={4} title="Settings" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Aspect Ratio"
@@ -278,42 +366,29 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
               options={IMG2IMG_FORMATS.map((fmt) => ({ value: fmt, label: fmt }))}
             />
           </div>
-        </div>
-
-        {/* Step 4: Generate Actions */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
-        >
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              4
-            </span>
-            Actions
-          </h2>
-          {generatingCount === 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                const ids = referenceItems.map((item) => item.id)
-                transformBatch(ids, batchPrompt, batchSettings)
-              }}
-              disabled={!batchPrompt.trim() || referenceItems.length === 0}
-              className="w-full px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-surface-300 disabled:cursor-not-allowed text-white font-medium flex items-center justify-center gap-2 transition-colors"
-            >
-              <Play className="w-4 h-4" />
-              Transform {referenceItems.length} {referenceItems.length === 1 ? 'Image' : 'Images'}
-            </button>
-          )}
-          {generatingCount > 0 && (
-            <button
-              type="button"
-              disabled
-              className="w-full px-4 py-2.5 rounded-lg bg-surface-300 cursor-not-allowed text-surface-600 font-medium flex items-center justify-center gap-2"
-            >
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Transforming {generatingCount} {generatingCount === 1 ? 'Image' : 'Images'}...
-            </button>
-          )}
+          <div className="pt-4 mt-4 border-t border-surface-200/60">
+            {generatingCount === 0 && (
+              <button
+                type="button"
+                onClick={handleTransformBatch}
+                disabled={!batchPrompt.trim() || referenceItems.length === 0}
+                className="w-full px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-surface-300 disabled:cursor-not-allowed text-white font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Transform {referenceItems.length} {referenceItems.length === 1 ? 'Image' : 'Images'}
+              </button>
+            )}
+            {generatingCount > 0 && (
+              <button
+                type="button"
+                disabled
+                className="w-full px-4 py-2.5 rounded-lg bg-surface-300 cursor-not-allowed text-surface-600 font-medium flex items-center justify-center gap-2"
+              >
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Transforming {generatingCount} {generatingCount === 1 ? 'Image' : 'Images'}...
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -368,6 +443,11 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
             </div>
           </div>
         )}
+        <PreviousGenerationsPanel
+          entries={historyEntries}
+          onDeleteEntry={removeHistory}
+          onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+        />
       </div>
 
       {/* Image Modal */}
@@ -546,7 +626,7 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
 // IMG2VIDEO TAB
 // ============================================================================
 
-function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
+function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
   const {
     queueItems,
     queueOrder,
@@ -559,14 +639,22 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
     setItemPresets,
     queueItem,
     generateQueue,
-    pauseQueue,
-    retryFailed,
-    clearFailed,
     removeItem,
     uploadFiles,
   } = useImg2VideoQueueStore()
+  const activeHistoryIdRef = useRef<string | null>(null)
+  const [cameraControlsOpen, setCameraControlsOpen] = useState(false)
 
   const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set())
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'img2video'),
+    [outputHistoryEntries],
+  )
 
   // Filter for img2video items only
   const img2videoItems = queueOrder.map((id) => queueItems[id]).filter((item) => item.workflowType === 'img2video')
@@ -575,10 +663,8 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
 
   // Stats
   const totalCount = img2videoItems.length
-  const queuedCount = img2videoItems.filter((item) => item.status === 'queued').length
   const completedCount = img2videoItems.filter((item) => item.status === 'completed').length
   const failedCount = img2videoItems.filter((item) => item.status === 'failed').length
-  const _generatingCount = img2videoItems.filter((item) => item.status === 'generating').length
 
   // Dropzone for img2video uploads
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -618,19 +704,92 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
     setSelectedVideos(new Set())
   }
 
+  const handleGenerateVideosBatch = async () => {
+    if (generating) return
+
+    const candidates = img2videoItems.filter(
+      (item) =>
+        item.prompt.trim() &&
+        (item.status === 'draft' || item.status === 'queued' || item.status === 'failed' || item.status === 'paused'),
+    )
+
+    if (candidates.length === 0) return
+
+    for (const item of candidates) {
+      if (item.status !== 'queued') {
+        queueItem(item.id)
+      }
+    }
+
+    const queuedIds = useImg2VideoQueueStore
+      .getState()
+      .queueOrder.filter((id) => {
+        const item = useImg2VideoQueueStore.getState().queueItems[id]
+        return item?.workflowType === 'img2video' && item.status === 'queued'
+      })
+    if (queuedIds.length === 0) return
+
+    const beforeCompletedIds = new Set(
+      Object.values(useImg2VideoQueueStore.getState().queueItems)
+        .filter((item) => item.workflowType === 'img2video' && item.status === 'completed')
+        .map((item) => item.id),
+    )
+
+    const historyId = createOutputHistoryId('img2video')
+    activeHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'img2video',
+      title: `img2video batch (${queuedIds.length} item${queuedIds.length === 1 ? '' : 's'})`,
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating videos...',
+      artifacts: [],
+    })
+
+    await generateQueue()
+    if (activeHistoryIdRef.current !== historyId) return
+
+    const state = useImg2VideoQueueStore.getState()
+    const newlyCompleted = collectCompletedForWorkflow(state.queueItems, 'img2video', beforeCompletedIds)
+    const failedCount = queuedIds.filter((id) => state.queueItems[id]?.status === 'failed').length
+
+    if (newlyCompleted.length > 0) {
+      patchHistory(historyId, {
+        status: 'completed',
+        message:
+          failedCount > 0
+            ? `${newlyCompleted.length} completed, ${failedCount} failed`
+            : `${newlyCompleted.length} video${newlyCompleted.length === 1 ? '' : 's'} completed`,
+        artifacts: newlyCompleted
+          .map((item) => ({
+            id: `${historyId}_${item.id}`,
+            label: `Video ${item.id.slice(-4)}`,
+            type: 'video' as const,
+            url: resolveArtifactUrl(item),
+          }))
+          .filter((artifact) => Boolean(artifact.url)),
+      })
+    } else {
+      patchHistory(historyId, {
+        status: 'failed',
+        message: 'No completed output in this run',
+        artifacts: [],
+      })
+    }
+
+    activeHistoryIdRef.current = null
+  }
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* LEFT COLUMN: INPUTS */}
       <div className="space-y-6">
-        {/* Step 1: Select Images */}
+        {modeStep}
+        {/* Step 2: Select Images */}
         <div className="bg-surface-50 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              1
-            </span>
-            Select Images
-          </h2>
-          <div className="mb-4">{tabs}</div>
+          <StepHeader stepNumber={2} title="Select Images" />
           <div
             {...getRootProps()}
             className={`min-h-[200px] border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
@@ -664,49 +823,19 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
               </div>
             )}
           </div>
-          {/* Queue stats and controls */}
+          {/* Queue stats */}
           {img2videoItems.length > 0 && (
-            <>
-              <div className="flex gap-2 mt-3 text-xs">
-                <StatusPill status="neutral" size="xs" label={`${totalCount} Total`} />
-                {completedCount > 0 && (
-                  <StatusPill status="completed" size="xs" label={`${completedCount} Completed`} />
-                )}
-                {failedCount > 0 && <StatusPill status="failed" size="xs" label={`${failedCount} Failed`} />}
-              </div>
-              <div className="flex gap-2 mt-3">
-                <Button
-                  variant={generating ? 'danger' : 'success'}
-                  icon={generating ? <X className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  onClick={generating ? pauseQueue : generateQueue}
-                  disabled={queuedCount === 0 && !generating}
-                  className="flex-1"
-                >
-                  {generating ? 'Pause Queue' : `Run Queue${queuedCount > 0 ? ` (${queuedCount})` : ''}`}
-                </Button>
-                {failedCount > 0 && (
-                  <>
-                    <Button variant="warning" size="sm" onClick={retryFailed}>
-                      Retry ({failedCount})
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={clearFailed}>
-                      Clear
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
+            <div className="flex gap-2 mt-3 text-xs">
+              <StatusPill status="neutral" size="xs" label={`${totalCount} Total`} />
+              {completedCount > 0 && <StatusPill status="completed" size="xs" label={`${completedCount} Completed`} />}
+              {failedCount > 0 && <StatusPill status="failed" size="xs" label={`${failedCount} Failed`} />}
+            </div>
           )}
         </div>
 
-        {/* Step 2: Prompt */}
+        {/* Step 3: Prompt */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              2
-            </span>
-            Prompt
-          </h2>
+          <StepHeader stepNumber={3} title="Prompt" />
           <Textarea
             value={selectedItem?.prompt || ''}
             onChange={(e) => selectedItem && setItemPrompt(selectedItem.id, e.target.value)}
@@ -723,14 +852,40 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
           )}
         </div>
 
-        {/* Step 3: Settings */}
+        {/* Step 4: Camera Controls */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              3
-            </span>
-            Settings
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
+                4
+              </span>
+              Camera Controls
+              {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
+                <span className="px-1.5 py-0.5 bg-brand/20 text-brand text-[10px] font-semibold rounded">
+                  {Object.values(selectedItem.presets).flat().length}
+                </span>
+              )}
+            </h2>
+            <Button
+              variant="ghost-muted"
+              size="xs"
+              onClick={() => setCameraControlsOpen((prev) => !prev)}
+              icon={cameraControlsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            >
+              {cameraControlsOpen ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+          {cameraControlsOpen && (
+            <CameraPresetCards
+              selectedPresets={selectedItem?.presets || {}}
+              onPresetsChange={(presets) => selectedItem && setItemPresets(selectedItem.id, presets)}
+            />
+          )}
+        </div>
+
+        {/* Step 5: Settings */}
+        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
+          <StepHeader stepNumber={5} title="Settings" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Aspect Ratio"
@@ -745,63 +900,17 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
               options={DURATIONS.map((d) => ({ value: d, label: `${d}s` }))}
             />
           </div>
-        </div>
-
-        {/* Step 4: Camera Controls */}
-        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              4
-            </span>
-            Camera Controls
-            {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
-              <span className="px-1.5 py-0.5 bg-brand/20 text-brand text-[10px] font-semibold rounded">
-                {Object.values(selectedItem.presets).flat().length}
-              </span>
-            )}
-          </h2>
-          <CameraPresetCards
-            selectedPresets={selectedItem?.presets || {}}
-            onPresetsChange={(presets) => selectedItem && setItemPresets(selectedItem.id, presets)}
-          />
-        </div>
-
-        {/* Step 5: Generate Actions */}
-        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              5
-            </span>
-            Actions
-          </h2>
-          {selectedItem?.status === 'draft' && (
+          <div className="pt-4 mt-4 border-t border-surface-200/60">
             <Button
-              variant="primary"
-              icon={<Play className="w-4 h-4" />}
-              onClick={() => selectedItem && queueItem(selectedItem.id)}
-              disabled={!selectedItem.prompt.trim()}
+              variant="lime"
+              icon={generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              onClick={handleGenerateVideosBatch}
+              disabled={generating || !img2videoItems.some((item) => item.prompt.trim())}
               className="w-full"
             >
-              Queue Item
+              {generating ? 'Generating Videos...' : 'Generate Videos'}
             </Button>
-          )}
-          {selectedItem?.status === 'completed' && selectedItem.result && (
-            <Button
-              variant="success"
-              icon={<Download className="w-4 h-4" />}
-              onClick={() => {
-                if (selectedItem.result) {
-                  const a = document.createElement('a')
-                  a.href = assetUrl(selectedItem.result.localPath)
-                  a.download = selectedItem.result.localPath.split('/').pop() || 'video.mp4'
-                  a.click()
-                }
-              }}
-              className="w-full"
-            >
-              Download Video
-            </Button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -810,27 +919,39 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
         {/* Videos in Progress */}
         <LoadingGrid items={img2videoItems.filter((item) => item.status === 'generating')} />
 
-        {/* Final Outputs */}
+        {/* Generated Videos */}
         {completedCount > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
+            <StepHeader stepNumber={6} title="Generated Videos" />
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">Final Outputs</h3>
-              {selectedVideos.size > 0 && (
-                <Button variant="primary" size="xs" icon={<Download className="w-3 h-3" />} onClick={downloadSelected}>
-                  Download {selectedVideos.size}
-                </Button>
-              )}
+              <div className="text-xs text-surface-400">{completedCount} completed</div>
+              <DownloadToolbar
+                onDownloadAll={() => {
+                  img2videoItems
+                    .filter((item) => item.status === 'completed' && item.result?.localPath)
+                    .forEach((item) => {
+                      const a = document.createElement('a')
+                      a.href = assetUrl(item.result!.localPath)
+                      a.download = item.result!.localPath.split('/').pop() || 'video.mp4'
+                      a.click()
+                    })
+                }}
+                onDownloadSelected={downloadSelected}
+                selectedCount={selectedVideos.size}
+              />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {img2videoItems
                 .filter((item) => item.status === 'completed')
                 .map((item) => {
                   const isSelected = selectedVideos.has(item.id)
+                  const ratio = item.settings?.aspectRatio || '9:16'
+                  const aspectClass = VIDEO_ASPECT_CLASS_BY_RATIO[ratio] || 'aspect-video'
                   return (
                     <button
                       type="button"
                       key={item.id}
-                      className={`relative aspect-video rounded-lg overflow-hidden bg-surface-100 cursor-pointer group border-2 transition-colors ${
+                      className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-100 cursor-pointer group border-2 transition-colors ${
                         isSelected ? 'border-brand' : 'border-transparent'
                       }`}
                       onClick={() => {
@@ -847,7 +968,6 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
                         onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
                         onMouseLeave={(e) => {
                           e.currentTarget.pause()
-                          e.currentTarget.currentTime = 0
                         }}
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -866,6 +986,11 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
             </div>
           </div>
         )}
+        <PreviousGenerationsPanel
+          entries={historyEntries}
+          onDeleteEntry={removeHistory}
+          onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+        />
       </div>
     </div>
   )
@@ -957,7 +1082,7 @@ function FrameDropZone({
   )
 }
 
-function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
+function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
   const {
     queueItems,
     queueOrder,
@@ -973,10 +1098,21 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
     removeItem,
     uploadStartEndFiles,
   } = useImg2VideoQueueStore()
+  const activeHistoryIdRef = useRef<string | null>(null)
 
   const [startFile, setStartFile] = useState<{ file: File; preview: string } | null>(null)
   const [endFile, setEndFile] = useState<{ file: File; preview: string } | null>(null)
   const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set())
+  const [cameraControlsOpen, setCameraControlsOpen] = useState(false)
+  const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
+  const upsertHistory = useOutputHistoryStore((state) => state.upsert)
+  const patchHistory = useOutputHistoryStore((state) => state.patch)
+  const removeHistory = useOutputHistoryStore((state) => state.remove)
+  const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
+  const historyEntries = useMemo(
+    () => outputHistoryEntries.filter((entry) => entry.category === 'startend'),
+    [outputHistoryEntries],
+  )
 
   const startEndItems = queueOrder
     .map((id) => queueItems[id])
@@ -1021,8 +1157,59 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
 
   const handleGenerateVideo = async () => {
     if (!selectedItem || !selectedItem.prompt.trim() || generating) return
+
+    const beforeCompletedIds = new Set(
+      Object.values(useImg2VideoQueueStore.getState().queueItems)
+        .filter((item) => item.workflowType === 'startEnd' && item.status === 'completed')
+        .map((item) => item.id),
+    )
+
+    const historyId = createOutputHistoryId('startend')
+    activeHistoryIdRef.current = historyId
+    upsertHistory({
+      id: historyId,
+      category: 'startend',
+      title: 'Start2End video',
+      status: 'running',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      message: 'Generating transition video...',
+      artifacts: [],
+    })
+
     queueItem(selectedItem.id)
     await generateQueue()
+    if (activeHistoryIdRef.current !== historyId) return
+
+    const state = useImg2VideoQueueStore.getState()
+    const newlyCompleted = collectCompletedForWorkflow(state.queueItems, 'startEnd', beforeCompletedIds)
+    const selectedItemStatus = state.queueItems[selectedItem.id]?.status
+
+    if (newlyCompleted.length > 0) {
+      patchHistory(historyId, {
+        status: 'completed',
+        message: `${newlyCompleted.length} video completed`,
+        artifacts: newlyCompleted
+          .map((item) => ({
+            id: `${historyId}_${item.id}`,
+            label: `Transition ${item.id.slice(-4)}`,
+            type: 'video' as const,
+            url: resolveArtifactUrl(item),
+          }))
+          .filter((artifact) => Boolean(artifact.url)),
+      })
+    } else {
+      patchHistory(historyId, {
+        status: 'failed',
+        message:
+          selectedItemStatus === 'paused'
+            ? 'Paused by user'
+            : state.queueItems[selectedItem.id]?.error || 'No completed output in this run',
+        artifacts: [],
+      })
+    }
+
+    activeHistoryIdRef.current = null
   }
 
   const toggleVideoSelection = (id: string) => {
@@ -1051,15 +1238,10 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* LEFT COLUMN: INPUTS */}
       <div className="space-y-6">
-        {/* Step 1: Start & End Frames */}
+        {modeStep}
+        {/* Step 2: Start & End Frames */}
         <div className="bg-surface-50 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              1
-            </span>
-            Start & End Frames
-          </h2>
-          <div className="mb-4">{tabs}</div>
+          <StepHeader stepNumber={2} title="Start & End Frames" />
 
           <div className="flex gap-3">
             <FrameDropZone
@@ -1109,14 +1291,9 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
           )}
         </div>
 
-        {/* Step 2: Prompt */}
+        {/* Step 3: Prompt */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              2
-            </span>
-            Prompt
-          </h2>
+          <StepHeader stepNumber={3} title="Prompt" />
           <Textarea
             value={selectedItem?.prompt || ''}
             onChange={(e) => selectedItem && setItemPrompt(selectedItem.id, e.target.value)}
@@ -1133,33 +1310,40 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
           )}
         </div>
 
-        {/* Step 3: Camera Controls */}
+        {/* Step 4: Camera Controls */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              3
-            </span>
-            Camera Controls
-            {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
-              <span className="px-1.5 py-0.5 bg-brand/20 text-brand text-[10px] font-semibold rounded">
-                {Object.values(selectedItem.presets).flat().length}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
+                4
               </span>
-            )}
-          </h2>
-          <CameraPresetCards
-            selectedPresets={selectedItem?.presets || {}}
-            onPresetsChange={(presets) => selectedItem && setItemPresets(selectedItem.id, presets)}
-          />
+              Camera Controls
+              {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
+                <span className="px-1.5 py-0.5 bg-brand/20 text-brand text-[10px] font-semibold rounded">
+                  {Object.values(selectedItem.presets).flat().length}
+                </span>
+              )}
+            </h2>
+            <Button
+              variant="ghost-muted"
+              size="xs"
+              onClick={() => setCameraControlsOpen((prev) => !prev)}
+              icon={cameraControlsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            >
+              {cameraControlsOpen ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+          {cameraControlsOpen && (
+            <CameraPresetCards
+              selectedPresets={selectedItem?.presets || {}}
+              onPresetsChange={(presets) => selectedItem && setItemPresets(selectedItem.id, presets)}
+            />
+          )}
         </div>
 
-        {/* Step 4: Settings */}
+        {/* Step 5: Settings */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              4
-            </span>
-            Settings
-          </h2>
+          <StepHeader stepNumber={5} title="Settings" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Aspect Ratio"
@@ -1174,18 +1358,18 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
               options={DURATIONS.map((d) => ({ value: d, label: `${d}s` }))}
             />
           </div>
+          <div className="pt-4 mt-4 border-t border-surface-200/60">
+            <Button
+              variant="lime"
+              icon={isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              onClick={handleGenerateVideo}
+              disabled={!selectedItem || !selectedItem.prompt.trim() || isGenerating}
+              className="w-full"
+            >
+              {isGenerating ? 'Generating...' : 'Generate Video'}
+            </Button>
+          </div>
         </div>
-
-        {/* Generate Video Button */}
-        <Button
-          variant="lime"
-          icon={isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          onClick={handleGenerateVideo}
-          disabled={!selectedItem || !selectedItem.prompt.trim() || isGenerating}
-          className="w-full"
-        >
-          {isGenerating ? 'Generating...' : 'Generate Video'}
-        </Button>
         {selectedItem?.status === 'failed' && selectedItem.error && (
           <div className="mt-2 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg">
             <p className="text-xs text-danger">{selectedItem.error}</p>
@@ -1278,6 +1462,11 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
             </div>
           </div>
         )}
+        <PreviousGenerationsPanel
+          entries={historyEntries}
+          onDeleteEntry={removeHistory}
+          onClear={() => removeManyHistory(historyEntries.map((entry) => entry.id))}
+        />
       </div>
     </div>
   )

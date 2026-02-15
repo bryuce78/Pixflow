@@ -535,7 +535,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   setEthnicity: (ethnicity) => set({ ethnicity }),
   setOutfit: (outfit) => set({ outfit }),
   setAvatarCount: (avatarCount) => set({ avatarCount }),
-  setSelectedGeneratedIndex: (selectedGeneratedIndex) => set({ selectedGeneratedIndex }),
+  setSelectedGeneratedIndex: (selectedGeneratedIndex) => set({ selectedGeneratedIndex, selectedAvatar: null }),
   setScriptConcept: (scriptConcept) => set({ scriptConcept }),
   setScriptDuration: (scriptDuration) => set({ scriptDuration }),
   setScriptTone: (scriptTone) => set({ scriptTone }),
@@ -710,7 +710,14 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   generateAvatar: async () => {
     const { gender, ageGroup, ethnicity, outfit, avatarCount } = get()
 
-    set({ generating: true, error: null, generatedUrls: [], selectedGeneratedIndex: 0, generationProgress: 0 })
+    set({
+      generating: true,
+      error: null,
+      generatedUrls: [],
+      selectedGeneratedIndex: 0,
+      generationProgress: 0,
+      selectedAvatar: null,
+    })
 
     const urls: string[] = []
 
@@ -1009,7 +1016,9 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       set({ translationError: { message: 'Select at least one language', type: 'warning' } })
       return
     }
-    const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url || null
+    const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
+    const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
+    const avatarUrl = selectedAvatarUrl || generatedAvatarUrl
     if (!avatarUrl) {
       set({ translationError: { message: 'Select an avatar to generate videos', type: 'warning' } })
       return
@@ -1148,7 +1157,9 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
 
   createLipsync: async () => {
     const { generatedUrls, selectedGeneratedIndex, selectedAvatar, generatedAudioUrl } = get()
-    const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url
+    const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
+    const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
+    const avatarUrl = selectedAvatarUrl || generatedAvatarUrl
 
     if (!generatedAudioUrl) {
       set({ error: { message: 'Please generate audio first', type: 'warning' } })
@@ -1275,7 +1286,9 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       reactionAspectRatio,
     } = get()
 
-    const avatarUrl = generatedUrls[selectedGeneratedIndex] || selectedAvatar?.url
+    const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
+    const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
+    const avatarUrl = selectedAvatarUrl || generatedAvatarUrl
     if (!avatarUrl) {
       set({ reactionError: { message: 'Please select or generate an avatar', type: 'warning' } })
       return

@@ -82,12 +82,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         resolution = '1080p',
         outputFormat = 'png',
       } = req.body
-      const files = req.files as Express.Multer.File[]
-
-      if (!files || files.length === 0) {
-        sendError(res, 400, 'At least one reference image is required', 'MISSING_REFERENCE_IMAGE')
-        return
-      }
+      const files = (req.files as Express.Multer.File[] | undefined) ?? []
 
       if (files.length > MAX_REFERENCE_IMAGES) {
         sendError(res, 400, `Maximum ${MAX_REFERENCE_IMAGES} reference images allowed`, 'TOO_MANY_REFERENCE_IMAGES')
