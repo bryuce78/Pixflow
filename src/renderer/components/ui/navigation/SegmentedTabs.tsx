@@ -106,7 +106,7 @@ export function SegmentedTabs<T extends SegmentedTabId>({
                 ? 'bg-brand-600 text-white shadow-sm'
                 : item.disabled
                   ? 'text-surface-400 opacity-50 cursor-not-allowed'
-                  : 'text-surface-400 hover:text-surface-100'
+                  : 'text-surface-400 hover:text-white'
             }`}
           >
             {item.icon}

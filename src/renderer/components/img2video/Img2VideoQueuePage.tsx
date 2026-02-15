@@ -66,7 +66,7 @@ export default function Img2VideoQueuePage() {
       items={[
         { id: 'img2img', label: 'img2img', icon: <Image className="w-4 h-4" /> },
         { id: 'img2video', label: 'img2video', icon: <Film className="w-4 h-4" /> },
-        { id: 'startEnd', label: 'start / end', icon: <ArrowRight className="w-4 h-4" /> },
+        { id: 'startEnd', label: 'StartEnd Frame', icon: <ArrowRight className="w-4 h-4" /> },
       ]}
       className="w-full"
     />
@@ -961,9 +961,6 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
     setItemPresets,
     queueItem,
     generateQueue,
-    pauseQueue,
-    retryFailed,
-    clearFailed,
     removeItem,
     uploadStartEndFiles,
   } = useImg2VideoQueueStore()
@@ -979,9 +976,8 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
   const selectedItem = selectedId && queueItems[selectedId]?.workflowType === 'startEnd' ? queueItems[selectedId] : null
 
   const draftItems = startEndItems.filter((item) => item.status === 'draft')
-  const queuedCount = startEndItems.filter((item) => item.status === 'queued').length
   const completedItems = startEndItems.filter((item) => item.status === 'completed')
-  const failedCount = startEndItems.filter((item) => item.status === 'failed').length
+  const generatingItems = startEndItems.filter((item) => item.status === 'generating')
 
   // Clean up previews on unmount only
   const startPreviewRef = useRef<string | null>(null)
@@ -995,13 +991,26 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
     }
   }, [])
 
-  const handleUploadPair = async () => {
-    if (!startFile || !endFile) return
-    await uploadStartEndFiles(startFile.file, endFile.file)
-    URL.revokeObjectURL(startFile.preview)
-    URL.revokeObjectURL(endFile.preview)
-    setStartFile(null)
-    setEndFile(null)
+  // Auto-upload when both files are selected
+  const uploadingRef = useRef(false)
+  useEffect(() => {
+    if (!startFile || !endFile || uploadingRef.current) return
+    uploadingRef.current = true
+    const doUpload = async () => {
+      await uploadStartEndFiles(startFile.file, endFile.file)
+      URL.revokeObjectURL(startFile.preview)
+      URL.revokeObjectURL(endFile.preview)
+      setStartFile(null)
+      setEndFile(null)
+      uploadingRef.current = false
+    }
+    doUpload()
+  }, [startFile, endFile, uploadStartEndFiles])
+
+  const handleGenerateVideo = async () => {
+    if (!selectedItem) return
+    queueItem(selectedItem.id)
+    await generateQueue()
   }
 
   const toggleVideoSelection = (id: string) => {
@@ -1024,6 +1033,8 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
     setSelectedVideos(new Set())
   }
 
+  const isGenerating = generating || generatingItems.length > 0
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* LEFT COLUMN: INPUTS */}
@@ -1038,49 +1049,43 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
           </h2>
           <div className="mb-4">{tabs}</div>
 
-          {/* Pending upload area */}
+          {/* Upload area — show when no draft items */}
           {draftItems.length === 0 && (
-            <>
-              <div className="flex gap-3">
-                <FrameDropZone
-                  label="START FRAME"
-                  imageUrl={startFile?.preview ?? null}
-                  onDrop={(file) => setStartFile({ file, preview: URL.createObjectURL(file) })}
-                  onClear={() => {
-                    if (startFile) URL.revokeObjectURL(startFile.preview)
-                    setStartFile(null)
-                  }}
-                  disabled={uploading}
-                />
-                <div className="flex items-center justify-center pt-6">
-                  <ArrowRight className="w-5 h-5 text-surface-400" />
-                </div>
-                <FrameDropZone
-                  label="END FRAME"
-                  imageUrl={endFile?.preview ?? null}
-                  onDrop={(file) => setEndFile({ file, preview: URL.createObjectURL(file) })}
-                  onClear={() => {
-                    if (endFile) URL.revokeObjectURL(endFile.preview)
-                    setEndFile(null)
-                  }}
-                  disabled={uploading}
-                />
+            <div className="flex gap-3">
+              <FrameDropZone
+                label="START FRAME"
+                imageUrl={startFile?.preview ?? null}
+                onDrop={(file) => setStartFile({ file, preview: URL.createObjectURL(file) })}
+                onClear={() => {
+                  if (startFile) URL.revokeObjectURL(startFile.preview)
+                  setStartFile(null)
+                }}
+                disabled={uploading}
+              />
+              <div className="flex items-center justify-center pt-6">
+                <ArrowRight className="w-5 h-5 text-surface-400" />
               </div>
-              {startFile && endFile && (
-                <Button
-                  variant="primary"
-                  icon={uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  onClick={handleUploadPair}
-                  disabled={uploading}
-                  className="w-full mt-4"
-                >
-                  {uploading ? 'Uploading...' : 'Upload Pair'}
-                </Button>
-              )}
-            </>
+              <FrameDropZone
+                label="END FRAME"
+                imageUrl={endFile?.preview ?? null}
+                onDrop={(file) => setEndFile({ file, preview: URL.createObjectURL(file) })}
+                onClear={() => {
+                  if (endFile) URL.revokeObjectURL(endFile.preview)
+                  setEndFile(null)
+                }}
+                disabled={uploading}
+              />
+            </div>
           )}
 
-          {/* Existing draft/queued items */}
+          {uploading && (
+            <div className="flex items-center justify-center gap-2 mt-3 text-sm text-surface-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Uploading frames...
+            </div>
+          )}
+
+          {/* Existing draft items */}
           {draftItems.length > 0 && (
             <div className="space-y-3">
               {draftItems.map((item) => (
@@ -1122,51 +1127,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
                   </button>
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setStartFile(null)
-                  setEndFile(null)
-                }}
-                className="text-xs text-brand-500 hover:text-brand-600 font-medium"
-              >
-                + Add another pair
-              </button>
             </div>
-          )}
-
-          {/* Queue stats */}
-          {startEndItems.length > 0 && (
-            <>
-              <div className="flex gap-2 mt-3 text-xs">
-                <StatusPill status="neutral" size="xs" label={`${startEndItems.length} Total`} />
-                {completedItems.length > 0 && (
-                  <StatusPill status="completed" size="xs" label={`${completedItems.length} Completed`} />
-                )}
-                {failedCount > 0 && <StatusPill status="failed" size="xs" label={`${failedCount} Failed`} />}
-              </div>
-              <div className="flex gap-2 mt-3">
-                <Button
-                  variant={generating ? 'danger' : 'success'}
-                  icon={generating ? <X className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  onClick={generating ? pauseQueue : generateQueue}
-                  disabled={queuedCount === 0 && !generating}
-                  className="flex-1"
-                >
-                  {generating ? 'Pause Queue' : `Run Queue${queuedCount > 0 ? ` (${queuedCount})` : ''}`}
-                </Button>
-                {failedCount > 0 && (
-                  <>
-                    <Button variant="warning" size="sm" onClick={retryFailed}>
-                      Retry ({failedCount})
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={clearFailed}>
-                      Clear
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
           )}
         </div>
 
@@ -1229,49 +1190,22 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
           />
         </div>
 
-        {/* Step 5: Actions */}
-        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-              5
-            </span>
-            Actions
-          </h2>
-          {selectedItem?.status === 'draft' && (
-            <Button
-              variant="primary"
-              icon={<Play className="w-4 h-4" />}
-              onClick={() => selectedItem && queueItem(selectedItem.id)}
-              disabled={!selectedItem.prompt.trim()}
-              className="w-full"
-            >
-              Queue Item
-            </Button>
-          )}
-          {selectedItem?.status === 'completed' && selectedItem.result && (
-            <Button
-              variant="success"
-              icon={<Download className="w-4 h-4" />}
-              onClick={() => {
-                if (selectedItem.result) {
-                  const a = document.createElement('a')
-                  a.href = assetUrl(selectedItem.result.localPath)
-                  a.download = selectedItem.result.localPath.split('/').pop() || 'video.mp4'
-                  a.click()
-                }
-              }}
-              className="w-full"
-            >
-              Download Video
-            </Button>
-          )}
-        </div>
+        {/* Generate Video Button */}
+        <Button
+          variant="lime"
+          icon={isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+          onClick={handleGenerateVideo}
+          disabled={!selectedItem || !selectedItem.prompt.trim() || isGenerating}
+          className="w-full"
+        >
+          {isGenerating ? 'Generating...' : 'Generate Video'}
+        </Button>
       </div>
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
         {/* Videos in Progress */}
-        <LoadingGrid items={startEndItems.filter((item) => item.status === 'generating')} />
+        <LoadingGrid items={generatingItems} />
 
         {/* Generated Videos */}
         {completedItems.length > 0 && (
