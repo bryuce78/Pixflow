@@ -151,7 +151,7 @@ export function AppShell() {
       <div className="flex-1 flex flex-col">
         <div className="sticky top-0 z-30 border-b border-surface-100 bg-surface-0 drag-region">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 h-[84px] flex items-baseline pb-[12px]">
-            <h1 className="text-[2.06rem] font-semibold text-surface-900 flex items-center gap-3 leading-none translate-y-[36px]">
+            <h1 className="text-[2.06rem] font-black text-surface-900 flex items-center gap-3 leading-none translate-y-[36px]">
               <PageIcon className="w-8 h-8 text-brand-500 inline-block align-middle" />
               <span className="leading-none">{brandedName(activeTab)}</span>
             </h1>

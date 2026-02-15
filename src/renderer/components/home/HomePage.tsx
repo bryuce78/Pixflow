@@ -56,7 +56,7 @@ export default function HomePage() {
           <LayoutGrid className="w-6 h-6 text-brand-500" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-surface-900">
+          <h2 className="text-xl font-black text-surface-900">
             Welcome to <BrandedName prefix="Pix" suffix="flow" />
           </h2>
           <p className="text-sm text-surface-500">
@@ -82,7 +82,7 @@ export default function HomePage() {
                   <Icon className="w-5 h-5 text-brand-500" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-base font-semibold text-surface-900">{brandedName(category.id)}</h3>
+                  <h3 className="text-base font-black text-surface-900">{brandedName(category.id)}</h3>
                   <p className="text-sm text-surface-500">{category.description}</p>
                 </div>
               </div>

@@ -129,13 +129,13 @@ export function SideNav() {
                 sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
               } ${
                 isActive
-                  ? 'bg-brand-500/10 text-brand-500 border border-transparent shadow-sm'
+                  ? 'bg-brand-500/10 text-surface-900 border border-transparent shadow-sm'
                   : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
               }`}
             >
               <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
-                <item.icon className="w-4 h-4" />
-                {!sidebarCollapsed && <span>{brandedName(item.id, 'text-secondary-500')}</span>}
+                <item.icon className={`w-4 h-4 ${isActive ? 'text-brand-500' : ''}`} />
+                {!sidebarCollapsed && <span>{brandedName(item.id)}</span>}
               </div>
               {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
               {sidebarCollapsed && item.badge && (
