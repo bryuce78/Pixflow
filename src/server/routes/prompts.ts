@@ -79,25 +79,25 @@ async function runPromptGenerationPipeline({
   const remainingCount = count
   console.log(`[Streaming Phase 3] Generating ${remainingCount} enriched prompts...`)
 
+  emit?.('status', { step: 'enriching', message: `Generating ${remainingCount} prompts...` })
+
   const { prompts: enrichedPrompts, varietyScore: enrichedVariety } = await generatePrompts(
     concept,
     remainingCount,
     researchBrief,
-    emit ? (completed, total) => emit('progress', { completed, total }) : undefined,
+    emit
+      ? (completed, total, prompt, index) => {
+          emit('progress', {
+            step: 'enriching',
+            completed,
+            total,
+            message: `Generating prompt ${completed}/${total}...`,
+          })
+          emit('prompt', { prompt, index, total, enriched: true })
+        }
+      : undefined,
     imageInsights,
   )
-
-  if (emit) {
-    enrichedPrompts.forEach((prompt, idx) => {
-      emit('prompt', {
-        prompt,
-        index: idx + 1,
-        total: count,
-        enriched: true,
-      })
-    })
-    console.log(`[Streaming Phase 3] Sent ${enrichedPrompts.length} enriched prompts`)
-  }
 
   const prompts = enrichedPrompts
   const varietyScore = enrichedVariety
