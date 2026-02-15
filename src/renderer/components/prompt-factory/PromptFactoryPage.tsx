@@ -666,7 +666,7 @@ export default function PromptFactoryPage() {
         <div className="flex-1 bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-hidden">
           <div className="flex items-center justify-between">
             <StepHeader stepNumber={2} title="Generated Prompts" />
-            {prompts.length > 0 && (
+            {completedPromptCount > 0 && (
               <Button
                 variant="ghost-danger"
                 size="xs"
@@ -766,6 +766,14 @@ export default function PromptFactoryPage() {
               actionLabel={error.action?.label}
               onAction={error.action?.onClick}
             />
+          )}
+
+          {/* Generating placeholder — when loading but no prompt selected yet */}
+          {loading && (selectedIndex === null || !prompts[selectedIndex]) && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-surface-400">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+              <p className="text-sm">Generating prompts, please wait...</p>
+            </div>
           )}
 
           {/* Selected Prompt Details */}

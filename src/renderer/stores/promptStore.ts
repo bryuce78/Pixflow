@@ -211,10 +211,10 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
           return {
             prompts,
-            selectedIndex: state.selectedIndex === null && completed > 0 ? 0 : state.selectedIndex,
+            selectedIndex: state.selectedIndex === null && completed > 0 ? index : state.selectedIndex,
             editingPromptText:
               state.selectedIndex === null && completed > 0
-                ? JSON.stringify(prompts[0], null, 2)
+                ? JSON.stringify(prompts[index], null, 2)
                 : state.editingPromptText,
             generationProgress: {
               step: enriched ? 'enriching' : state.generationProgress?.step || 'quick_prompt',
