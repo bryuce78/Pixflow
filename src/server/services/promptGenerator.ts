@@ -379,7 +379,7 @@ export async function generatePrompts(
   const subThemesToUse = distributeSubThemes(researchBrief.sub_themes, count)
   const SINGLE_PROMPT_TIMEOUT = 60000 // 60 second timeout per individual prompt
 
-  const concurrencyLimit = Math.min(10, count)
+  const concurrencyLimit = Math.min(3, count)
   console.log(`[generatePrompts] Starting PARALLEL generation for ${count} prompts (concurrency=${concurrencyLimit})`)
 
   const prompts: PromptOutput[] = Array.from({ length: count })
