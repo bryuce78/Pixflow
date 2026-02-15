@@ -803,7 +803,7 @@ export default function MachinePage() {
               {batchProgress && batchProgress.images.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-surface-400 mb-3">
-                    Generated Images ({completedImages.length})
+                    Final Outputs ({completedImages.length})
                   </h3>
                   <div className="grid grid-cols-6 gap-2">
                     {completedImages.map((img, index) => (
@@ -878,7 +878,7 @@ export default function MachinePage() {
             <div className="bg-surface-50 rounded-lg p-4">
               <StepHeader stepNumber={5} title="Output" />
               <div className="rounded-lg border border-surface-200 bg-surface-0 p-6 text-sm text-surface-500">
-                Results will appear here once The Machine finishes.
+                Final outputs will appear here once The Machine finishes.
               </div>
             </div>
           )}

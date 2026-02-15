@@ -322,7 +322,7 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
         {/* Images in Progress */}
         <LoadingGrid items={img2imgItems.filter((item) => item.status === 'generating')} />
 
-        {/* Step 5: Generated Images */}
+        {/* Step 5: Final Outputs */}
         {completedCount > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
@@ -330,7 +330,7 @@ function Img2ImgContent({ tabs }: { tabs: React.ReactNode }) {
                 <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-xs text-white">
                   5
                 </span>
-                Generated Images
+                Final Outputs
               </h3>
               <DownloadToolbar
                 onDownloadAll={() => {
@@ -810,11 +810,11 @@ function Img2VideoContent({ tabs }: { tabs: React.ReactNode }) {
         {/* Videos in Progress */}
         <LoadingGrid items={img2videoItems.filter((item) => item.status === 'generating')} />
 
-        {/* Generated Videos */}
+        {/* Final Outputs */}
         {completedCount > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">Generated Videos</h3>
+              <h3 className="text-sm font-semibold">Final Outputs</h3>
               {selectedVideos.size > 0 && (
                 <Button variant="primary" size="xs" icon={<Download className="w-3 h-3" />} onClick={downloadSelected}>
                   Download {selectedVideos.size}
@@ -1210,7 +1210,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
                 <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
                   5
                 </span>
-                {completedItems.length} Generated {completedItems.length === 1 ? 'Video' : 'Videos'}
+                Final Outputs ({completedItems.length})
               </h2>
               {selectedVideos.size > 0 && (
                 <Button variant="primary" size="xs" icon={<Download className="w-3 h-3" />} onClick={downloadSelected}>

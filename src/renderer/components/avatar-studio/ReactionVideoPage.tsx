@@ -173,9 +173,9 @@ export function ReactionVideoPage({
 
       {/* RIGHT COLUMN: OUTPUT */}
       <div className="space-y-6 xl:col-start-2 xl:col-end-3">
-        {/* Step 6: Generated Videos */}
+        {/* Step 6: Final Outputs */}
         <div className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
-          <StepHeader stepNumber={6} title="Generated Videos" />
+          <StepHeader stepNumber={6} title="Final Outputs" />
 
           {reactionVideoUrl ? (
             <div className="space-y-4 flex flex-col items-center">

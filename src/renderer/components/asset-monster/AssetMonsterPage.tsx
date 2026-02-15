@@ -912,9 +912,9 @@ Examples:
 
       {/* Right Column: Outputs */}
       <div className="space-y-6">
-        {/* Step 4: Results */}
+        {/* Step 4: Final Outputs */}
         <div className="bg-surface-50 rounded-lg p-4">
-          <StepHeader stepNumber={4} title="Results" />
+          <StepHeader stepNumber={4} title="Final Outputs" />
 
           {batchProgress ? (
             <div>
@@ -1186,7 +1186,7 @@ Examples:
             <div className="text-center py-12 text-surface-400">
               <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">Configure generation and click Generate</p>
-              <p className="text-xs mt-1">Results will appear here</p>
+              <p className="text-xs mt-1">Final outputs will appear here</p>
             </div>
           )}
         </div>

@@ -42,7 +42,7 @@ export function ResultsGrid({ items, onSelectItem, onDownloadAll }: ResultsGridP
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-surface-900">Results</h3>
+          <h3 className="text-lg font-semibold text-surface-900">Final Outputs</h3>
           <StatusPill status="completed" size="sm" label={`${completedItems.length} completed`} />
           {failedItems.length > 0 && <StatusPill status="failed" size="sm" label={`${failedItems.length} failed`} />}
         </div>

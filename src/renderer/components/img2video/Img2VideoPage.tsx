@@ -503,12 +503,12 @@ export default function Img2VideoPage() {
             </div>
           )}
 
-          {/* Results */}
+          {/* Final Outputs */}
           {completedJobs.length > 0 && (
             <div className="bg-surface-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-surface-400 uppercase tracking-wider">
-                  Generated Videos ({completedJobs.length})
+                  Final Outputs ({completedJobs.length})
                 </h2>
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="xs" icon={<Upload className="w-4 h-4" />} onClick={openFilePicker}>
