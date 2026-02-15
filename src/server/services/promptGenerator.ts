@@ -372,14 +372,14 @@ export async function generatePrompts(
   concept: string,
   count: number,
   researchBrief: ResearchBrief,
-  onBatchDone?: (completedCount: number, total: number, prompt: PromptOutput, index: number) => void,
+  onBatchDone?: (completedCount: number, total: number) => void,
   imageInsights?: AnalyzedPrompt,
 ): Promise<{ prompts: PromptOutput[]; varietyScore: VarietyScore }> {
   const client = await getOpenAI()
   const subThemesToUse = distributeSubThemes(researchBrief.sub_themes, count)
   const SINGLE_PROMPT_TIMEOUT = 60000 // 60 second timeout per individual prompt
 
-  const concurrencyLimit = Math.min(3, count)
+  const concurrencyLimit = Math.min(10, count)
   console.log(`[generatePrompts] Starting PARALLEL generation for ${count} prompts (concurrency=${concurrencyLimit})`)
 
   const prompts: PromptOutput[] = Array.from({ length: count })
@@ -416,7 +416,7 @@ export async function generatePrompts(
         prompts[index] = fallbackPrompt
       } finally {
         completed += 1
-        onBatchDone?.(completed, count, prompts[index], index)
+        onBatchDone?.(completed, count)
       }
     }
   }

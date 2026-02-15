@@ -79,25 +79,33 @@ async function runPromptGenerationPipeline({
   const remainingCount = count
   console.log(`[Streaming Phase 3] Generating ${remainingCount} enriched prompts...`)
 
-  emit?.('status', { step: 'enriching', message: `Generating ${remainingCount} prompts...` })
-
   const { prompts: enrichedPrompts, varietyScore: enrichedVariety } = await generatePrompts(
     concept,
     remainingCount,
     researchBrief,
     emit
-      ? (completed, total, prompt, index) => {
-          emit('prompt', { prompt, index, total, enriched: true })
+      ? (completed, total) =>
           emit('progress', {
             step: 'enriching',
             completed,
             total,
             message: `Generating prompt ${completed}/${total}...`,
           })
-        }
       : undefined,
     imageInsights,
   )
+
+  if (emit) {
+    enrichedPrompts.forEach((prompt, idx) => {
+      emit('prompt', {
+        prompt,
+        index: idx,
+        total: count,
+        enriched: true,
+      })
+    })
+    console.log(`[Streaming Phase 3] Sent ${enrichedPrompts.length} enriched prompts`)
+  }
 
   const prompts = enrichedPrompts
   const varietyScore = enrichedVariety
@@ -194,21 +202,15 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
     const emit: StreamEmitter | undefined = useStream
       ? (event, data) => {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-          // biome-ignore lint/suspicious/noExplicitAny: Express compression middleware adds flush()
-          if (typeof (res as any).flush === 'function') (res as any).flush()
         }
       : undefined
 
     if (useStream) {
       res.writeHead(200, {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
-        'X-Accel-Buffering': 'no',
       })
-      res.flushHeaders()
-      res.socket?.setNoDelay(true)
-      res.write(': connected\n\n')
     }
 
     try {
@@ -288,34 +290,15 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
       metadata: { count: clampedCount, conceptLength: concept.length, stream: true },
     })
 
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    })
-    res.flushHeaders()
-    res.socket?.setNoDelay(true)
-
-    // Send an initial comment so proxies/browser treat this as an active stream immediately.
-    res.write(': connected\n\n')
-
-    const heartbeat = setInterval(() => {
-      if (res.writableEnded) return
-      res.write(': ping\n\n')
-      // biome-ignore lint/suspicious/noExplicitAny: Express compression middleware adds flush()
-      if (typeof (res as any).flush === 'function') (res as any).flush()
-    }, 15_000)
-
-    req.on('close', () => {
-      clearInterval(heartbeat)
-    })
-
     const emit: StreamEmitter = (event, data) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-      // biome-ignore lint/suspicious/noExplicitAny: Express compression middleware adds flush()
-      if (typeof (res as any).flush === 'function') (res as any).flush()
     }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    })
 
     try {
       const result = await runPromptGenerationPipeline({
@@ -333,7 +316,6 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
       })
 
       emit('done', {
-        prompts: result.prompts,
         varietyScore: result.varietyScore,
         qualityMetrics: result.qualityMetrics,
         individualScores: result.qualityMetrics.individual_scores || [],
@@ -343,7 +325,6 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
         },
       })
 
-      clearInterval(heartbeat)
       res.end()
     } catch (error) {
       console.error('[Prompts] Streaming generation failed:', error)
@@ -352,7 +333,6 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
         error: 'Failed to generate prompts',
         message: error instanceof Error ? error.message : 'Unknown error',
       })
-      clearInterval(heartbeat)
       res.end()
     }
   })

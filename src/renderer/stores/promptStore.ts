@@ -191,9 +191,7 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
     try {
       // Build URL with query params for GET (EventSource requires GET)
-      const url = apiUrl(
-        `/api/prompts/generate?concept=${encodeURIComponent(concept)}&count=${count}&stream=true&t=${Date.now()}`,
-      )
+      const url = apiUrl(`/api/prompts/generate?concept=${encodeURIComponent(concept)}&count=${count}&stream=true`)
 
       eventSource = new EventSource(url)
 
@@ -269,38 +267,23 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
       })
 
       // Handle completion
-      let streamDone = false
-
       eventSource.addEventListener('done', (e: MessageEvent) => {
-        streamDone = true
-        const data = JSON.parse(e.data)
-        const { prompts: serverPrompts, varietyScore, qualityMetrics, individualScores } = data
+        const { varietyScore, qualityMetrics, individualScores } = JSON.parse(e.data)
 
-        // Reconcile: fill any gaps from individually streamed prompts with the done payload
-        const current = get().prompts
-        const reconciled = current.map((p, i) => {
-          const base = p ?? serverPrompts?.[i] ?? null
-          if (!base) return null
+        // Assign individual scores to prompts
+        const updatedPrompts = get().prompts.map((prompt, i) => {
+          if (!prompt) return prompt
           return {
-            ...base,
+            ...prompt,
             quality_score: individualScores?.[i] ?? qualityMetrics?.overall_score ?? 0,
           }
         })
 
-        // Auto-select first prompt if nothing selected yet
-        const selIdx = get().selectedIndex
-        const firstValid = reconciled.findIndex((p) => p !== null)
-
         set({
-          prompts: reconciled as GeneratedPrompt[],
+          prompts: updatedPrompts,
           varietyScore,
           qualityMetrics,
           loading: false,
-          selectedIndex: selIdx ?? (firstValid >= 0 ? firstValid : null),
-          editingPromptText:
-            selIdx == null && firstValid >= 0
-              ? JSON.stringify(reconciled[firstValid], null, 2)
-              : get().editingPromptText,
           generationProgress: {
             step: 'done',
             completed: count,
@@ -313,42 +296,29 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
         eventSource = null
       })
 
-      // Handle server-sent error events (explicit errors from pipeline)
-      eventSource.addEventListener('error', (e: Event) => {
-        // If done already fired, this is just the normal connection close — ignore
-        if (streamDone) {
-          eventSource?.close()
-          eventSource = null
-          return
-        }
+      // Handle errors
+      eventSource.addEventListener('error', () => {
+        console.error('[Prompt Store] SSE error or connection closed')
 
-        // Check if this is a MessageEvent (server-sent named "error" event)
-        const me = e as MessageEvent
-        if (me.data) {
-          const parsed = JSON.parse(me.data)
-          console.error('[Prompt Store] Server error:', parsed.message)
-          set({
-            loading: false,
-            error: { message: parsed.message || 'Generation failed.', type: 'error' },
-          })
-          eventSource?.close()
-          eventSource = null
-          return
-        }
-
-        // Native EventSource error (connection lost / stream ended unexpectedly)
-        console.warn('[Prompt Store] SSE connection error')
         const currentPrompts = get().prompts.filter((p) => p !== null)
 
         if (currentPrompts.length > 0) {
+          // Partial success - keep what we have
           set({
             loading: false,
-            error: { message: 'Connection lost. Keeping generated prompts.', type: 'warning' },
+            error: {
+              message: 'Connection lost. Keeping generated prompts.',
+              type: 'warning',
+            },
           })
-        } else if (get().loading) {
+        } else {
+          // Total failure
           set({
             loading: false,
-            error: { message: 'Generation failed. Please try again.', type: 'error' },
+            error: {
+              message: 'Generation failed. Please try again.',
+              type: 'error',
+            },
           })
         }
 
