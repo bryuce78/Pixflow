@@ -7,14 +7,14 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-15 (PGP restoration lock + competitor report web-grounding fixes)
+Last updated: 2026-02-09 (Session 11: Desktop launcher + Img2Video improvements + Video download fixes)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
 
 ## 0) Executive Snapshot
 
-- Product: Pixflow (web-first app: React + Vite frontend with Node/Express API).
+- Product: Pixflow (Electron desktop app with embedded Express API + React renderer).
 - Current operational state: release gate chain is green locally; preflight typically reports `CONDITIONAL` until baseline sample count matures.
 - Best single verification command:
   - `npm run gate:release`
@@ -26,137 +26,11 @@ Project root: `/Users/pixery/Projects/pixflow`
 - Key automation/workflow files:
   - `/Users/pixery/Projects/pixflow/.github/workflows/ci.yml`
   - `/Users/pixery/Projects/pixflow/.github/workflows/nightly-real-smoke.yml`
-- Unit tests: 94 tests via Vitest (`npm run test`), integrated into `gate:release`.
+- Unit tests: 86 tests via Vitest (`npm run test`), integrated into `gate:release`.
 - Static analysis: Biome v2.3.14 linter + formatter (`npm run lint:biome`), integrated into `gate:release` as first check. All rules at `"error"` severity (0 warnings).
 - High-priority residual risk:
-  - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
-  - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
-
-### 0.1) Latest Delta (2026-02-13)
-
-- Migrated to web-first runtime:
-  - removed `src/main`, `src/preload`, `electron.vite.config.ts`
-  - added `vite.web.config.ts`
-  - scripts now centered on `dev:web`, `build:web`, `preview:web`
-- Auth/login behavior:
-  - server default `PIXFLOW_AUTH_MODE=disabled`
-  - renderer login bypass enabled by default for trusted internal usage
-- Smoke/gate updates:
-  - replaced `smoke:desktop` with `smoke:journey`
-  - `gate:release` now runs `smoke:journey`
-  - CI artifact path fixed to include `logs/gate-run/pipeline-events.jsonl`
-- Current local verification:
-  - `npm run lint:biome` ✅
-  - `npm run lint` ✅
-  - `npm test` (94/94) ✅
-  - `npm run gate:release` ✅
-
-### 0.2) Turning Point Checkpoint (2026-02-13)
-
-- Checkpoint commit:
-  - `64ab23e` (`checkpoint: turning point before sentence-level captions`)
-- Checkpoint tag:
-  - `turning-point-2026-02-13-captions`
-- Checkpoint intent:
-  - freeze a known-good baseline before implementing sentence-level caption selection/exclusion UX.
-- Quick rollback commands:
-  - `git checkout turning-point-2026-02-13-captions`
-  - or `git reset --hard turning-point-2026-02-13-captions` (only in disposable/local branch contexts).
-- Important note:
-  - local untracked avatar image files were intentionally excluded from the checkpoint commit.
-
-### 0.3) Post-Turning-Point Captions Update (2026-02-13)
-
-- Follow-up commit:
-  - `c235924` (`feat(captions): add sentence-level selection and selected rerender`)
-- What was added:
-  - sentence-level segmentation returned from `/api/captions/auto-subtitle`
-  - sentence toggle UI in Captions page (enable/disable per sentence)
-  - new endpoint `/api/captions/render-selected` for rerendering output from selected segments
-  - local ffmpeg subtitle render path for selected-sentence output
-- Verification:
-  - `npm run lint` ✅
-  - `npm run lint:biome` ✅
-  - `npm test` (94/94) ✅
-
-### 0.4) Lifetime Pipeline Update (2026-02-14)
-
-- Added explicit gender controls in Lifetime input flow:
-  - `male` / `female` buttons
-  - default remains `auto`
-- Auto mode behavior is now deterministic:
-  - system generates first age frame
-  - predicts perceived gender hint from that first generated frame
-  - locks hint for all remaining age-frame prompts in the same run
-- Effective gender hint is persisted to session manifest and reused by regenerate logic.
-- Added model-backed prediction utility:
-  - `predictGenderHint()` in `/Users/pixery/Projects/pixflow/src/server/services/vision.ts`
-  - returns `male | female | auto` + confidence/reason
-- Lifetime generation path now consistently supports:
-  - source frame + 9 age frames (10 image timeline)
-  - 9 transitions (`1-2`, `2-3`, ... style pair chain)
-  - merged final silent video (`1080x1920`) with target duration clamp `8..45s` (default `12s`)
-- Endpoints and payload behavior:
-  - `/api/lifetime/run` accepts `genderHint`
-  - `/api/lifetime/create-videos` accepts `targetDurationSec`
-  - `/api/lifetime/run-status/:jobId` includes source frame in frame list
-- Verification:
-  - `npm run lint` ✅
-
-### 0.5) Prompt Factory Turning Point + Lock Protocol (2026-02-15)
-
-- Turning point tag created for known-good Prompt Factory quality:
-  - `turning-point-2026-02-15-pgp-restored`
-  - commit: `0c96fd4`
-- PGP protection hardening:
-  - Added lock guard script:
-    - `/Users/pixery/Projects/pixflow/scripts/pgp-lock-guard.js`
-  - Added lock fingerprint file:
-    - `/Users/pixery/Projects/pixflow/docs/ops/pgp-lock.json`
-  - Added npm commands:
-    - `npm run pgp:lock:check`
-    - `npm run pgp:lock:update` (requires explicit unlock token)
-  - Added release-gate enforcement:
-    - `gate:release` now runs PGP lock check.
-- Current prompt generation behavior:
-  - SSE prompt streaming remains progressive.
-  - Worker concurrency is intentionally capped at `min(4, count)` to reduce provider fallback drift and throttling pressure.
-  - Prompt style is enforced as reference-first so generation assumes user may pass multiple reference images.
-
-### 0.6) Competitor Report + Web Search Constraint Fix (2026-02-15)
-
-- Added new category/page: **Competitor Report** (after Library in nav order).
-- Backend route added:
-  - `/Users/pixery/Projects/pixflow/src/server/routes/competitorReport.ts`
-  - Endpoints:
-    - `GET /api/competitor-report/apps`
-    - `POST /api/competitor-report/weekly`
-- Frontend page added:
-  - `/Users/pixery/Projects/pixflow/src/renderer/components/competitor-report/CompetitorReportPage.tsx`
-- Safety/quality normalization in competitor report:
-  - strict URL sanitization (http/https only),
-  - date-window filtering (last 7 days only),
-  - response normalization for malformed/partial model payloads.
-- Critical API fix:
-  - OpenAI web search cannot be used with JSON mode (`response_format`).
-  - Updated web-grounded calls to request text and parse structured JSON safely from output text.
-- Same rule now applies to Prompt Factory research web path.
-
-### 0.7) Documentation Simplification Pass (2026-02-15)
-
-- Added docs map:
-  - `/Users/pixery/Projects/pixflow/docs/INDEX.md`
-- Consolidated active handoff to canonical file:
-  - `/Users/pixery/Projects/pixflow/docs/PIXFLOW_AI_VERSIONING_HANDOFF.md`
-- Archived large historical docs to:
-  - `/Users/pixery/Projects/pixflow/docs/archive/PIXFLOW_HANDOFF_FEB2026_FULL.md`
-  - `/Users/pixery/Projects/pixflow/docs/archive/PIXFLOW_AI_VERSIONING_HANDOFF_ARCHIVE_20260209.md`
-  - `/Users/pixery/Projects/pixflow/docs/archive/PIXFLOW_UI_INTERACTION_STANDARDIZATION_PLAN_FEB2026.md`
-- Left compatibility redirects in original paths to avoid broken references:
-  - `docs/PIXFLOW_HANDOFF_FEB2026.md`
-  - `docs/PIXFLOW_AI_VERSIONING_HANDOFF_ARCHIVE_20260209.md`
-  - `docs/PIXFLOW_UI_INTERACTION_STANDARDIZATION_PLAN_FEB2026.md`
-  - `docs/PIXFLOW_README.md`
+  - native module rebuild path is automated, but should be validated on clean environments to confirm `@electron/rebuild` consistently rebuilds `better-sqlite3`.
+  - `better-sqlite3` requires dual-build: system Node for tests, Electron for app. Rebuild sequence: `node-gyp rebuild` → `npm run test` → `npm run native:rebuild`.
 
 ---
 
@@ -245,21 +119,15 @@ Behavior:
 
 Active code paths:
 
+- Electron main/preload: `src/main`, `src/preload`
 - Renderer/UI: `src/renderer`
-- API server: `src/server`
-- Web build config: `vite.web.config.ts`
+- Embedded API: `src/server`
 
 System model:
-- Web frontend served by Vite/static hosting
-- Node/Express API process (default local port `3002`)
+- Electron desktop app
+- Express API embedded in Electron main process
 - React + Zustand frontend
 - Local filesystem outputs + SQLite (`data/pixflow.db`)
-
-Recent architecture migration (2026-02-13):
-- Removed Electron runtime files (`src/main`, `src/preload`, `electron.vite.config.ts`).
-- Switched scripts to web-only (`dev:web`, `build:web`, `preview:web`).
-- Replaced `smoke:desktop` with `smoke:journey`.
-- Default auth mode now disabled for trusted internal environments (`PIXFLOW_AUTH_MODE=disabled`).
 
 ---
 

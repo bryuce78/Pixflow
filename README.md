@@ -63,6 +63,7 @@ npm run deploy:pages
 
 Detailed deployment guide:
 - `docs/CLOUDFLARE_DEPLOY.md`
+- `docs/INDEX.md` (documentation map)
 
 Note:
 - Do not deploy without explicit user approval in active collaboration sessions.
@@ -105,6 +106,10 @@ outputs/      # Generated artifacts
 uploads/      # Temp uploads
 avatars/      # Curated avatar assets
 ```
+
+## Documentation Map
+
+Use `docs/INDEX.md` to see active vs archived documentation.
 
 ## Environment Notes
 

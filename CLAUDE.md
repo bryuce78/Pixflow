@@ -176,7 +176,7 @@ Copy `.env.example` for full list. Key vars:
 - `PIXFLOW_AUTH_MODE` - `disabled` (default) or `token` (JWT)
 - `JWT_SECRET` - Required when auth enabled (min 32 chars, 7d expiry)
 - AI keys: `OPENAI_API_KEY`, `FAL_API_KEY`, `KLING_API_KEY`, `HEDRA_API_KEY`, `ELEVENLABS_API_KEY` (all optional, gracefully skipped)
-- `RESEARCH_WEB_ENABLED` - Enable/disable web-grounded research (default: false)
+- `RESEARCH_WEB_ENABLED` - Enable/disable web-grounded research (default: true unless explicitly set to `false`)
 - Dev bypass: `PIXFLOW_AUTH_BYPASS=1` + `VITE_PIXFLOW_DEV_AUTO_LOGIN=1` (dev only)
 - Bootstrap admin: `PIXFLOW_BOOTSTRAP_ADMIN_ON_STARTUP=true` + `_EMAIL`, `_PASSWORD`, `_NAME`
 
@@ -223,7 +223,9 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 
 ## Active Docs
 
-- `docs/PIXFLOW_HANDOFF_FEB2026.md` - Current state handoff (session-by-session changelog)
+- `docs/INDEX.md` - Docs map (active vs archive)
+- `docs/PIXFLOW_AI_VERSIONING_HANDOFF.md` - Canonical handoff
+- `docs/PIXFLOW_HANDOFF_FEB2026.md` - Compatibility redirect to canonical/archived handoff
 - `docs/PIXFLOW_UI_RULES.md` - UI guidelines
 - `docs/SCHEMA.md` - Database schema
 - `docs/PIPELINE.md` - Prompt Factory pipeline (research + generation + SSE delivery)
