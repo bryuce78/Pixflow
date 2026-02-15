@@ -659,46 +659,6 @@ export default function PromptFactoryPage() {
             )}
           </div>
         )}
-
-        {/* Progress Indicator */}
-        {loading && generationProgress && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-brand-300 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {generationProgress.step === 'quick_prompt' && 'Generating prompts...'}
-                {generationProgress.step === 'research' && `Researching "${activeConcepts[0]?.value || 'concept'}"...`}
-                {generationProgress.step === 'research_complete' && 'Research complete, generating prompts...'}
-                {generationProgress.step === 'enriching' &&
-                  `Enriching prompt ${generationProgress.completed}/${generationProgress.total}...`}
-                {generationProgress.step === 'done' && 'Complete!'}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-surface-400">
-                <Timer className="w-4 h-4" />
-                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-              </div>
-            </div>
-            <div className="flex gap-1.5">
-              {Array.from({ length: generationProgress.total }, (_, i) => (
-                <div
-                  // biome-ignore lint/suspicious/noArrayIndexKey: static ordered slots
-                  key={i}
-                  className="flex-1 h-2 rounded-full overflow-hidden bg-surface-200/50"
-                >
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      i < generationProgress.completed
-                        ? 'bg-success w-full'
-                        : i < generationProgress.completed + (generationProgress.step === 'quick_prompt' ? 1 : 2)
-                          ? 'bg-brand-500 w-full animate-pulse'
-                          : 'w-0'
-                    }`}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* RIGHT PANEL - Outputs */}
@@ -754,6 +714,47 @@ export default function PromptFactoryPage() {
                   </button>
                 )
               })}
+            </div>
+          )}
+
+          {/* Progress Indicator */}
+          {loading && generationProgress && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-brand-500 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {generationProgress.step === 'quick_prompt' && 'Generating prompts...'}
+                  {generationProgress.step === 'research' &&
+                    `Researching "${activeConcepts[0]?.value || 'concept'}"...`}
+                  {generationProgress.step === 'research_complete' && 'Research complete, generating prompts...'}
+                  {generationProgress.step === 'enriching' &&
+                    `Enriching prompt ${generationProgress.completed}/${generationProgress.total}...`}
+                  {generationProgress.step === 'done' && 'Complete!'}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-surface-400">
+                  <Timer className="w-4 h-4" />
+                  {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {Array.from({ length: generationProgress.total }, (_, i) => (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static ordered slots
+                    key={i}
+                    className="flex-1 h-2 rounded-full overflow-hidden bg-surface-200/50"
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        i < generationProgress.completed
+                          ? 'bg-success w-full'
+                          : i < generationProgress.completed + (generationProgress.step === 'quick_prompt' ? 1 : 2)
+                            ? 'bg-brand-500 w-full animate-pulse'
+                            : 'w-0'
+                      }`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
