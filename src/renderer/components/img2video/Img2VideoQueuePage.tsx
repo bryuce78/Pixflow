@@ -986,6 +986,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
   const draftItems = startEndItems.filter((item) => item.status === 'draft')
   const completedItems = startEndItems.filter((item) => item.status === 'completed')
   const generatingItems = startEndItems.filter((item) => item.status === 'generating')
+  const queuedItems = startEndItems.filter((item) => item.status === 'queued')
 
   const startPreviewRef = useRef<string | null>(null)
   const endPreviewRef = useRef<string | null>(null)
@@ -1019,7 +1020,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
   }, [startFile, endFile, uploadStartEndFiles, draftItems, removeItem])
 
   const handleGenerateVideo = async () => {
-    if (!selectedItem || !selectedItem.prompt.trim()) return
+    if (!selectedItem || !selectedItem.prompt.trim() || generating) return
     queueItem(selectedItem.id)
     await generateQueue()
   }
@@ -1190,7 +1191,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
             <p className="text-xs text-danger">{selectedItem.error}</p>
           </div>
         )}
-        {selectedItem?.status === 'generating' && (
+        {(selectedItem?.status === 'generating' || selectedItem?.status === 'queued') && (
           <div className="mt-2 flex items-center gap-2 text-xs text-surface-400">
             <Loader2 className="w-3 h-3 animate-spin" />
             Generating video, this may take a few minutes...
@@ -1200,7 +1201,7 @@ function StartEndContent({ tabs }: { tabs: React.ReactNode }) {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        <LoadingGrid items={generatingItems} />
+        <LoadingGrid items={[...queuedItems, ...generatingItems]} />
 
         {completedItems.length > 0 && (
           <div className="bg-surface-50 rounded-lg p-4">
