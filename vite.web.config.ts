@@ -18,6 +18,22 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/api/prompts/generate': {
+        target: API_TARGET,
+        changeOrigin: true,
+        timeout: 0,
+        proxyTimeout: 0,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
+            const accept = req.headers.accept || ''
+            if (!accept.includes('text/event-stream')) return
+            proxyRes.headers['cache-control'] = 'no-cache, no-transform'
+            proxyRes.headers['x-accel-buffering'] = 'no'
+            proxyRes.headers.connection = 'keep-alive'
+            delete proxyRes.headers['content-length']
+          })
+        },
+      },
       '/api': { target: API_TARGET, changeOrigin: true, timeout: 600_000 },
       '/avatars': { target: API_TARGET, changeOrigin: true, timeout: 600_000 },
       '/avatars_generated': { target: API_TARGET, changeOrigin: true, timeout: 600_000 },

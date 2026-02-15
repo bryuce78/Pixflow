@@ -284,18 +284,34 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
       metadata: { count: clampedCount, conceptLength: concept.length, stream: true },
     })
 
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    res.flushHeaders()
+    res.socket?.setNoDelay(true)
+
+    // Send an initial comment so proxies/browser treat this as an active stream immediately.
+    res.write(': connected\n\n')
+
+    const heartbeat = setInterval(() => {
+      if (res.writableEnded) return
+      res.write(': ping\n\n')
+      // biome-ignore lint/suspicious/noExplicitAny: Express compression middleware adds flush()
+      if (typeof (res as any).flush === 'function') (res as any).flush()
+    }, 15_000)
+
+    req.on('close', () => {
+      clearInterval(heartbeat)
+    })
+
     const emit: StreamEmitter = (event, data) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
       // biome-ignore lint/suspicious/noExplicitAny: Express compression middleware adds flush()
       if (typeof (res as any).flush === 'function') (res as any).flush()
     }
-
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    })
 
     try {
       const result = await runPromptGenerationPipeline({
@@ -322,6 +338,7 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
         },
       })
 
+      clearInterval(heartbeat)
       res.end()
     } catch (error) {
       console.error('[Prompts] Streaming generation failed:', error)
@@ -330,6 +347,7 @@ export function createPromptsRouter(config: PromptsRouterConfig): express.Router
         error: 'Failed to generate prompts',
         message: error instanceof Error ? error.message : 'Unknown error',
       })
+      clearInterval(heartbeat)
       res.end()
     }
   })

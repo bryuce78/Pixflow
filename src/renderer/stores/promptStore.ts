@@ -191,7 +191,9 @@ export const usePromptStore = create<PromptState>()((set, get) => ({
 
     try {
       // Build URL with query params for GET (EventSource requires GET)
-      const url = apiUrl(`/api/prompts/generate?concept=${encodeURIComponent(concept)}&count=${count}&stream=true`)
+      const url = apiUrl(
+        `/api/prompts/generate?concept=${encodeURIComponent(concept)}&count=${count}&stream=true&t=${Date.now()}`,
+      )
 
       eventSource = new EventSource(url)
 
