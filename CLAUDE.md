@@ -1,37 +1,82 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
+> Last updated: 2026-02-15
 
 ## Project
 
 Pixflow is a web app for AI asset production workflows:
 - Prompt Factory (concept/image to structured prompts)
 - Asset Monster (batch image generation)
+- Img2Engine (image-to-video generation)
 - Avatar Studio (avatar, script, TTS, lipsync)
 - Captions (AI-generated video captions with sentence selection)
-- Img2Video (image-to-video generation)
 - Lifetime (age progression: baby photo → aging frames → transition videos → final compilation)
 - The Machine (end-to-end pipeline orchestration)
 - Library (history, favorites, reuse)
+- Competitor Report (last-7-day creative intelligence, currently Clone AI)
 
 ## Commands
 
 ```bash
-npm run dev              # Start dev (client + server concurrently)
-npm run dev:web:server   # Server only (port 3002)
+# Dev
+npm run dev              # Start dev (client + server via scripts/dev-web.sh)
+npm run dev:web:server   # Server only (port $PIXFLOW_WEB_API_PORT, default 3002)
 npm run dev:web:client   # Vite client only
+
+# Build & Preview
 npm run build            # Production build (Vite) → dist/web
+npm run preview          # Preview production build locally
+
+# Quality
 npm run lint             # TypeScript type check (tsc --noEmit)
 npm run lint:biome       # Biome linter
 npm run format           # Biome auto-format
+npm run format:check     # Check format without writing
+
+# Test
 npm run test             # Vitest (runs native:rebuild first)
 npm run test:watch       # Vitest watch mode
+npm run test:coverage    # Vitest with coverage reports
 npm run smoke:api        # API smoke tests
 npm run smoke:journey    # Critical path journey tests
+npm run smoke:external   # External pipeline smoke tests
+
+# Deploy
 npm run deploy:pages     # Deploy to Cloudflare Pages (production)
+npm run deploy:pages:preview # Deploy preview build
+
+# Telemetry & Gates
 npm run telemetry:check  # Run telemetry gates (ci profile)
 npm run gate:release     # Full release gate (telemetry + regression + frontend perf)
+npm run preflight:release # Release preflight checks
+npm run native:rebuild   # Rebuild better-sqlite3 native binding
+
+# PGP Lock
+npm run pgp:lock:check   # Verify Prompt Generation Pipeline lock (must pass in CI)
+npm run pgp:lock:update  # Update PGP lock fingerprint (requires explicit unlock token)
 ```
+
+## PGP Lock Protocol (Do Not Bypass)
+
+Prompt Generation Pipeline (PGP) is protected by a lock guard and must not be modified casually.
+
+Protected scope:
+- `src/server/routes/prompts.ts`
+- `src/server/services/promptGenerator.ts`
+- `src/server/services/research.ts`
+- `src/server/utils/prompts.ts`
+- `docs/PIPELINE.md`
+- `docs/ops/pgp-lock.json` (lock fingerprint output)
+- `scripts/pgp-lock-guard.js` (enforcement script)
+
+Rules:
+1. Always run `npm run pgp:lock:check` before and after any PGP-adjacent changes.
+2. If lock check fails, do not update lock automatically.
+3. Update lock only after explicit user instruction that clearly requests PGP change approval.
+4. Lock update requires:
+   - `PIXFLOW_PGP_UNLOCK=I_HAVE_EXPLICIT_USER_APPROVAL_FROM_PIXERY`
+   - `PIXFLOW_PGP_UNLOCK_NOTE="<reason>"`
 
 ## Tech Stack
 
@@ -61,8 +106,8 @@ src/
 │   ├── stores/            # Zustand stores (avatarStore, captionsPresetStore, navigationStore)
 │   └── types/             # TypeScript definitions
 ├── server/                # Express API
-│   ├── routes/            # REST endpoints (avatars, captions, videos, lifetime)
-│   ├── services/          # Business logic (captions, fal, kling, hedra, vision, wizper)
+│   ├── routes/            # REST endpoints (prompts, avatars, captions, videos, lifetime, competitor-report)
+│   ├── services/          # Business logic (promptGenerator, research, fal, kling, hedra, vision, tts, lipsync, captions)
 │   ├── db/                # SQLite via better-sqlite3 (singleton, WAL mode, foreign keys ON)
 │   ├── middleware/         # Auth (JWT 7d expiry), rate limiting
 │   ├── smoke/             # Smoke test suites (api, journey, external pipeline)
@@ -84,12 +129,12 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
 - Request dedup: counter-based stale response rejection (e.g. `transcriptionRequestId`)
 
 ### Express App Init Order (createApp.ts)
-`validateServerEnv` → `initDatabase` → `migrateJsonToSqlite` → `ensureBootstrapAdmin` → `scheduleAutoExport` → CORS → JSON (10mb limit) → static routes → health → public routes (auth, products) → protected routes → error handler
+`validateServerEnv` → `initDatabase` → `migrateJsonToSqlite` → `ensureBootstrapAdminIfConfigured` → `scheduleAutoExport` → CORS → JSON (10mb limit) → static routes → health → public routes (auth, products) → protected routes → error handler
 
 ### Navigation & Page Registration
 Adding a new page requires syncing these files:
-1. `AppShell.tsx` - lazy import + PAGES object + PAGE_TITLES + PAGE_ICONS
-2. `SideNav.tsx` - SIDEBAR_ITEMS array + badge logic if needed
+1. `AppShell.tsx` - lazy import + PAGES object + PAGE_ICONS (titles via `brandedName()`)
+2. `SideNav.tsx` - SIDEBAR_ITEMS array + badge logic if needed (imports from stores for badge counts)
 3. `navigationStore.ts` - TabId union type
 
 ### Lifetime Pipeline (lifetime.ts)
@@ -102,13 +147,23 @@ Adding a new page requires syncing these files:
 ### Prompt Factory Pipeline (promptGenerator.ts + prompts.ts)
 - **SSE streaming**: GET `/api/prompts/generate` uses EventSource (SSE) for progressive delivery. Each prompt is emitted via `onBatchDone` callback the moment its GPT-4o call resolves — not batched at the end.
 - **`onBatchDone` signature**: `(completedCount, total, prompt, index) => void` — passes the prompt object and its index so the route can emit it immediately.
-- **Parallel workers**: `generatePrompts()` spawns `min(10, count)` parallel workers pulling from a shared queue. Each worker calls `generateSinglePromptWithTheme()` → GPT-4o with `response_format: { type: 'json_object' }`.
+- **Parallel workers**: `generatePrompts()` spawns `min(4, count)` parallel workers pulling from a shared queue. This is intentionally capped at 4 to reduce provider throttling and fallback drift.
+- **Reference-image framing**: prompts are enforced to assume one or more reference images, not a single hardcoded reference-photo assumption.
 - **Schema alignment is critical**: The JSON schema in the system prompt sent to GPT-4o MUST match the `PromptOutput` TypeScript interface in `src/server/utils/prompts.ts` exactly. Historical bug: mismatched field names (e.g. top-level `expression` vs `pose.expression`, `camera.framing` vs `camera.focus`) caused GPT to return valid JSON that didn't map to the expected type, silently producing "generic" prompts.
 - **`PROMPT_SCHEMA_EXAMPLE` constant**: Used by `generatePromptBatch()` and `textToPrompt()`. Already aligned with `PromptOutput`. The inline schema in `generateSinglePromptWithTheme()` must stay in sync with this.
 - **Fallback prompts**: `createFallbackPrompt()` returns a scaffold with `FALLBACK SCAFFOLD` markers in outfit fields. Every fallback path now logs explicitly (empty content, JSON parse failure, missing core fields, catch block).
 - **SSE headers**: Both GET and POST routes use `flushHeaders()`, `X-Accel-Buffering: no`, `Cache-Control: no-cache` to prevent proxy/buffer delays.
-- **Research pipeline**: `performResearch()` → `analyzeResearchResults()` feeds into prompt generation. Access research data via `researchBrief.trend_findings.*` (NOT `research.key_themes` etc. which don't exist).
+- **Research pipeline**: `performResearch()` / `performResearchWithMeta()` → `analyzeResearchResults()` feeds into prompt generation. Access research data via `researchBrief.trend_findings.*` (NOT `research.key_themes` etc. which don't exist).
+- **Web search constraint**: when Responses API web search tool is enabled, do not use JSON mode (`response_format`). Parse structured JSON from output text with robust fallback parsing.
 - **`getOpenAI()` singleton**: Uses `clientInitializing` flag with `try/finally` to prevent deadlock if init throws.
+
+### Competitor Report Pipeline (competitorReport.ts)
+- `/api/competitor-report/apps`: returns supported apps list (currently Clone AI).
+- `/api/competitor-report/weekly`: uses OpenAI Responses + `web_search_preview` to generate last-7-day competitor report payload.
+- Payload normalization includes:
+  - URL sanitization (`http/https` only)
+  - strict date-window filtering (`start_date..end_date`)
+  - data gap reporting for dropped/invalid rows
 
 ### Static Asset Directories
 Server serves: `/uploads`, `/outputs`, `/avatars`, `/avatars_generated`, `/avatars_uploads`.
@@ -120,8 +175,10 @@ Copy `.env.example` for full list. Key vars:
 - `PIXFLOW_WEB_API_PORT` - API port (default 3002)
 - `PIXFLOW_AUTH_MODE` - `disabled` (default) or `token` (JWT)
 - `JWT_SECRET` - Required when auth enabled (min 32 chars, 7d expiry)
-- AI keys: `OPENAI_API_KEY`, `FAL_API_KEY`, `KLING_API_KEY`, `HEDRA_API_KEY`, `ELEVENLABS_API_KEY`
+- AI keys: `OPENAI_API_KEY`, `FAL_API_KEY`, `KLING_API_KEY`, `HEDRA_API_KEY`, `ELEVENLABS_API_KEY` (all optional, gracefully skipped)
+- `RESEARCH_WEB_ENABLED` - Enable/disable web-grounded research (default: false)
 - Dev bypass: `PIXFLOW_AUTH_BYPASS=1` + `VITE_PIXFLOW_DEV_AUTO_LOGIN=1` (dev only)
+- Bootstrap admin: `PIXFLOW_BOOTSTRAP_ADMIN_ON_STARTUP=true` + `_EMAIL`, `_PASSWORD`, `_NAME`
 
 ## Timeouts
 
@@ -141,8 +198,9 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 ## Testing
 
 - `mockResponse()` helper in `src/server/test-helpers.ts` (returns `_status` + `_json`)
+- `setupTestDb()` creates temporary test database, `withEnv()` overrides env vars in tests
 - `pretest` rebuilds native bindings automatically
-- Smoke tests skip gracefully on `sqlite_runtime_mismatch`
+- Smoke tests skip gracefully on `sqlite_runtime_mismatch` via `isSqliteRuntimeCompatible()`
 - Mock providers toggleable via `isMockProvidersEnabled()`
 
 ## Gotchas
@@ -155,17 +213,20 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Caption segments: max 8 words / 72 chars per segment
 - FAL.ai Kling model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
 - Server does not hot-reload all service file changes — restart `npm run dev` after modifying services like `kling.ts`, `promptGenerator.ts`
-- GitHub Actions: push to main with `src/renderer/**` changes triggers Cloudflare Pages deploy; needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets
+- GitHub Actions: push to main triggers Cloudflare Pages deploy when `src/renderer/**`, `public/**`, `package.json`, `package-lock.json`, `vite.web.config.ts`, or `wrangler.toml` change; needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets
 - Prompt Factory: if GPT-4o prompts look "generic" or arrive instantly, check for silent fallbacks in server logs (`FALLBACK for prompt`, `JSON parse failed`, `missing core fields`). The most common cause is schema mismatch between the system prompt JSON and `PromptOutput` interface.
 - Prompt Factory: `generateSinglePromptWithTheme()` catches ALL errors and returns fallback — outer code sees "success". Always check server logs for `[generateSinglePrompt]` prefixed errors.
 - Prompt Factory: `ResearchBrief` properties live under `trend_findings.*`, `technical_recommendations.*`, `competitor_insights.*`, `sub_themes[]` — NOT flat fields like `key_themes` or `visual_elements`.
+- Research: if web grounding silently falls back to model-only behavior, verify server process is restarted and confirm `effective_mode` in `research` meta.
 - Legacy materials in `Burgflow Archive/` - do not reference in new code
 - Keep "Pixflow" naming in all new docs, routes, and UX copy
 
 ## Active Docs
 
-- `docs/PIXFLOW_HANDOFF_FEB2026.md` - Current state handoff
+- `docs/PIXFLOW_HANDOFF_FEB2026.md` - Current state handoff (session-by-session changelog)
 - `docs/PIXFLOW_UI_RULES.md` - UI guidelines
 - `docs/SCHEMA.md` - Database schema
-- `docs/PIPELINE.md` - Pipeline documentation
+- `docs/PIPELINE.md` - Prompt Factory pipeline (research + generation + SSE delivery)
 - `docs/REPO_STRUCTURE.md` - Detailed repo structure
+- `docs/CLOUDFLARE_DEPLOY.md` - Cloudflare Pages deployment guide
+- `docs/ops/` - Operational runbooks, telemetry baselines, regression gate config
