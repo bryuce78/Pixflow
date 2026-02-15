@@ -3,7 +3,9 @@ import {
   ArrowRight,
   Check,
   CheckCircle,
+  Code,
   Copy,
+  Eye,
   Lightbulb,
   Loader2,
   Pencil,
@@ -34,6 +36,76 @@ import { StatusBanner } from '../ui/StatusBanner'
 
 function _extractMood(prompt: GeneratedPrompt): string {
   return prompt.lighting?.mood || prompt.effects?.atmosphere || 'N/A'
+}
+
+const PROMPT_SECTIONS: { key: keyof GeneratedPrompt; label: string }[] = [
+  { key: 'style', label: 'Style' },
+  { key: 'pose', label: 'Pose' },
+  { key: 'lighting', label: 'Lighting' },
+  { key: 'set_design', label: 'Set Design' },
+  { key: 'outfit', label: 'Outfit' },
+  { key: 'camera', label: 'Camera' },
+  { key: 'hairstyle', label: 'Hairstyle' },
+  { key: 'makeup', label: 'Makeup' },
+  { key: 'effects', label: 'Effects' },
+]
+
+function formatValue(val: unknown): string | null {
+  if (val == null) return null
+  if (typeof val === 'string') return val || null
+  if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : null
+  if (typeof val === 'object') {
+    const parts = Object.entries(val as Record<string, unknown>)
+      .map(([k, v]) => {
+        const formatted = formatValue(v)
+        return formatted ? `${k.replace(/_/g, ' ')}: ${formatted}` : null
+      })
+      .filter(Boolean)
+    return parts.length > 0 ? parts.join(' · ') : null
+  }
+  return String(val)
+}
+
+function PromptPreview({ prompt }: { prompt: GeneratedPrompt }) {
+  return (
+    <div className="space-y-3 overflow-y-auto">
+      {PROMPT_SECTIONS.map(({ key, label }) => {
+        const val = prompt[key]
+        if (val == null) return null
+        if (typeof val === 'string') {
+          if (!val) return null
+          return (
+            <div key={key}>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">{label}</span>
+              <p className="text-sm text-surface-700 mt-0.5">{val}</p>
+            </div>
+          )
+        }
+        const obj = val as Record<string, unknown>
+        const entries = Object.entries(obj).filter(([k, v]) => !k.startsWith('_') && v != null && v !== '')
+        if (entries.length === 0) return null
+        return (
+          <div key={key}>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">{label}</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {entries.map(([k, v]) => {
+                const formatted = formatValue(v)
+                if (!formatted) return null
+                return (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-surface-100 text-xs text-surface-600"
+                  >
+                    <span className="font-medium text-surface-400">{k.replace(/_/g, ' ')}:</span> {formatted}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function generateFavoriteName(prompt: GeneratedPrompt, index: number): string {
@@ -99,6 +171,7 @@ export default function PromptFactoryPage() {
   const [editError, setEditError] = useState<string | null>(null)
   const [confirmClearImages, setConfirmClearImages] = useState(false)
   const [confirmClearPrompts, setConfirmClearPrompts] = useState(false)
+  const [showRawJson, setShowRawJson] = useState(false)
   const completedPromptIndexes = prompts.reduce<number[]>((acc, prompt, index) => {
     if (prompt) acc.push(index)
     return acc
@@ -526,6 +599,67 @@ export default function PromptFactoryPage() {
           )}
         </div>
 
+        {/* Key Insights — shown after generation */}
+        {research && (
+          <div className="space-y-3 text-xs border-t border-surface-200/50 pt-4">
+            <div>
+              <h4 className="font-semibold mb-2 flex items-center gap-2 text-surface-900">
+                <Lightbulb className="w-4 h-4 text-warning" />
+                Key Insights
+              </h4>
+              {(() => {
+                const insightKeyCounts = new Map<string, number>()
+                return (
+                  <ul className="space-y-1 text-surface-500">
+                    {research.insights?.slice(0, 3).map((insight) => {
+                      const count = (insightKeyCounts.get(insight) ?? 0) + 1
+                      insightKeyCounts.set(insight, count)
+                      const key = count === 1 ? insight : `${insight}-${count}`
+                      return (
+                        <li key={key} className="flex items-start gap-1.5">
+                          <span className="text-success mt-0.5">•</span>
+                          <span>{insight}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              })()}
+            </div>
+
+            {qualityMetrics && (
+              <div className="p-2 bg-surface-50 rounded text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-surface-400">Quality</span>
+                  <span
+                    className={`font-bold ${
+                      (qualityMetrics.overall_score ?? 0) >= 80
+                        ? 'text-success'
+                        : (qualityMetrics.overall_score ?? 0) >= 60
+                          ? 'text-warning'
+                          : 'text-danger'
+                    }`}
+                  >
+                    {qualityMetrics.overall_score ?? 0}/100
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {!loading && completedPromptCount > 0 && (
+              <Button
+                variant="primary"
+                size="lg"
+                icon={<ArrowRight className="w-4 h-4" />}
+                onClick={handleSendAllToMonster}
+                className="w-full"
+              >
+                Send to Monster
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* 5x2 Numbered Grid */}
         {(prompts.length > 0 || loading) && (
           <div>
@@ -623,70 +757,6 @@ export default function PromptFactoryPage() {
             </div>
           </div>
         )}
-
-        {/* Compact Research Insights */}
-        {research && (
-          <div className="space-y-3 text-xs border-t border-surface-200/50 pt-4">
-            <div>
-              <h4 className="font-semibold mb-2 flex items-center gap-2 text-surface-900">
-                <Lightbulb className="w-4 h-4 text-warning" />
-                Key Insights
-              </h4>
-              {/*
-               * Insights can repeat verbatim; ensure stable React keys without index keys.
-               */}
-              {(() => {
-                const insightKeyCounts = new Map<string, number>()
-                return (
-                  <ul className="space-y-1 text-surface-500">
-                    {research.insights?.slice(0, 3).map((insight) => {
-                      const count = (insightKeyCounts.get(insight) ?? 0) + 1
-                      insightKeyCounts.set(insight, count)
-                      const key = count === 1 ? insight : `${insight}-${count}`
-                      return (
-                        <li key={key} className="flex items-start gap-1.5">
-                          <span className="text-success mt-0.5">•</span>
-                          <span>{insight}</span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )
-              })()}
-            </div>
-
-            {qualityMetrics && (
-              <div className="p-2 bg-surface-50 rounded text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-surface-400">Quality</span>
-                  <span
-                    className={`font-bold ${
-                      (qualityMetrics.overall_score ?? 0) >= 80
-                        ? 'text-success'
-                        : (qualityMetrics.overall_score ?? 0) >= 60
-                          ? 'text-warning'
-                          : 'text-danger'
-                    }`}
-                  >
-                    {qualityMetrics.overall_score ?? 0}/100
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {!loading && completedPromptCount > 0 && (
-              <Button
-                variant="primary"
-                size="lg"
-                icon={<ArrowRight className="w-4 h-4" />}
-                onClick={handleSendAllToMonster}
-                className="w-full"
-              >
-                Send to Monster
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* RIGHT PANEL - Outputs */}
@@ -722,6 +792,14 @@ export default function PromptFactoryPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRawJson(!showRawJson)}
+                    className="p-1.5 rounded-md text-surface-400 hover:text-surface-600 hover:bg-surface-200/50 transition-colors"
+                    title={showRawJson ? 'Visual preview' : 'Raw JSON'}
+                  >
+                    {showRawJson ? <Eye className="w-4 h-4" /> : <Code className="w-4 h-4" />}
+                  </button>
                   <Button
                     variant="ghost"
                     size="xs"
@@ -765,14 +843,20 @@ export default function PromptFactoryPage() {
                   </Button>
                 </div>
               </div>
-              <textarea
-                value={
-                  editingPromptText ?? (selectedIndex != null ? JSON.stringify(prompts[selectedIndex], null, 2) : '')
-                }
-                onChange={(e) => setEditingPromptText(e.target.value)}
-                className="flex-1 min-h-0 w-full bg-surface-50/50 border border-surface-200 rounded-lg p-4 text-xs text-surface-500 font-mono resize-none focus:outline-none focus:border-brand-500 transition-colors whitespace-pre-wrap"
-                spellCheck={false}
-              />
+              {showRawJson ? (
+                <textarea
+                  value={
+                    editingPromptText ?? (selectedIndex != null ? JSON.stringify(prompts[selectedIndex], null, 2) : '')
+                  }
+                  onChange={(e) => setEditingPromptText(e.target.value)}
+                  className="flex-1 min-h-0 w-full bg-surface-50/50 border border-surface-200 rounded-lg p-4 text-xs text-surface-500 font-mono resize-none focus:outline-none focus:border-brand-500 transition-colors whitespace-pre-wrap"
+                  spellCheck={false}
+                />
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto bg-surface-50/50 border border-surface-200 rounded-lg p-4">
+                  <PromptPreview prompt={prompts[selectedIndex]} />
+                </div>
+              )}
             </div>
           )}
         </div>
