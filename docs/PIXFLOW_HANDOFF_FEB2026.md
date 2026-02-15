@@ -23,7 +23,7 @@
 - SQLite database (better-sqlite3)
 - FAL.ai (image generation), Kling/Minimax (video), OpenAI GPT-4o (vision/text)
 
-**Recent Focus:** Like/dislike system, Img2Video improvements, UX enhancements
+**Recent Focus:** Prompt Factory pipeline fixes (schema alignment, SSE streaming, fallback logging), Lifetime pipeline determinism, UX enhancements
 
 ### Current Runtime Status (2026-02-13)
 
@@ -3235,3 +3235,97 @@ src/server/services/ytdlp.ts                 # Ad-ID-aware extraction + debug lo
 
 **Current posture after Session 44:**
 - Lifetime pipeline is now deterministic for gender progression in `auto` mode and produces a controlled final timeline output suitable for consistent UX testing.
+
+---
+
+### Session 45: Prompt Factory Pipeline — Schema Fix, Progressive SSE, Fallback Logging
+
+**Date:** Feb 15, 2026
+
+**Objective:** Fix Prompt Factory generating generic/fallback prompts instead of real GPT-4o outputs, and enable progressive SSE delivery so prompts appear one-by-one.
+
+**Root cause (critical):** The JSON schema sent to GPT-4o in `generateSinglePromptWithTheme()` had mismatched field names compared to the `PromptOutput` TypeScript interface. GPT-4o returned valid JSON, but the fields didn't map to what the codebase expected — causing silent fallback to generic scaffold prompts.
+
+**Schema mismatches fixed:**
+
+| GPT Schema (broken) | PromptOutput Type (expected) |
+|---|---|
+| `expression` (top-level) | `pose.expression` (nested) |
+| `camera.framing` | `camera.focus` |
+| `hairstyle.texture` / `hairstyle.accessories` | `hairstyle.parting` / `hairstyle.details` / `hairstyle.finish` |
+| `makeup.details` | `makeup.style` |
+| `effects.film_emulation` / `effects.special_effects` | `effects.grain` |
+
+**What changed:**
+
+1. **Schema alignment in single prompt generation**
+- Updated:
+  - `src/server/services/promptGenerator.ts`
+- Change:
+  - Inline JSON schema in `generateSinglePromptWithTheme()` now matches `PromptOutput` interface exactly.
+  - `PROMPT_SCHEMA_EXAMPLE` constant (used by batch and textToPrompt) was already correct.
+  - Removed duplicate rule 6.5 in system prompt.
+
+2. **Progressive SSE prompt delivery**
+- Updated:
+  - `src/server/services/promptGenerator.ts`
+  - `src/server/routes/prompts.ts`
+- Change:
+  - `onBatchDone` callback signature expanded: `(count, total)` → `(count, total, prompt, index)`.
+  - Each prompt is now emitted via SSE the moment its GPT-4o call completes.
+  - Removed post-generation `forEach` loop that batch-emitted all prompts at the end.
+  - Added `flushHeaders()` + `X-Accel-Buffering: no` to both GET and POST SSE routes.
+
+3. **Explicit fallback logging**
+- Updated:
+  - `src/server/services/promptGenerator.ts`
+- Change:
+  - Replaced silent `safeJsonParse` in single prompt path with explicit error logging per failure mode.
+  - Added core field validation (`style`, `pose`, `lighting` must exist) before accepting parsed JSON.
+  - Every fallback path now logs with `[generateSinglePrompt]` prefix and specific reason.
+
+4. **getOpenAI() deadlock prevention**
+- Updated:
+  - `src/server/services/promptGenerator.ts`
+- Change:
+  - Wrapped initialization in `try/finally` so `clientInitializing` flag resets even on error.
+
+5. **ResearchBrief property fix (prior commit)**
+- Updated:
+  - `src/server/services/promptGenerator.ts`
+- Change:
+  - Fixed `research.key_themes`, `research.visual_elements`, `research.mood_keywords` (non-existent) → `research.trend_findings.trending_aesthetics`, `.color_palettes`, `.outfit_trends`, `.set_design_trends`.
+
+6. **Documentation updated**
+- Updated:
+  - `CLAUDE.md` — Added Prompt Factory Pipeline section and gotchas.
+  - `docs/PIPELINE.md` — Added Technical Architecture section with SSE flow, worker pattern, schema alignment table, fallback handling, ResearchBrief interface.
+
+**Files modified:**
+```
+src/server/services/promptGenerator.ts  # Schema fix, fallback logging, deadlock fix
+src/server/routes/prompts.ts            # Progressive SSE delivery, flush headers
+CLAUDE.md                               # Pipeline patterns + gotchas
+docs/PIPELINE.md                        # Technical architecture section
+docs/PIXFLOW_HANDOFF_FEB2026.md         # This session entry
+```
+
+**Commits:**
+- `9c2cafa` — fix: use correct ResearchBrief properties in single prompt generation
+- `de013a4` — fix: stream prompts progressively via SSE as each GPT-4o call completes
+- `61eeff5` — fix: align GPT-4o prompt schema with PromptOutput type, add fallback logging
+- `5a1e056` — docs: add Prompt Factory pipeline patterns and gotchas to CLAUDE.md
+
+**Validation:**
+- `npm run lint` → pass
+- `npm run lint:biome` → pass
+- Codex MCP review → LGTM (both commits)
+
+**Debugging notes for future sessions:**
+- If prompts look generic or arrive instantly → check server logs for `[generateSinglePrompt]` errors.
+- If prompts arrive all at once → verify `onBatchDone` callback emits `prompt` event, not just `progress`.
+- Server must be restarted after changes to `promptGenerator.ts` (no hot-reload for service files).
+- The `PROMPT_SCHEMA_EXAMPLE` constant and the inline schema in `generateSinglePromptWithTheme()` must stay in sync with `PromptOutput` interface in `src/server/utils/prompts.ts`.
+
+**Current posture after Session 45:**
+- Prompt Factory now generates real GPT-4o prompts with correct schema alignment, delivers them progressively via SSE, and logs all fallback paths explicitly for debugging.

@@ -343,3 +343,105 @@ Number of prompts: 8
 - 4 emotions used
 - 5 lighting setups used
 - No duplicates
+
+---
+
+## Technical Architecture: Prompt Generation & Delivery
+
+### SSE Streaming (Progressive Delivery)
+
+The frontend uses `EventSource` (GET `/api/prompts/generate`) for real-time prompt delivery.
+Each prompt is emitted the moment its GPT-4o call completes — not batched at the end.
+
+```
+Frontend (EventSource)          Backend (Express SSE)           GPT-4o Workers
+       │                               │                              │
+       │──── GET /generate ────────────▶│                              │
+       │                               │──── spawn N workers ─────────▶│
+       │◀──── event: status ───────────│                              │
+       │◀──── event: research ─────────│                              │
+       │                               │◀──── prompt 1 done ──────────│
+       │◀──── event: prompt (idx=0) ───│                              │
+       │◀──── event: progress (1/N) ───│                              │
+       │                               │◀──── prompt 2 done ──────────│
+       │◀──── event: prompt (idx=1) ───│                              │
+       │◀──── event: progress (2/N) ───│                              │
+       │           ...                 │           ...                 │
+       │                               │◀──── prompt N done ──────────│
+       │◀──── event: prompt (idx=N-1) ─│                              │
+       │◀──── event: progress (N/N) ───│                              │
+       │◀──── event: done ─────────────│                              │
+```
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/server/services/promptGenerator.ts` | GPT-4o calls, system prompt, schema, fallback logic |
+| `src/server/routes/prompts.ts` | SSE route handlers, pipeline orchestration |
+| `src/renderer/stores/promptStore.ts` | Frontend EventSource handling, progressive state |
+| `src/server/utils/prompts.ts` | `PromptOutput` type definition, validation, variety scoring |
+| `src/server/services/research.ts` | `performResearch()`, `analyzeResearchResults()` |
+
+### Parallel Worker Pattern
+
+`generatePrompts()` spawns `min(10, count)` workers pulling from a shared queue:
+
+```
+generatePrompts(concept, count, researchBrief, onBatchDone)
+  └── workers[0..9] (parallel)
+       └── generateSinglePromptWithTheme(client, concept, theme, research, index)
+            ├── success → prompts[index] = result
+            └── failure → prompts[index] = createFallbackPrompt()
+       └── onBatchDone(completed, count, prompts[index], index)  ← emits SSE
+```
+
+The `onBatchDone` callback passes `(completedCount, total, prompt, index)` so the route can emit
+both `prompt` and `progress` SSE events immediately as each worker finishes.
+
+### Schema Alignment (Critical)
+
+The JSON schema in the GPT-4o system prompt **MUST** match the `PromptOutput` TypeScript interface.
+
+| TypeScript (`PromptOutput`) | GPT System Prompt Schema |
+|-----------------------------|--------------------------|
+| `pose.expression: { facial, eyes, mouth }` | `"pose": { "expression": { "facial", "eyes", "mouth" } }` |
+| `camera.focus` | `"camera": { "focus": "..." }` |
+| `hairstyle: { style, parting, details, finish }` | `"hairstyle": { "style", "parting", "details", "finish" }` |
+| `makeup: { style, skin, eyes, lips }` | `"makeup": { "style", "skin", "eyes", "lips" }` |
+| `effects: { color_grade, grain }` | `"effects": { "color_grade", "grain" }` |
+
+There are **two schema sources** that must stay in sync:
+1. **`PROMPT_SCHEMA_EXAMPLE` constant** — used by `generatePromptBatch()` and `textToPrompt()`
+2. **Inline schema in `generateSinglePromptWithTheme()`** — used for single prompt generation
+
+### Fallback & Error Handling
+
+Every fallback path logs explicitly:
+
+| Condition | Log Prefix | What Happens |
+|-----------|-----------|--------------|
+| OpenAI returns empty content | `Prompt X: OpenAI returned empty content` | Returns `createFallbackPrompt()` |
+| JSON parse failure | `Prompt X: JSON parse failed` | Returns `createFallbackPrompt()` |
+| Missing core fields (style/pose/lighting) | `Prompt X: Parsed JSON missing core fields` | Returns `createFallbackPrompt()` |
+| Any uncaught error | `FALLBACK for prompt X:` | Returns `createFallbackPrompt()` |
+
+Fallback prompts contain `FALLBACK SCAFFOLD` markers in outfit fields. If prompts arrive instantly
+and look generic, check server logs for `[generateSinglePrompt]` prefixed errors.
+
+### ResearchBrief Interface
+
+Access research data through nested properties:
+
+```typescript
+researchBrief.trend_findings.trending_aesthetics    // string[]
+researchBrief.trend_findings.color_palettes          // string[]
+researchBrief.trend_findings.outfit_trends           // string[]
+researchBrief.trend_findings.set_design_trends       // string[]
+researchBrief.technical_recommendations.lens_options  // string[]
+researchBrief.technical_recommendations.lighting_styles // string[]
+researchBrief.competitor_insights.common_patterns     // string[]
+researchBrief.sub_themes[].name / .aesthetic / .mood / .key_elements
+```
+
+**Never** access flat properties like `research.key_themes` or `research.visual_elements` — they don't exist.
