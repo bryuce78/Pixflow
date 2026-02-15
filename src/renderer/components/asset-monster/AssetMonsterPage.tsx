@@ -913,283 +913,282 @@ Examples:
       {/* Right Column: Outputs */}
       <div className="space-y-6">
         {/* Step 4: Final Outputs */}
-        <div className="bg-surface-50 rounded-lg p-4">
-          <StepHeader stepNumber={4} title="Final Outputs" />
+        {batchProgress && (
+          <div className="bg-surface-50 rounded-lg p-4">
+            <StepHeader stepNumber={4} title="Final Outputs" />
 
-          {batchProgress ? (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <StatusPill
-                    status={
-                      batchProgress.status === 'completed'
-                        ? 'completed'
-                        : batchProgress.status === 'failed'
-                          ? 'failed'
-                          : 'generating'
-                    }
-                    size="sm"
-                    label={batchProgress.status.toUpperCase()}
-                  />
-                  <span className="text-sm text-surface-400">{batchProgress.progress}%</span>
-                </div>
-              </div>
-              <ProgressBar value={batchProgress.progress} className="mb-4" />
-
-              <div className="grid grid-cols-5 gap-3">
-                {batchProgress.images.map((img) => (
-                  <button
-                    type="button"
-                    key={img.index}
-                    onClick={() => {
-                      if (batchProgress.status === 'completed' && img.status === 'completed') {
-                        toggleResultImage(img.index)
-                      } else if (img.status === 'completed' && img.url) {
-                        setPreviewImage(img.url)
+            {
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <StatusPill
+                      status={
+                        batchProgress.status === 'completed'
+                          ? 'completed'
+                          : batchProgress.status === 'failed'
+                            ? 'failed'
+                            : 'generating'
                       }
-                    }}
-                    onDoubleClick={() => img.status === 'completed' && img.url && setPreviewImage(img.url)}
-                    title={
-                      img.status === 'completed'
-                        ? 'Double click to preview'
-                        : img.status === 'generating'
-                          ? 'Generating...'
-                          : img.status === 'failed'
-                            ? 'Generation failed'
-                            : batchLoading
-                              ? 'Queued'
-                              : undefined
-                    }
-                    className={`relative aspect-[9/16] rounded-lg border-2 flex items-center justify-center ${
-                      img.status === 'completed' && selectedResultImages.has(img.index)
-                        ? 'border-brand-400 bg-brand-600/10 ring-2 ring-brand-400/30 cursor-pointer hover:scale-105 transition-all'
-                        : img.status === 'completed'
-                          ? 'border-success bg-success/10 cursor-pointer hover:border-success-hover hover:scale-105 transition-all'
-                          : img.status === 'generating'
-                            ? 'border-warning bg-warning/10'
-                            : img.status === 'failed'
-                              ? 'border-danger bg-danger/10'
-                              : 'border-surface-200 bg-surface-100'
-                    }`}
-                  >
-                    {img.status === 'completed' && img.url ? (
-                      <img
-                        src={assetUrl(img.url!)}
-                        alt={`Generated ${img.index + 1}`}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    ) : img.status === 'generating' ? (
-                      <>
-                        <div className="absolute inset-0 overflow-hidden rounded-lg">
-                          <div
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-warning/10 to-transparent"
-                            style={{ animation: 'shimmer 1.5s infinite' }}
-                          />
-                        </div>
-                        <Loader2 className="w-6 h-6 animate-spin text-warning" />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const updatedImages = batchProgress.images.map((i) =>
-                              i.index === img.index
-                                ? { ...i, status: 'failed' as const, error: 'Cancelled by user' }
-                                : i,
-                            )
-                            useGenerationStore.setState({
-                              batchProgress: { ...batchProgress, images: updatedImages },
-                            })
-                          }}
-                          className="absolute top-1 right-1 w-6 h-6 bg-danger/90 hover:bg-danger rounded-full flex items-center justify-center transition-colors z-10"
-                          title="Cancel generation"
-                        >
-                          <X className="w-4 h-4 text-white" />
-                        </button>
-                      </>
-                    ) : img.status === 'failed' ? (
-                      <XCircle className="w-6 h-6 text-danger" />
-                    ) : batchLoading ? (
-                      <>
-                        <div className="absolute inset-0 overflow-hidden rounded-lg">
-                          <div
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-300/10 to-transparent"
-                            style={{ animation: 'shimmer 2s infinite' }}
-                          />
-                        </div>
-                        <Loader2 className="w-5 h-5 animate-spin text-surface-300" />
-                      </>
-                    ) : (
-                      <Image className="w-6 h-6 text-surface-400" />
-                    )}
-                    {batchProgress.status === 'completed' && img.status === 'completed' && (
-                      <div
-                        className={`absolute top-1.5 left-1.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                          selectedResultImages.has(img.index)
-                            ? 'bg-brand-500 border-brand-500'
-                            : 'bg-black/40 border-white/50'
-                        }`}
-                      >
-                        {selectedResultImages.has(img.index) && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                    )}
-                    {img.status === 'completed' && img.url && batchProgress.status === 'completed' && (
-                      <div className="absolute bottom-2 right-2 flex gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!batchImageIds.has(img.index)) {
-                              console.warn('[AssetMonster] Image not in DB yet, cannot rate')
-                              return
-                            }
-                            handleRateImage(img.index, 1)
-                          }}
-                          disabled={!batchImageIds.has(img.index)}
-                          className="w-7 h-7 rounded-full bg-black/60 hover:bg-success/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title={batchImageIds.has(img.index) ? 'Like' : 'Loading...'}
-                        >
-                          <ThumbsUp className="w-4 h-4 text-white" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!batchImageIds.has(img.index)) {
-                              console.warn('[AssetMonster] Image not in DB yet, cannot rate')
-                              return
-                            }
-                            handleRateImage(img.index, -1)
-                          }}
-                          disabled={!batchImageIds.has(img.index)}
-                          className="w-7 h-7 rounded-full bg-black/60 hover:bg-danger/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title={batchImageIds.has(img.index) ? 'Dislike' : 'Loading...'}
-                        >
-                          <ThumbsDown className="w-4 h-4 text-white" />
-                        </button>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
+                      size="sm"
+                      label={batchProgress.status.toUpperCase()}
+                    />
+                    <span className="text-sm text-surface-400">{batchProgress.progress}%</span>
+                  </div>
+                </div>
+                <ProgressBar value={batchProgress.progress} className="mb-4" />
 
-              {batchProgress.status === 'completed' && (
-                <div className="mt-4 pt-4 border-t border-surface-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        icon={<CheckSquare className="w-4 h-4" />}
-                        onClick={() =>
-                          selectedResultImages.size ===
-                          batchProgress.images.filter((i) => i.status === 'completed').length
-                            ? deselectAllResultImages()
-                            : selectAllResultImages()
+                <div className="grid grid-cols-5 gap-3">
+                  {batchProgress.images.map((img) => (
+                    <button
+                      type="button"
+                      key={img.index}
+                      onClick={() => {
+                        if (batchProgress.status === 'completed' && img.status === 'completed') {
+                          toggleResultImage(img.index)
+                        } else if (img.status === 'completed' && img.url) {
+                          setPreviewImage(img.url)
                         }
-                      >
-                        {selectedResultImages.size ===
-                        batchProgress.images.filter((i) => i.status === 'completed').length
-                          ? 'Deselect All'
-                          : 'Select All'}
-                      </Button>
-                      {selectedResultImages.size > 0 && (
-                        <span className="text-xs text-surface-400">{selectedResultImages.size} selected</span>
+                      }}
+                      onDoubleClick={() => img.status === 'completed' && img.url && setPreviewImage(img.url)}
+                      title={
+                        img.status === 'completed'
+                          ? 'Double click to preview'
+                          : img.status === 'generating'
+                            ? 'Generating...'
+                            : img.status === 'failed'
+                              ? 'Generation failed'
+                              : batchLoading
+                                ? 'Queued'
+                                : undefined
+                      }
+                      className={`relative aspect-[9/16] rounded-lg border-2 flex items-center justify-center ${
+                        img.status === 'completed' && selectedResultImages.has(img.index)
+                          ? 'border-brand-400 bg-brand-600/10 ring-2 ring-brand-400/30 cursor-pointer hover:scale-105 transition-all'
+                          : img.status === 'completed'
+                            ? 'border-success bg-success/10 cursor-pointer hover:border-success-hover hover:scale-105 transition-all'
+                            : img.status === 'generating'
+                              ? 'border-warning bg-warning/10'
+                              : img.status === 'failed'
+                                ? 'border-danger bg-danger/10'
+                                : 'border-surface-200 bg-surface-100'
+                      }`}
+                    >
+                      {img.status === 'completed' && img.url ? (
+                        <img
+                          src={assetUrl(img.url!)}
+                          alt={`Generated ${img.index + 1}`}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : img.status === 'generating' ? (
+                        <>
+                          <div className="absolute inset-0 overflow-hidden rounded-lg">
+                            <div
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-warning/10 to-transparent"
+                              style={{ animation: 'shimmer 1.5s infinite' }}
+                            />
+                          </div>
+                          <Loader2 className="w-6 h-6 animate-spin text-warning" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const updatedImages = batchProgress.images.map((i) =>
+                                i.index === img.index
+                                  ? { ...i, status: 'failed' as const, error: 'Cancelled by user' }
+                                  : i,
+                              )
+                              useGenerationStore.setState({
+                                batchProgress: { ...batchProgress, images: updatedImages },
+                              })
+                            }}
+                            className="absolute top-1 right-1 w-6 h-6 bg-danger/90 hover:bg-danger rounded-full flex items-center justify-center transition-colors z-10"
+                            title="Cancel generation"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+                        </>
+                      ) : img.status === 'failed' ? (
+                        <XCircle className="w-6 h-6 text-danger" />
+                      ) : batchLoading ? (
+                        <>
+                          <div className="absolute inset-0 overflow-hidden rounded-lg">
+                            <div
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-300/10 to-transparent"
+                              style={{ animation: 'shimmer 2s infinite' }}
+                            />
+                          </div>
+                          <Loader2 className="w-5 h-5 animate-spin text-surface-300" />
+                        </>
+                      ) : (
+                        <Image className="w-6 h-6 text-surface-400" />
                       )}
+                      {batchProgress.status === 'completed' && img.status === 'completed' && (
+                        <div
+                          className={`absolute top-1.5 left-1.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                            selectedResultImages.has(img.index)
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'bg-black/40 border-white/50'
+                          }`}
+                        >
+                          {selectedResultImages.has(img.index) && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                      )}
+                      {img.status === 'completed' && img.url && batchProgress.status === 'completed' && (
+                        <div className="absolute bottom-2 right-2 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!batchImageIds.has(img.index)) {
+                                console.warn('[AssetMonster] Image not in DB yet, cannot rate')
+                                return
+                              }
+                              handleRateImage(img.index, 1)
+                            }}
+                            disabled={!batchImageIds.has(img.index)}
+                            className="w-7 h-7 rounded-full bg-black/60 hover:bg-success/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={batchImageIds.has(img.index) ? 'Like' : 'Loading...'}
+                          >
+                            <ThumbsUp className="w-4 h-4 text-white" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!batchImageIds.has(img.index)) {
+                                console.warn('[AssetMonster] Image not in DB yet, cannot rate')
+                                return
+                              }
+                              handleRateImage(img.index, -1)
+                            }}
+                            disabled={!batchImageIds.has(img.index)}
+                            className="w-7 h-7 rounded-full bg-black/60 hover:bg-danger/80 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={batchImageIds.has(img.index) ? 'Dislike' : 'Loading...'}
+                          >
+                            <ThumbsDown className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {batchProgress.status === 'completed' && (
+                  <div className="mt-4 pt-4 border-t border-surface-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          icon={<CheckSquare className="w-4 h-4" />}
+                          onClick={() =>
+                            selectedResultImages.size ===
+                            batchProgress.images.filter((i) => i.status === 'completed').length
+                              ? deselectAllResultImages()
+                              : selectAllResultImages()
+                          }
+                        >
+                          {selectedResultImages.size ===
+                          batchProgress.images.filter((i) => i.status === 'completed').length
+                            ? 'Deselect All'
+                            : 'Select All'}
+                        </Button>
+                        {selectedResultImages.size > 0 && (
+                          <span className="text-xs text-surface-400">{selectedResultImages.size} selected</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<Download className="w-4 h-4" />}
+                        onClick={() => {
+                          const completedImages = batchProgress.images.filter((i) => i.status === 'completed' && i.url)
+                          const isAllSelected = selectedResultImages.size === completedImages.length
+
+                          if (isAllSelected || selectedResultImages.size === 0) {
+                            // Download all
+                            downloadImages(completedImages.map((i) => i.url!))
+                          } else {
+                            // Download selected
+                            downloadImages(
+                              batchProgress.images
+                                .filter((i) => i.status === 'completed' && i.url && selectedResultImages.has(i.index))
+                                .map((i) => i.url!),
+                            )
+                          }
+                        }}
+                      >
+                        {selectedResultImages.size === 0 ||
+                        selectedResultImages.size ===
+                          batchProgress.images.filter((i) => i.status === 'completed').length
+                          ? 'Download All'
+                          : `Download Selected (${selectedResultImages.size})`}
+                      </Button>
+                      <Button
+                        variant="lime"
+                        size="sm"
+                        icon={<ImagePlus className="w-4 h-4" />}
+                        onClick={() => {
+                          const completedImages =
+                            batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
+                          const isAllSelected = selectedResultImages.size === completedImages.length
+
+                          const imagesToSend =
+                            isAllSelected || selectedResultImages.size === 0
+                              ? completedImages
+                              : completedImages.filter((img) => selectedResultImages.has(img.index))
+
+                          const imageUrls = imagesToSend.map((img) => img.url!)
+                          const newIds = useImg2VideoQueueStore.getState().addItems(imageUrls, 'img2img')
+                          if (newIds.length > 0) {
+                            useImg2VideoQueueStore.getState().selectItem(newIds[0])
+                          }
+                          navigate('img2video')
+                        }}
+                      >
+                        {selectedResultImages.size === 0 ||
+                        selectedResultImages.size ===
+                          batchProgress.images.filter((i) => i.status === 'completed').length
+                          ? 'Img2Img'
+                          : `Img2Img (${selectedResultImages.size})`}
+                      </Button>
+                      <Button
+                        variant="lime"
+                        size="sm"
+                        icon={<Film className="w-4 h-4" />}
+                        onClick={() => {
+                          const completedImages =
+                            batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
+                          const isAllSelected = selectedResultImages.size === completedImages.length
+
+                          const imagesToSend =
+                            isAllSelected || selectedResultImages.size === 0
+                              ? completedImages
+                              : completedImages.filter((img) => selectedResultImages.has(img.index))
+
+                          const imageUrls = imagesToSend.map((img) => img.url!)
+                          const newIds = useImg2VideoQueueStore.getState().addItems(imageUrls, 'img2video')
+                          if (newIds.length > 0) {
+                            useImg2VideoQueueStore.getState().selectItem(newIds[0])
+                          }
+                          navigate('img2video')
+                        }}
+                      >
+                        {selectedResultImages.size === 0 ||
+                        selectedResultImages.size ===
+                          batchProgress.images.filter((i) => i.status === 'completed').length
+                          ? 'Img2Video'
+                          : `Img2Video (${selectedResultImages.size})`}
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={<Download className="w-4 h-4" />}
-                      onClick={() => {
-                        const completedImages = batchProgress.images.filter((i) => i.status === 'completed' && i.url)
-                        const isAllSelected = selectedResultImages.size === completedImages.length
-
-                        if (isAllSelected || selectedResultImages.size === 0) {
-                          // Download all
-                          downloadImages(completedImages.map((i) => i.url!))
-                        } else {
-                          // Download selected
-                          downloadImages(
-                            batchProgress.images
-                              .filter((i) => i.status === 'completed' && i.url && selectedResultImages.has(i.index))
-                              .map((i) => i.url!),
-                          )
-                        }
-                      }}
-                    >
-                      {selectedResultImages.size === 0 ||
-                      selectedResultImages.size === batchProgress.images.filter((i) => i.status === 'completed').length
-                        ? 'Download All'
-                        : `Download Selected (${selectedResultImages.size})`}
-                    </Button>
-                    <Button
-                      variant="lime"
-                      size="sm"
-                      icon={<ImagePlus className="w-4 h-4" />}
-                      onClick={() => {
-                        const completedImages =
-                          batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
-                        const isAllSelected = selectedResultImages.size === completedImages.length
-
-                        const imagesToSend =
-                          isAllSelected || selectedResultImages.size === 0
-                            ? completedImages
-                            : completedImages.filter((img) => selectedResultImages.has(img.index))
-
-                        const imageUrls = imagesToSend.map((img) => img.url!)
-                        const newIds = useImg2VideoQueueStore.getState().addItems(imageUrls, 'img2img')
-                        if (newIds.length > 0) {
-                          useImg2VideoQueueStore.getState().selectItem(newIds[0])
-                        }
-                        navigate('img2video')
-                      }}
-                    >
-                      {selectedResultImages.size === 0 ||
-                      selectedResultImages.size === batchProgress.images.filter((i) => i.status === 'completed').length
-                        ? 'Img2Img'
-                        : `Img2Img (${selectedResultImages.size})`}
-                    </Button>
-                    <Button
-                      variant="lime"
-                      size="sm"
-                      icon={<Film className="w-4 h-4" />}
-                      onClick={() => {
-                        const completedImages =
-                          batchProgress?.images.filter((img) => img.status === 'completed' && img.url) ?? []
-                        const isAllSelected = selectedResultImages.size === completedImages.length
-
-                        const imagesToSend =
-                          isAllSelected || selectedResultImages.size === 0
-                            ? completedImages
-                            : completedImages.filter((img) => selectedResultImages.has(img.index))
-
-                        const imageUrls = imagesToSend.map((img) => img.url!)
-                        const newIds = useImg2VideoQueueStore.getState().addItems(imageUrls, 'img2video')
-                        if (newIds.length > 0) {
-                          useImg2VideoQueueStore.getState().selectItem(newIds[0])
-                        }
-                        navigate('img2video')
-                      }}
-                    >
-                      {selectedResultImages.size === 0 ||
-                      selectedResultImages.size === batchProgress.images.filter((i) => i.status === 'completed').length
-                        ? 'Img2Video'
-                        : `Img2Video (${selectedResultImages.size})`}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-surface-400">
-              <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">Configure generation and click Generate</p>
-              <p className="text-xs mt-1">Final outputs will appear here</p>
-            </div>
-          )}
-        </div>
+                )}
+              </div>
+            }
+          </div>
+        )}
 
         {/* Previous Batches */}
         {completedBatches.length > 0 && (

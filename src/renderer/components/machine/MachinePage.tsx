@@ -873,15 +873,6 @@ export default function MachinePage() {
               </div>
             </div>
           )}
-
-          {isIdle && (
-            <div className="bg-surface-50 rounded-lg p-4">
-              <StepHeader stepNumber={5} title="Output" />
-              <div className="rounded-lg border border-surface-200 bg-surface-0 p-6 text-sm text-surface-500">
-                Final outputs will appear here once The Machine finishes.
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

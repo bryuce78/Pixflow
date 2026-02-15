@@ -173,64 +173,59 @@ export function ReactionVideoPage({
 
       {/* RIGHT COLUMN: OUTPUT */}
       <div className="space-y-6 xl:col-start-2 xl:col-end-3">
-        {/* Step 6: Final Outputs */}
-        <div className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
-          <StepHeader stepNumber={6} title="Final Outputs" />
+        {(reactionVideoUrl || reactionGenerating) && (
+          <div className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
+            <StepHeader stepNumber={6} title="Final Outputs" />
 
-          {reactionVideoUrl ? (
-            <div className="space-y-4 flex flex-col items-center">
-              {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
-              <video controls autoPlay loop src={assetUrl(reactionVideoUrl)} className="w-full rounded-lg" />
+            {reactionVideoUrl ? (
+              <div className="space-y-4 flex flex-col items-center">
+                {/* biome-ignore lint/a11y/useMediaCaption: AI-generated video, no captions available */}
+                <video controls autoPlay loop src={assetUrl(reactionVideoUrl)} className="w-full rounded-lg" />
 
-              <div className="flex items-center gap-2 text-sm text-surface-500">
-                <span>
-                  {selectedReaction && REACTION_DEFINITIONS[selectedReaction].emoji}{' '}
-                  {selectedReaction && REACTION_DEFINITIONS[selectedReaction].label}
-                </span>
-                <span className="text-surface-300">•</span>
-                <span>{reactionAspectRatio}</span>
-                <span className="text-surface-300">•</span>
-                <span>{reactionDuration}s</span>
+                <div className="flex items-center gap-2 text-sm text-surface-500">
+                  <span>
+                    {selectedReaction && REACTION_DEFINITIONS[selectedReaction].emoji}{' '}
+                    {selectedReaction && REACTION_DEFINITIONS[selectedReaction].label}
+                  </span>
+                  <span className="text-surface-300">•</span>
+                  <span>{reactionAspectRatio}</span>
+                  <span className="text-surface-300">•</span>
+                  <span>{reactionDuration}s</span>
+                </div>
+
+                <div className="flex gap-2 w-full">
+                  <Button
+                    variant="success"
+                    size="md"
+                    icon={<Download className="w-4 h-4" />}
+                    onClick={() =>
+                      downloadVideo(assetUrl(reactionVideoUrl), `reaction-${selectedReaction || 'video'}.mp4`)
+                    }
+                    className="flex-1"
+                  >
+                    Download Video
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    icon={<RefreshCw className="w-4 h-4" />}
+                    onClick={() => {
+                      useAvatarStore.setState({ reactionVideoUrl: null, selectedReaction: null })
+                    }}
+                  >
+                    Generate Another
+                  </Button>
+                </div>
               </div>
-
-              <div className="flex gap-2 w-full">
-                <Button
-                  variant="success"
-                  size="md"
-                  icon={<Download className="w-4 h-4" />}
-                  onClick={() =>
-                    downloadVideo(assetUrl(reactionVideoUrl), `reaction-${selectedReaction || 'video'}.mp4`)
-                  }
-                  className="flex-1"
-                >
-                  Download Video
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  icon={<RefreshCw className="w-4 h-4" />}
-                  onClick={() => {
-                    useAvatarStore.setState({ reactionVideoUrl: null, selectedReaction: null })
-                  }}
-                >
-                  Generate Another
-                </Button>
-              </div>
-            </div>
-          ) : reactionGenerating ? (
-            <EmptyState
-              title="Generating reaction video..."
-              description="Output will appear here when ready."
-              icon={<Loader2 className="w-7 h-7 animate-spin text-brand" />}
-            />
-          ) : (
-            <EmptyState
-              title="No output yet"
-              description="Complete steps on the left and run generation."
-              icon={<Video className="w-7 h-7" />}
-            />
-          )}
-        </div>
+            ) : (
+              <EmptyState
+                title="Generating reaction video..."
+                description="Output will appear here when ready."
+                icon={<Loader2 className="w-7 h-7 animate-spin text-brand" />}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

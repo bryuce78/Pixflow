@@ -746,11 +746,9 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
 
       {/* Right Column: Outputs */}
       <div className="space-y-6">
-        <div className="bg-surface-50 rounded-lg p-4 space-y-3">
-          <StepHeader stepNumber={6} title="Final Outputs" />
-          {translatedScripts.length === 0 ? (
-            <p className="text-sm text-surface-400">Final outputs will appear here.</p>
-          ) : (
+        {translatedScripts.length > 0 && (
+          <div className="bg-surface-50 rounded-lg p-4 space-y-3">
+            <StepHeader stepNumber={6} title="Final Outputs" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {translatedScripts.map((entry) => {
                 const video = translatedVideos.find((item) => item.language === entry.language)
@@ -803,8 +801,8 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                 )
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
