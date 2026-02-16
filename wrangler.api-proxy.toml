@@ -1,0 +1,8 @@
+name = "pixflow-api-gateway"
+main = "src/worker/api-proxy.js"
+compatibility_date = "2026-02-16"
+
+[vars]
+PROXY_PATH_PREFIXES = "/api,/health,/uploads,/outputs,/avatars,/avatars_generated,/avatars_uploads"
+ALLOWED_ORIGINS = ""
+UPSTREAM_TIMEOUT_MS = "610000"

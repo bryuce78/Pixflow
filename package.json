@@ -17,6 +17,8 @@
     "cf:whoami": "wrangler whoami",
     "deploy:pages": "bash ./scripts/deploy-pages.sh production",
     "deploy:pages:preview": "bash ./scripts/deploy-pages.sh preview",
+    "dev:worker:api": "BACKEND_ORIGIN=${BACKEND_ORIGIN:-http://localhost:${PIXFLOW_WEB_API_PORT:-3002}} wrangler dev --config wrangler.api-proxy.toml",
+    "deploy:worker:api": "bash ./scripts/deploy-worker-api.sh",
     "pgp:lock:check": "node scripts/pgp-lock-guard.js check",
     "pgp:lock:update": "node scripts/pgp-lock-guard.js update",
     "native:rebuild": "npm run native:rebuild:node",

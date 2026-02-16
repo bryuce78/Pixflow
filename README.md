@@ -26,7 +26,7 @@ Pixflow is a web-first AI production workspace for social/media creative pipelin
 - `Backend`: Express 4, better-sqlite3 (WAL), Multer.
 - `AI providers`: OpenAI, FAL.ai, Hedra, ElevenLabs, Kling.
 - `Tooling`: TypeScript, Biome, Vitest, tsx.
-- `Deploy`: Cloudflare Pages (frontend) + Node server (backend).
+- `Deploy`: Cloudflare Pages (frontend) + Cloudflare Worker API gateway + Node server (backend).
 
 ## Quick Start
 
@@ -63,6 +63,12 @@ Frontend deploy command:
 
 ```bash
 npm run deploy:pages
+```
+
+API gateway deploy command:
+
+```bash
+npm run deploy:worker:api
 ```
 
 Detailed deployment guide:

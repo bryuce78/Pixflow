@@ -45,6 +45,7 @@ npm run smoke:external   # External pipeline smoke tests
 # Deploy
 npm run deploy:pages     # Deploy to Cloudflare Pages (production)
 npm run deploy:pages:preview # Deploy preview build
+npm run deploy:worker:api # Deploy Cloudflare Worker API gateway
 
 # Telemetry & Gates
 npm run telemetry:check  # Run telemetry gates (ci profile)
@@ -101,7 +102,7 @@ Rules:
 - **Backend:** Express 4.18, better-sqlite3 (SQLite WAL mode in `data/`), Multer (uploads)
 - **AI Services:** OpenAI (GPT-4o/Vision), FAL.ai (image gen), Kling (video), Hedra (lipsync), ElevenLabs (TTS)
 - **Tooling:** Biome 2.3 (lint + format), Vitest 4 (test), tsx (dev runtime)
-- **Deploy:** Cloudflare Pages (frontend), Node server (backend)
+- **Deploy:** Cloudflare Pages (frontend), Cloudflare Worker API gateway, Node server (backend)
 
 ## Code Style (Biome)
 
