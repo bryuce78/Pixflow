@@ -569,7 +569,10 @@ export default function PromptFactoryPage() {
         </div>
 
         {/* RIGHT PANEL - Outputs */}
-        <div className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+        <div
+          data-output-category="prompt_factory"
+          className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden"
+        >
           <div className="bg-surface-100/50 rounded-xl border border-surface-200/50 p-6">
             <StepHeader stepNumber={2} title="Generated Prompts" />
             {analyzeEntries.length === 0 ? (
@@ -878,7 +881,10 @@ export default function PromptFactoryPage() {
       </div>
 
       {/* RIGHT PANEL - Outputs */}
-      <div className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
+      <div
+        data-output-category="prompt_factory"
+        className="xl:col-span-2 flex flex-col gap-4 overflow-visible xl:overflow-hidden"
+      >
         <div className="flex-1 bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-hidden">
           <div className="flex items-center justify-between">
             <StepHeader stepNumber={2} title="Generated Prompts" />

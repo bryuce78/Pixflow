@@ -4,7 +4,11 @@ import { apiUrl, assetUrl, authFetch } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import type { ScriptTone } from '../../stores/avatarStore'
 import { TALKING_AVATAR_LANGUAGE_CARDS, useAvatarStore } from '../../stores/avatarStore'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { AudioPlayer } from '../ui/AudioPlayer'
@@ -101,7 +105,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'avatars_talking'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'avatars_talking'),
     [outputHistoryEntries],
   )
 
@@ -919,7 +923,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
       {/* Right Column: Outputs */}
       <div className="space-y-6">
         {translatedScripts.length > 0 && (
-          <div className="bg-surface-50 rounded-lg p-4 space-y-3">
+          <div data-output-category="avatars_talking" className="bg-surface-50 rounded-lg p-4 space-y-3">
             <StepHeader stepNumber={6} title="Final Outputs" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {translatedScripts.map((entry) => {
@@ -976,7 +980,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
           </div>
         )}
         {scriptMode === 'audio' && (
-          <div className="bg-surface-50 rounded-lg p-4 space-y-3">
+          <div data-output-category="avatars_talking" className="bg-surface-50 rounded-lg p-4 space-y-3">
             <StepHeader stepNumber={6} title="Final Outputs" />
             {lipsyncGenerating && (
               <div className="flex items-center gap-2 text-xs text-surface-400">

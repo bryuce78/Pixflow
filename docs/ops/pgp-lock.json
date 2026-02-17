@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "generatedAt": "2026-02-15T21:52:15.205Z",
+  "generatedAt": "2026-02-17T07:26:03.056Z",
   "protectedFiles": [
     {
       "path": "src/server/routes/prompts.ts",
-      "sha256": "feb88c36057f13cd676e6cda90df85f47e2878745f05224a2d04ca45bdbc422a"
+      "sha256": "8efc1a32dd03d21c8063ef70f37e64fc3a885b64cce4c771ebd0dd7b708e7ba3"
     },
     {
       "path": "src/server/routes/videos.ts",
-      "sha256": "d6dbdcedc11c5844ca938c8faf9dc77d4c87bb48188800c0ac5b141358cd897e"
+      "sha256": "7cac30b4798ecf90dcdbd93652d781f33a4f533ef06a66e82c992de4c859c389"
     },
     {
       "path": "src/server/services/promptGenerator.ts",
@@ -35,5 +35,5 @@
       "sha256": "de05e5f364010bedb715db3edf32c2fd6ed52ceca6df3726d2d9dc85c075ff0c"
     }
   ],
-  "unlockNote": "biome fixes + research stability; update PGP fingerprint"
+  "unlockNote": "stabilize pipelines after mock media/output fixes"
 }

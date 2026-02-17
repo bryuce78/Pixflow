@@ -2,7 +2,11 @@ import { Check, Download, Film, Loader2, Sparkles, Upload, X } from 'lucide-reac
 import { type ClipboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
@@ -26,6 +30,8 @@ type AssemblyStage = 'idle' | 'editing' | 'adjusting_time' | 'finalizing' | 'don
 interface LifetimeVideoJobStatus {
   status: 'queued' | 'running' | 'completed' | 'failed'
   sessionId?: string
+  outputDirUrl?: string
+  outputDirLocal?: string
   error?: string
   progress?: {
     total: number
@@ -41,6 +47,8 @@ interface LifetimeVideoJobStatus {
 interface LifetimeRunStatus {
   status: 'queued' | 'running' | 'completed' | 'failed'
   sessionId?: string
+  outputDirUrl?: string
+  outputDirLocal?: string
   error?: string
   sourceFrameUrl?: string
   progress?: {
@@ -109,6 +117,8 @@ export default function LifetimePage() {
   const [frames, setFrames] = useState<LifetimeFrame[]>([])
   const [videoDurationSec, setVideoDurationSec] = useState(VIDEO_DURATION_DEFAULT_SEC)
   const [outputSessionId, setOutputSessionId] = useState('')
+  const [outputDirUrl, setOutputDirUrl] = useState('')
+  const [outputDirLocal, setOutputDirLocal] = useState('')
   const [finalVideoUrl, setFinalVideoUrl] = useState('')
   const [finalVideoDurationSec, setFinalVideoDurationSec] = useState(0)
   const [transitionStatuses, setTransitionStatuses] = useState<TransitionStatus[]>([])
@@ -119,7 +129,7 @@ export default function LifetimePage() {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'lifetime'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'lifetime'),
     [outputHistoryEntries],
   )
 
@@ -184,6 +194,8 @@ export default function LifetimePage() {
     setSourceFrameUrl('')
     setFrames([])
     setOutputSessionId('')
+    setOutputDirUrl('')
+    setOutputDirLocal('')
     setTransitionStatuses([])
     setAssemblyStage('idle')
     setFinalVideoUrl('')
@@ -245,6 +257,8 @@ export default function LifetimePage() {
         }
         if (data.frames) setFrames(data.frames)
         if (data.sourceFrameUrl) setSourceFrameUrl(data.sourceFrameUrl)
+        if (data.outputDirUrl) setOutputDirUrl(data.outputDirUrl)
+        if (data.outputDirLocal) setOutputDirLocal(data.outputDirLocal)
         if (data.earlyTransitionStatuses) setTransitionStatuses(data.earlyTransitionStatuses)
 
         if (data.status === 'completed') {
@@ -257,6 +271,8 @@ export default function LifetimePage() {
           setRunning(false)
           const resolvedSessionId = data.sessionId || ''
           setOutputSessionId(resolvedSessionId)
+          if (data.outputDirUrl) setOutputDirUrl(data.outputDirUrl)
+          if (data.outputDirLocal) setOutputDirLocal(data.outputDirLocal)
           setRunMessage('Frame generation completed')
           setProgress(100)
           if (activeLifetimeHistoryIdRef.current) {
@@ -343,6 +359,8 @@ export default function LifetimePage() {
 
         const raw = await res.json().catch(() => ({}))
         const data = unwrapApiData<LifetimeVideoJobStatus>(raw)
+        if (data.outputDirUrl) setOutputDirUrl(data.outputDirUrl)
+        if (data.outputDirLocal) setOutputDirLocal(data.outputDirLocal)
         if (data.assemblyStage) setAssemblyStage(data.assemblyStage)
         if (data.assemblyStage && data.assemblyStage !== 'idle') {
           setTransitionStatuses((prev) =>
@@ -359,6 +377,8 @@ export default function LifetimePage() {
           setFinalVideoDurationSec(data.finalVideoDurationSec || 0)
           if (activeLifetimeHistoryIdRef.current) {
             const sessionLink = data.sessionId || outputSessionId
+            const resolvedOutputDirUrl = data.outputDirUrl || outputDirUrl
+            const resolvedOutputDirLocal = data.outputDirLocal || outputDirLocal
             patchHistory(activeLifetimeHistoryIdRef.current, {
               status: 'completed',
               message: `Final video ready (${data.finalVideoDurationSec || 0}s)`,
@@ -373,13 +393,13 @@ export default function LifetimePage() {
                       },
                     ]
                   : []),
-                ...(sessionLink
+                ...(sessionLink && resolvedOutputDirUrl
                   ? [
                       {
                         id: `${activeLifetimeHistoryIdRef.current}_folder`,
-                        label: 'Output Folder',
+                        label: resolvedOutputDirLocal || 'Output Folder',
                         type: 'folder' as const,
-                        url: `/outputs/${sessionLink}/`,
+                        url: resolvedOutputDirUrl,
                       },
                     ]
                   : []),
@@ -719,7 +739,7 @@ export default function LifetimePage() {
           )}
 
           {hasAnyTransitionStarted && (
-            <div className="bg-surface-50 rounded-lg p-4 space-y-4">
+            <div data-output-category="lifetime" className="bg-surface-50 rounded-lg p-4 space-y-4">
               <StepHeader stepNumber={4} title="Neighbor Videos" />
               {inProgressTransitions.length > 0 ? (
                 <div className="space-y-2">
@@ -741,14 +761,14 @@ export default function LifetimePage() {
                   <Check className="w-4 h-4" />
                   <span>
                     All videos generated and saved to{' '}
-                    {outputSessionId ? (
+                    {outputDirUrl ? (
                       <a
-                        href={assetUrl(`/outputs/${outputSessionId}/`)}
+                        href={assetUrl(outputDirUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="underline hover:text-green-700"
                       >
-                        local folder
+                        {outputDirLocal || 'local folder'}
                       </a>
                     ) : (
                       'local folder'
@@ -760,7 +780,7 @@ export default function LifetimePage() {
           )}
 
           {showFinalVideoSection && (
-            <div className="bg-surface-50 rounded-lg p-4 space-y-4">
+            <div data-output-category="lifetime" className="bg-surface-50 rounded-lg p-4 space-y-4">
               <StepHeader stepNumber={5} title="Final Video" />
               {!finalVideoUrl && (
                 <div className="space-y-2">

@@ -4,8 +4,8 @@ import { fal } from '@fal-ai/client'
 import { ensureFalConfig } from './falConfig.js'
 import {
   isMockProvidersEnabled,
-  makeMockDataUrl,
   makeMockId,
+  makeMockMp4DataUrl,
   recordMockProviderSuccess,
   runWithRetries,
 } from './providerRuntime.js'
@@ -41,6 +41,7 @@ export interface KlingStartEndOptions {
   duration?: '5' | '10'
   aspectRatio?: '16:9' | '9:16' | '1:1'
   cfgScale?: number
+  telemetryPipeline?: string
 }
 
 export async function generateKlingVideo(options: KlingI2VOptions): Promise<KlingI2VResult> {
@@ -51,7 +52,7 @@ export async function generateKlingVideo(options: KlingI2VOptions): Promise<Klin
       metadata: { duration: options.duration || '5', aspectRatio: options.aspectRatio || '9:16' },
     })
     return {
-      videoUrl: makeMockDataUrl('video/mp4', 'mock-kling-video'),
+      videoUrl: makeMockMp4DataUrl(),
       requestId: makeMockId('kling'),
     }
   }
@@ -105,14 +106,16 @@ export async function generateKlingVideo(options: KlingI2VOptions): Promise<Klin
 }
 
 export async function generateKlingTransitionVideo(options: KlingStartEndOptions): Promise<KlingI2VResult> {
+  const telemetryPipeline = options.telemetryPipeline || 'lifetime.transition.provider'
+
   if (isMockProvidersEnabled()) {
     await recordMockProviderSuccess({
-      pipeline: 'lifetime.transition.provider',
+      pipeline: telemetryPipeline,
       provider: 'kling',
       metadata: { duration: options.duration || '5', aspectRatio: options.aspectRatio || '9:16' },
     })
     return {
-      videoUrl: makeMockDataUrl('video/mp4', 'mock-kling-transition-video'),
+      videoUrl: makeMockMp4DataUrl(),
       requestId: makeMockId('kling-transition'),
     }
   }
@@ -150,7 +153,7 @@ export async function generateKlingTransitionVideo(options: KlingStartEndOptions
         },
       }),
     {
-      pipeline: 'lifetime.transition.provider',
+      pipeline: telemetryPipeline,
       provider: 'kling',
       metadata: { duration: options.duration || '5', aspectRatio: options.aspectRatio || '9:16' },
     },

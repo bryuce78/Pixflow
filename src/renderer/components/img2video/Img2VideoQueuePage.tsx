@@ -30,7 +30,11 @@ import {
   useImg2VideoQueueStore,
   type WorkflowType,
 } from '../../stores/img2videoQueueStore'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
@@ -41,7 +45,6 @@ import { StatusPill } from '../ui/StatusPill'
 import { Textarea } from '../ui/Textarea'
 import { CameraPresetCards } from './CameraPresetCards'
 import { DownloadToolbar } from './DownloadToolbar'
-import { LoadingGrid } from './LoadingGrid'
 import { SelectableResultCard } from './SelectableResultCard'
 import { SelectableThumbnail } from './SelectableThumbnail'
 
@@ -131,11 +134,12 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
   const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set())
   const [batchPrompt, setBatchPrompt] = useState('')
   const [batchSettings, setBatchSettings] = useState({
-    aspectRatio: '1:1',
+    aspectRatio: '9:16',
     numberOfOutputs: 1,
-    resolution: '1K',
-    format: 'PNG',
+    resolution: '2K',
+    format: 'JPG',
   })
+  const [img2imgBatchGenerating, setImg2imgBatchGenerating] = useState(false)
   const [modalImage, setModalImage] = useState<string | null>(null)
   const [modalItemId, setModalItemId] = useState<string | null>(null)
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set())
@@ -146,7 +150,7 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'img2img'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'img2img'),
     [outputHistoryEntries],
   )
 
@@ -163,7 +167,17 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
   const totalCount = img2imgItems.length
   const completedCount = completedItems.length
   const failedCount = img2imgItems.filter((item) => item.status === 'failed').length
-  const generatingCount = img2imgItems.filter((item) => item.status === 'generating').length
+  const img2imgInProgressItems = img2imgItems.filter((item) => item.status === 'generating')
+  const showImg2ImgOutputs = completedCount > 0 || img2imgInProgressItems.length > 0 || img2imgBatchGenerating
+  const img2imgLoadingItems =
+    img2imgInProgressItems.length > 0
+      ? img2imgInProgressItems
+      : img2imgBatchGenerating
+        ? Array.from({ length: Math.max(1, batchSettings.numberOfOutputs) }).map((_, index) => ({
+            id: `placeholder-${index}`,
+            imageUrl: '',
+          }))
+        : []
 
   // Dropzone for img2img uploads
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -206,7 +220,10 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
 
   const handleTransformBatch = async () => {
     const ids = referenceItems.map((item) => item.id)
-    if (!batchPrompt.trim() || ids.length === 0) return
+    const trimmedPrompt = batchPrompt.trim()
+    const hasReferenceInput = ids.length > 0
+    if ((!trimmedPrompt && !hasReferenceInput) || img2imgBatchGenerating) return
+    const effectivePrompt = trimmedPrompt || 'natural studio portrait, preserve identity, high quality details'
 
     const beforeCompletedIds = new Set(
       Object.values(useImg2VideoQueueStore.getState().queueItems)
@@ -219,7 +236,10 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
     upsertHistory({
       id: historyId,
       category: 'img2img',
-      title: `img2img (${ids.length} input, ${batchSettings.numberOfOutputs} output)`,
+      title:
+        ids.length > 0
+          ? `img2img (${ids.length} input, ${batchSettings.numberOfOutputs} output)`
+          : `img2img (prompt-only, ${batchSettings.numberOfOutputs} output)`,
       status: 'running',
       startedAt: Date.now(),
       updatedAt: Date.now(),
@@ -227,38 +247,44 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
       artifacts: [],
     })
 
-    await transformBatch(ids, batchPrompt, batchSettings)
-    if (activeHistoryIdRef.current !== historyId) return
+    setImg2imgBatchGenerating(true)
+    try {
+      await transformBatch(ids, effectivePrompt, batchSettings)
+      if (activeHistoryIdRef.current !== historyId) return
 
-    const state = useImg2VideoQueueStore.getState()
-    const newlyCompleted = collectCompletedForWorkflow(state.queueItems, 'img2img', beforeCompletedIds)
-    const failedCount = ids.filter((id) => state.queueItems[id]?.status === 'failed').length
+      const state = useImg2VideoQueueStore.getState()
+      const newlyCompleted = collectCompletedForWorkflow(state.queueItems, 'img2img', beforeCompletedIds)
+      const failedCount = ids.filter((id) => state.queueItems[id]?.status === 'failed').length
 
-    if (newlyCompleted.length > 0) {
-      patchHistory(historyId, {
-        status: 'completed',
-        message:
-          failedCount > 0
-            ? `${newlyCompleted.length} output completed, ${failedCount} failed`
-            : `${newlyCompleted.length} output completed`,
-        artifacts: newlyCompleted
-          .map((item) => ({
-            id: `${historyId}_${item.id}`,
-            label: `Output ${item.id.slice(-4)}`,
-            type: 'image' as const,
-            url: resolveArtifactUrl(item),
-          }))
-          .filter((artifact) => Boolean(artifact.url)),
-      })
-    } else {
-      patchHistory(historyId, {
-        status: 'failed',
-        message: 'No output image generated',
-        artifacts: [],
-      })
+      if (newlyCompleted.length > 0) {
+        patchHistory(historyId, {
+          status: 'completed',
+          message:
+            failedCount > 0
+              ? `${newlyCompleted.length} output completed, ${failedCount} failed`
+              : `${newlyCompleted.length} output completed`,
+          artifacts: newlyCompleted
+            .map((item) => ({
+              id: `${historyId}_${item.id}`,
+              label: `Output ${item.id.slice(-4)}`,
+              type: 'image' as const,
+              url: resolveArtifactUrl(item),
+            }))
+            .filter((artifact) => Boolean(artifact.url)),
+        })
+      } else {
+        patchHistory(historyId, {
+          status: 'failed',
+          message: 'No output image generated',
+          artifacts: [],
+        })
+      }
+    } finally {
+      setImg2imgBatchGenerating(false)
+      if (activeHistoryIdRef.current === historyId) {
+        activeHistoryIdRef.current = null
+      }
     }
-
-    activeHistoryIdRef.current = null
   }
 
   return (
@@ -268,7 +294,7 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
         {modeStep}
         {/* Step 2: Select Images */}
         <div className="bg-surface-50 rounded-lg p-4">
-          <StepHeader stepNumber={2} title="Select Images" />
+          <StepHeader stepNumber={2} title="Selected Image (Optional)" />
           <div
             {...getRootProps()}
             className={`min-h-[200px] border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
@@ -312,23 +338,19 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
         </div>
 
         {/* Step 3: Prompt */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        <div className="bg-surface-50 rounded-lg p-4">
           <StepHeader stepNumber={3} title="Prompt" />
           <Textarea
             value={batchPrompt}
             onChange={(e) => setBatchPrompt(e.target.value)}
-            placeholder="Describe how to transform these images... (e.g., 'photo of the 5 friends in paris. eiffel tower behind them. sunny day, golden hour.')"
+            placeholder="Describe the image you want to generate or transform... (e.g., 'photo of the 5 friends in paris. eiffel tower behind them. sunny day, golden hour.')"
             rows={4}
             className="w-full"
           />
         </div>
 
         {/* Step 4: Settings */}
-        <div
-          className={`bg-surface-50 rounded-lg p-4 ${img2imgItems.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        <div className="bg-surface-50 rounded-lg p-4">
           <StepHeader stepNumber={4} title="Settings" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
@@ -349,8 +371,9 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
                 step={1}
               />
               <p className="text-xs text-surface-400 mt-1">
-                Using {referenceItems.length} reference {referenceItems.length === 1 ? 'image' : 'images'} to generate{' '}
-                {batchSettings.numberOfOutputs} {batchSettings.numberOfOutputs === 1 ? 'output' : 'outputs'}
+                {referenceItems.length > 0
+                  ? `Using ${referenceItems.length} reference ${referenceItems.length === 1 ? 'image' : 'images'} to generate ${batchSettings.numberOfOutputs} ${batchSettings.numberOfOutputs === 1 ? 'output' : 'outputs'}`
+                  : `Prompt-only generation: ${batchSettings.numberOfOutputs} ${batchSettings.numberOfOutputs === 1 ? 'output' : 'outputs'}`}
               </p>
             </div>
             <Select
@@ -367,25 +390,28 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
             />
           </div>
           <div className="pt-4 mt-4 border-t border-surface-200/60">
-            {generatingCount === 0 && (
+            {!img2imgBatchGenerating && (
               <button
                 type="button"
                 onClick={handleTransformBatch}
-                disabled={!batchPrompt.trim() || referenceItems.length === 0}
+                disabled={!batchPrompt.trim() && referenceItems.length === 0}
                 className="w-full px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-surface-300 disabled:cursor-not-allowed text-white font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <Play className="w-4 h-4" />
-                Transform {referenceItems.length} {referenceItems.length === 1 ? 'Image' : 'Images'}
+                {referenceItems.length > 0
+                  ? `Transform ${referenceItems.length} ${referenceItems.length === 1 ? 'Image' : 'Images'}`
+                  : `Generate ${batchSettings.numberOfOutputs} ${batchSettings.numberOfOutputs === 1 ? 'Image' : 'Images'}`}
               </button>
             )}
-            {generatingCount > 0 && (
+            {img2imgBatchGenerating && (
               <button
                 type="button"
                 disabled
                 className="w-full px-4 py-2.5 rounded-lg bg-surface-300 cursor-not-allowed text-surface-600 font-medium flex items-center justify-center gap-2"
               >
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Transforming {generatingCount} {generatingCount === 1 ? 'Image' : 'Images'}...
+                Generating {Math.max(1, batchSettings.numberOfOutputs)}{' '}
+                {Math.max(1, batchSettings.numberOfOutputs) === 1 ? 'Image' : 'Images'}...
               </button>
             )}
           </div>
@@ -394,19 +420,11 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        {/* Images in Progress */}
-        <LoadingGrid items={img2imgItems.filter((item) => item.status === 'generating')} />
-
         {/* Step 5: Final Outputs */}
-        {completedCount > 0 && (
-          <div className="bg-surface-50 rounded-lg p-4">
+        {showImg2ImgOutputs && (
+          <div data-output-category="img2img" className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-xs text-white">
-                  5
-                </span>
-                Final Outputs
-              </h3>
+              <StepHeader stepNumber={5} title={`Final Outputs (${completedCount})`} />
               <DownloadToolbar
                 onDownloadAll={() => {
                   completedItems.forEach((item) => {
@@ -420,8 +438,30 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
                 }}
                 onDownloadSelected={downloadSelected}
                 selectedCount={selectedResults.size}
+                totalCount={completedCount}
               />
             </div>
+            {img2imgLoadingItems.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {img2imgLoadingItems.map((item) => (
+                  <div
+                    key={`loading-${item.id}`}
+                    className="relative aspect-[9/16] rounded-lg overflow-hidden bg-surface-200"
+                  >
+                    {item.imageUrl && (
+                      <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
+                    )}
+                    <div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"
+                      style={{ backgroundSize: '200% 100%' }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {completedItems.map((item) => (
                 <SelectableResultCard
@@ -643,7 +683,7 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
     uploadFiles,
   } = useImg2VideoQueueStore()
   const activeHistoryIdRef = useRef<string | null>(null)
-  const [cameraControlsOpen, setCameraControlsOpen] = useState(false)
+  const [cameraControlsOpen, setCameraControlsOpen] = useState(true)
 
   const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set())
   const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
@@ -652,7 +692,7 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'img2video'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'img2video'),
     [outputHistoryEntries],
   )
 
@@ -665,6 +705,7 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
   const totalCount = img2videoItems.length
   const completedCount = img2videoItems.filter((item) => item.status === 'completed').length
   const failedCount = img2videoItems.filter((item) => item.status === 'failed').length
+  const img2videoInProgressItems = img2videoItems.filter((item) => item.status === 'generating')
 
   // Dropzone for img2video uploads
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -709,8 +750,11 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
 
     const candidates = img2videoItems.filter(
       (item) =>
-        item.prompt.trim() &&
-        (item.status === 'draft' || item.status === 'queued' || item.status === 'failed' || item.status === 'paused'),
+        item.status === 'draft' ||
+        item.status === 'queued' ||
+        item.status === 'failed' ||
+        item.status === 'paused' ||
+        item.status === 'completed',
     )
 
     if (candidates.length === 0) return
@@ -746,7 +790,7 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
       artifacts: [],
     })
 
-    await generateQueue()
+    await generateQueue({ workflowType: 'img2video' })
     if (activeHistoryIdRef.current !== historyId) return
 
     const state = useImg2VideoQueueStore.getState()
@@ -831,31 +875,12 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
           )}
         </div>
 
-        {/* Step 3: Prompt */}
-        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
-          <StepHeader stepNumber={3} title="Prompt" />
-          <Textarea
-            value={selectedItem?.prompt || ''}
-            onChange={(e) => selectedItem && setItemPrompt(selectedItem.id, e.target.value)}
-            placeholder="Describe the video motion... (e.g., 'camera zooms in slowly', 'gentle pan from left to right')"
-            rows={4}
-          />
-          {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
-            <div className="mt-2 px-3 py-2 bg-surface-100 rounded-lg border border-surface-200/60">
-              <p className="text-[10px] font-medium text-surface-400 mb-1">FINAL PROMPT</p>
-              <p className="text-xs text-surface-300 break-words">
-                {composePrompt(selectedItem.prompt || '', selectedItem.presets)}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Step 4: Camera Controls */}
+        {/* Step 3: Camera Controls */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-                4
+                3
               </span>
               Camera Controls
               {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
@@ -881,6 +906,25 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
           )}
         </div>
 
+        {/* Step 4: Prompt */}
+        <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
+          <StepHeader stepNumber={4} title="Prompt (Optional)" />
+          <Textarea
+            value={selectedItem?.prompt || ''}
+            onChange={(e) => selectedItem && setItemPrompt(selectedItem.id, e.target.value)}
+            placeholder="Describe the video motion... (optional)"
+            rows={4}
+          />
+          {selectedItem && Object.values(selectedItem.presets).flat().length > 0 && (
+            <div className="mt-2 px-3 py-2 bg-surface-100 rounded-lg border border-surface-200/60">
+              <p className="text-[10px] font-medium text-surface-400 mb-1">FINAL PROMPT</p>
+              <p className="text-xs text-surface-300 break-words">
+                {composePrompt(selectedItem.prompt || '', selectedItem.presets)}
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Step 5: Settings */}
         <div className={`bg-surface-50 rounded-lg p-4 ${!selectedItem ? 'opacity-50 pointer-events-none' : ''}`}>
           <StepHeader stepNumber={5} title="Settings" />
@@ -903,7 +947,7 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
               variant="lime"
               icon={generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               onClick={handleGenerateVideosBatch}
-              disabled={generating || !img2videoItems.some((item) => item.prompt.trim())}
+              disabled={generating || img2videoItems.length === 0}
               className="w-full"
             >
               {generating ? 'Generating Videos...' : 'Generate Videos'}
@@ -914,15 +958,11 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        {/* Videos in Progress */}
-        <LoadingGrid items={img2videoItems.filter((item) => item.status === 'generating')} />
-
-        {/* Generated Videos */}
-        {completedCount > 0 && (
-          <div className="bg-surface-50 rounded-lg p-4">
-            <StepHeader stepNumber={6} title="Generated Videos" />
+        {/* Final Outputs */}
+        {(completedCount > 0 || img2videoInProgressItems.length > 0) && (
+          <div data-output-category="img2video" className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-xs text-surface-400">{completedCount} completed</div>
+              <StepHeader stepNumber={6} title={`Final Outputs (${completedCount})`} />
               <DownloadToolbar
                 onDownloadAll={() => {
                   img2videoItems
@@ -936,8 +976,34 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
                 }}
                 onDownloadSelected={downloadSelected}
                 selectedCount={selectedVideos.size}
+                totalCount={completedCount}
               />
             </div>
+            {img2videoInProgressItems.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {img2videoInProgressItems.map((item) => {
+                  const ratio = item.settings?.aspectRatio || '9:16'
+                  const aspectClass = VIDEO_ASPECT_CLASS_BY_RATIO[ratio] || 'aspect-video'
+                  return (
+                    <div
+                      key={`loading-${item.id}`}
+                      className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-200`}
+                    >
+                      {item.imageUrl && (
+                        <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
+                      )}
+                      <div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"
+                        style={{ backgroundSize: '200% 100%' }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               {img2videoItems
                 .filter((item) => item.status === 'completed')
@@ -952,22 +1018,31 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
                       className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-100 cursor-pointer group border-2 transition-colors ${
                         isSelected ? 'border-brand' : 'border-transparent'
                       }`}
+                      onMouseEnter={(e) => {
+                        const video = e.currentTarget.querySelector('video')
+                        video?.play().catch(() => {})
+                      }}
+                      onMouseLeave={(e) => {
+                        const video = e.currentTarget.querySelector('video')
+                        if (video) {
+                          video.pause()
+                          video.currentTime = 0
+                        }
+                      }}
                       onClick={() => {
                         selectItem(item.id)
                         toggleVideoSelection(item.id)
                       }}
                     >
-                      <video
-                        src={assetUrl(item.result?.videoUrl || '')}
-                        className="w-full h-full object-cover"
-                        muted
-                        loop
-                        playsInline
-                        onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.pause()
-                        }}
-                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <video
+                          src={assetUrl(item.result?.videoUrl || '')}
+                          className="w-1/2 h-1/2 object-contain"
+                          muted
+                          loop
+                          playsInline
+                        />
+                      </div>
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <Play className="w-6 h-6 text-white" />
                       </div>
@@ -1108,7 +1183,7 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'startend'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'startend'),
     [outputHistoryEntries],
   )
 
@@ -1121,6 +1196,8 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
   const completedItems = startEndItems.filter((item) => item.status === 'completed')
   const generatingItems = startEndItems.filter((item) => item.status === 'generating')
   const queuedItems = startEndItems.filter((item) => item.status === 'queued')
+  const inProgressItems = [...queuedItems, ...generatingItems]
+  const showFinalOutputs = completedItems.length > 0 || inProgressItems.length > 0
 
   const startPreviewRef = useRef<string | null>(null)
   const endPreviewRef = useRef<string | null>(null)
@@ -1154,7 +1231,7 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
   }, [startFile, endFile, uploadStartEndFiles, draftItems, removeItem])
 
   const handleGenerateVideo = async () => {
-    if (!selectedItem || !selectedItem.prompt.trim() || generating) return
+    if (!selectedItem || generating) return
 
     const beforeCompletedIds = new Set(
       Object.values(useImg2VideoQueueStore.getState().queueItems)
@@ -1176,7 +1253,7 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
     })
 
     queueItem(selectedItem.id)
-    await generateQueue()
+    await generateQueue({ workflowType: 'startEnd', onlyIds: [selectedItem.id] })
     if (activeHistoryIdRef.current !== historyId) return
 
     const state = useImg2VideoQueueStore.getState()
@@ -1361,7 +1438,7 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
               variant="lime"
               icon={isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               onClick={handleGenerateVideo}
-              disabled={!selectedItem || !selectedItem.prompt.trim() || isGenerating}
+              disabled={!selectedItem || isGenerating}
               className="w-full"
             >
               {isGenerating ? 'Generating...' : 'Generate Video'}
@@ -1383,23 +1460,47 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
 
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
-        <LoadingGrid items={[...queuedItems, ...generatingItems]} />
-
-        {completedItems.length > 0 && (
-          <div className="bg-surface-50 rounded-lg p-4">
+        {showFinalOutputs && (
+          <div data-output-category="startend" className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <span className="bg-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-sm text-white">
-                  5
-                </span>
-                Final Outputs ({completedItems.length})
-              </h2>
-              {selectedVideos.size > 0 && (
-                <Button variant="primary" size="xs" icon={<Download className="w-3 h-3" />} onClick={downloadSelected}>
-                  Download {selectedVideos.size}
-                </Button>
-              )}
+              <StepHeader stepNumber={6} title={`Final Outputs (${completedItems.length})`} />
+              <DownloadToolbar
+                onDownloadAll={() => {
+                  completedItems.forEach((item) => {
+                    if (item.result?.localPath) {
+                      const a = document.createElement('a')
+                      a.href = assetUrl(item.result.localPath)
+                      a.download = item.result.localPath.split('/').pop() || 'video.mp4'
+                      a.click()
+                    }
+                  })
+                }}
+                onDownloadSelected={downloadSelected}
+                selectedCount={selectedVideos.size}
+                totalCount={completedItems.length}
+              />
             </div>
+            {inProgressItems.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {inProgressItems.map((item) => (
+                  <div
+                    key={`loading-${item.id}`}
+                    className="relative aspect-video rounded-lg overflow-hidden bg-surface-200"
+                  >
+                    {item.imageUrl && (
+                      <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
+                    )}
+                    <div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"
+                      style={{ backgroundSize: '200% 100%' }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               {completedItems.map((item) => {
                 const isSelected = selectedVideos.has(item.id)
@@ -1410,23 +1511,31 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
                       className={`relative w-full aspect-video rounded-lg overflow-hidden bg-surface-100 group border-2 transition-colors cursor-pointer ${
                         isSelected ? 'border-brand' : 'border-surface-200'
                       }`}
+                      onMouseEnter={(e) => {
+                        const video = e.currentTarget.querySelector('video')
+                        video?.play().catch(() => {})
+                      }}
+                      onMouseLeave={(e) => {
+                        const video = e.currentTarget.querySelector('video')
+                        if (video) {
+                          video.pause()
+                          video.currentTime = 0
+                        }
+                      }}
                       onClick={() => {
                         selectItem(item.id)
                         toggleVideoSelection(item.id)
                       }}
                     >
-                      <video
-                        src={assetUrl(item.result?.localPath || '')}
-                        className="w-full h-full object-cover"
-                        muted
-                        loop
-                        playsInline
-                        onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.pause()
-                          e.currentTarget.currentTime = 0
-                        }}
-                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <video
+                          src={assetUrl(item.result?.localPath || '')}
+                          className="w-1/2 h-1/2 object-contain"
+                          muted
+                          loop
+                          playsInline
+                        />
+                      </div>
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <Play className="w-8 h-8 text-white" />
                       </div>

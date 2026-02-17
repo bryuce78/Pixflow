@@ -4,7 +4,11 @@ import { useMemo, useRef } from 'react'
 import { assetUrl } from '../../lib/api'
 import { downloadVideo } from '../../lib/download'
 import { REACTION_DEFINITIONS, useAvatarStore } from '../../stores/avatarStore'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import type { ReactionType } from '../../types'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
@@ -45,7 +49,7 @@ export function ReactionVideoPage({
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'avatars_reaction'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'avatars_reaction'),
     [outputHistoryEntries],
   )
   const activeAvatarUrl = (selectedAvatar?.url || generatedUrls[selectedGeneratedIndex] || '').trim()
@@ -237,7 +241,7 @@ export function ReactionVideoPage({
       {/* RIGHT COLUMN: OUTPUT */}
       <div className="space-y-6 xl:col-start-2 xl:col-end-3">
         {(reactionVideoUrl || reactionGenerating) && (
-          <div className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
+          <div data-output-category="avatars_reaction" className="bg-surface-50 rounded-lg p-4 min-h-[420px]">
             <StepHeader stepNumber={6} title="Final Outputs" />
 
             {reactionVideoUrl ? (

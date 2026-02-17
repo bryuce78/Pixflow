@@ -107,6 +107,7 @@ export interface BatchProgress {
   totalImages: number
   completedImages: number
   outputDir: string
+  outputDirLocal?: string
   images: BatchImage[]
 }
 

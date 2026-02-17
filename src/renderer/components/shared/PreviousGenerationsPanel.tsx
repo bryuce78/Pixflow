@@ -1,5 +1,6 @@
 import { Download, FolderOpen } from 'lucide-react'
 import { assetUrl } from '../../lib/api'
+import { useGenerationStore } from '../../stores/generationStore'
 import type { OutputHistoryArtifact, OutputHistoryEntry } from '../../stores/outputHistoryStore'
 import { Button } from '../ui/Button'
 
@@ -84,6 +85,7 @@ export function PreviousGenerationsPanel({
   onClear,
   title = 'Previous Generations',
 }: PreviousGenerationsPanelProps) {
+  const setPreviewImage = useGenerationStore((state) => state.setPreviewImage)
   if (entries.length === 0) return null
 
   return (
@@ -100,7 +102,11 @@ export function PreviousGenerationsPanel({
           const statusStyle = STATUS_STYLES[entry.status]
           const mediaArtifacts = entry.artifacts.filter((artifact) => artifact.type !== 'text' || artifact.url)
           return (
-            <div key={entry.id} className={`bg-surface-0 rounded-lg border p-3 ${statusStyle.border}`}>
+            <div
+              key={entry.id}
+              data-history-entry-id={entry.id}
+              className={`bg-surface-0 rounded-lg border p-3 ${statusStyle.border}`}
+            >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
@@ -146,7 +152,13 @@ export function PreviousGenerationsPanel({
                         <video controls src={assetUrl(artifact.url)} className="w-full rounded-md bg-black" />
                       )}
                       {artifact.type === 'image' && artifact.url && (
-                        <img src={assetUrl(artifact.url)} alt={artifact.label} className="w-full rounded-md" />
+                        <img
+                          src={assetUrl(artifact.url)}
+                          alt={artifact.label}
+                          className="w-full rounded-md cursor-zoom-in"
+                          title="Double click to preview"
+                          onDoubleClick={() => setPreviewImage(artifact.url!)}
+                        />
                       )}
                       {artifact.type === 'audio' && artifact.url && (
                         // biome-ignore lint/a11y/useMediaCaption: archived generated audio has no caption tracks

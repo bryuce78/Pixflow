@@ -18,6 +18,7 @@ import { createNotificationsRouter } from './routes/notifications.js'
 import { createPresetsRouter } from './routes/presets.js'
 import { createProductsRouter } from './routes/products.js'
 import { createPromptsRouter } from './routes/prompts.js'
+import { createSystemRouter } from './routes/system.js'
 import { createTelemetryRouter } from './routes/telemetry.js'
 import { createVideosRouter } from './routes/videos.js'
 import { ensureBootstrapAdminIfConfigured } from './services/auth.js'
@@ -63,6 +64,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use('/api/prompts', requireAuth, createPromptsRouter({ projectRoot }))
   app.use('/api/generate', requireAuth, createGenerateRouter({ projectRoot }))
   app.use('/api/history', requireAuth, createHistoryRouter())
+  app.use('/api/system', requireAuth, createSystemRouter({ projectRoot }))
   app.use('/api/captions', requireAuth, createCaptionsRouter({ projectRoot }))
   app.use('/api/lifetime', requireAuth, createLifetimeRouter({ projectRoot }))
   app.use('/api/avatars', requireAuth, createAvatarsRouter({ projectRoot }))

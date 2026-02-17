@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-15 (docs sync: job monitor + Prompt Factory job history + Img2Engine output standardization + layout alignment)
+Last updated: 2026-02-16 (docs sync: Avatar Studio direct-audio flow + transcript media alignment + custom prompt fallback + text-to-json limit update)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -193,7 +193,34 @@ Project root: `/Users/pixery/Projects/pixflow`
   - Backend model selection:
     - with references: `fal-ai/nano-banana-pro/edit`
     - without references: `fal-ai/nano-banana-pro`
-  - `/api/generate/batch` now accepts `0..5` reference images (previously required at least 1).
+- `/api/generate/batch` now accepts `0..5` reference images (previously required at least 1).
+
+### 0.9) Avatar Studio + Prompt Conversion Stability Update (2026-02-16)
+
+- Asset Monster custom prompt UX hardening:
+  - Generate button now works when user typed a custom prompt but did not save/select a prompt card.
+  - Inline custom prompt is converted via `/api/prompts/text-to-json` and sent directly to batch generation.
+  - File: `/Users/pixery/Projects/pixflow/src/renderer/components/asset-monster/AssetMonsterPage.tsx`
+- Prompt conversion input limit raised:
+  - `/api/prompts/text-to-json` limit increased from `2000` to `8000` chars.
+  - File: `/Users/pixery/Projects/pixflow/src/server/routes/prompts.ts`
+- Avatar Studio language behavior corrected:
+  - Auto-detect no longer auto-injects `EN` (or any detected language) into selected language cards.
+  - Detected language is now informational unless user explicitly enables that language card.
+  - File: `/Users/pixery/Projects/pixflow/src/renderer/stores/avatarStore.ts`
+- Avatar upload behavior corrected:
+  - Uploading avatar images no longer silently triggers `generate-from-reference`.
+  - Upload path is now direct gallery upload flow.
+  - File: `/Users/pixery/Projects/pixflow/src/renderer/stores/avatarStore.ts`
+- Talking Avatar `Have an Audio` mode simplified:
+  - Removed forced audio transcription from this mode.
+  - Uploaded audio is used directly for lipsync generation.
+  - Added audio-mode-specific output handling and history entries.
+  - File: `/Users/pixery/Projects/pixflow/src/renderer/components/avatar-studio/TalkingAvatarPage.tsx`
+- Transcript Media UI alignment fix:
+  - Selected avatar thumbnail and script textarea are now aligned by shared grid rows.
+  - Textarea height is locked to thumbnail height for consistent comparison/editing.
+  - File: `/Users/pixery/Projects/pixflow/src/renderer/components/avatar-studio/TalkingAvatarPage.tsx`
 
 ---
 

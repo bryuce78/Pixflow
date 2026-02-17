@@ -2,8 +2,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   isMockProvidersEnabled,
-  makeMockDataUrl,
   makeMockId,
+  makeMockMp4DataUrl,
   recordMockProviderSuccess,
   runWithRetries,
 } from './providerRuntime.js'
@@ -134,7 +134,7 @@ export async function createHedraVideo(options: HedraLipsyncOptions): Promise<He
       metadata: { aspectRatio: options.aspectRatio || '9:16', resolution: options.resolution || '720p' },
     })
     return {
-      videoUrl: makeMockDataUrl('video/mp4', 'mock-hedra-video'),
+      videoUrl: makeMockMp4DataUrl(),
       generationId: makeMockId('hedra'),
     }
   }

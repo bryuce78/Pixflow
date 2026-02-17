@@ -344,6 +344,7 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
         status: string
         totalImages: number
         outputDir: string
+        outputDirLocal?: string
       }>(raw)
       set({
         batchProgress: {
@@ -353,10 +354,12 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
           totalImages: data.totalImages,
           completedImages: 0,
           outputDir: data.outputDir,
+          outputDirLocal: data.outputDirLocal,
           images: [],
         },
       })
       useOutputHistoryStore.getState().patch(historyId, {
+        internalJobId: data.jobId,
         message: `Running… (0/${data.totalImages})`,
       })
 
@@ -397,9 +400,14 @@ export const useGenerationStore = create<GenerationState>()((set, get) => ({
                       ? [
                           {
                             id: `${historyId}_folder`,
-                            label: 'Output Folder',
+                            label: progress.outputDirLocal || 'Output Folder',
                             type: 'folder' as const,
-                            url: `/outputs/${String(progress.outputDir).split('/').filter(Boolean).pop() || ''}/`,
+                            url: (() => {
+                              const rawDir = String(progress.outputDir || '').trim()
+                              if (!rawDir) return '/outputs/'
+                              if (rawDir.startsWith('/outputs/')) return rawDir.replace(/\/?$/, '/')
+                              return `/outputs/${rawDir.split('/').filter(Boolean).pop() || ''}/`
+                            })(),
                           },
                         ]
                       : []),

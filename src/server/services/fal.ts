@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fal } from '@fal-ai/client'
 import { v4 as uuidv4 } from 'uuid'
 import { REFERENCE_IDENTITY_SOURCE_CRITICAL } from '../../constants/referencePrompts.js'
+import { buildJobOutputFileName } from '../utils/outputPaths.js'
 import { ensureFalConfig } from './falConfig.js'
 import { saveBatchImages } from './imageRatings.js'
 import { notify } from './notifications.js'
@@ -239,17 +240,12 @@ export async function generateBatch(
         image.url = url
         image.status = 'completed'
 
-        const safeConcept = job.concept
-          .toLowerCase()
-          .replace(/\.\./g, '')
-          .replace(/[<>:"/\\|?*]/g, '')
-          .replace(/\s+/g, '_')
-          .slice(0, 50)
-        const filePrefix = safeConcept === 'untitled' ? 'image' : safeConcept
-        const fileName =
-          numImagesPerPrompt > 1
-            ? `${filePrefix}_${String(promptIndex + 1).padStart(2, '0')}_v${variantIndex + 1}.${outputFormat}`
-            : `${filePrefix}_${String(imageIndex + 1).padStart(2, '0')}.${outputFormat}`
+        const fileName = buildJobOutputFileName(
+          'batch',
+          job.id,
+          outputFormat,
+          numImagesPerPrompt > 1 ? promptIndex * numImagesPerPrompt + variantIndex + 1 : imageIndex + 1,
+        )
         const localPath = path.join(job.outputDir, fileName)
 
         try {

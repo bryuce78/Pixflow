@@ -4,6 +4,7 @@ import path from 'node:path'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
+import { v4 as uuidv4 } from 'uuid'
 import { GREENBOX_REFERENCE_PROMPT } from '../../constants/referencePrompts.js'
 import type { AuthRequest } from '../middleware/auth.js'
 import { generateAvatar, generateAvatarFromReference } from '../services/avatar.js'
@@ -20,6 +21,7 @@ import {
   translateVoiceoverScript,
 } from '../services/voiceover.js'
 import { sendError, sendSuccess } from '../utils/http.js'
+import { buildJobOutputFileName, createJobOutputDir, toOutputUrl } from '../utils/outputPaths.js'
 
 interface AvatarsRouterConfig {
   projectRoot: string
@@ -599,8 +601,10 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         metadata: { textLength: text.length, voiceId, modelId: modelId || 'default' },
       })
 
-      await fs.mkdir(outputsDir, { recursive: true })
-      const outputPath = path.join(outputsDir, `tts_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp3`)
+      const ttsJobId = uuidv4()
+      const ttsLayout = createJobOutputDir(outputsDir, 'avatars', 'tts', ttsJobId)
+      await fs.mkdir(ttsLayout.outputDir, { recursive: true })
+      const outputPath = path.join(ttsLayout.outputDir, buildJobOutputFileName('tts', ttsJobId, 'mp3'))
 
       console.log(`[TTS] Converting ${text.length} characters to speech...`)
       const result = await textToSpeech({ text, voiceId, outputPath, modelId })
@@ -609,7 +613,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
       sendSuccess(res, {
         audioPath: result.audioPath,
-        audioUrl: `/outputs/${path.basename(result.audioPath)}`,
+        audioUrl: toOutputUrl(outputsDir, result.audioPath),
       })
     } catch (error) {
       console.error('[TTS] Conversion failed:', error)
@@ -619,15 +623,18 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
   })
 
   const audioUploadStorage = multer.diskStorage({
-    destination: async (_req, _file, cb) => {
-      await fs.mkdir(outputsDir, { recursive: true })
-      cb(null, outputsDir)
+    destination: async (req, _file, cb) => {
+      const jobId = uuidv4()
+      const layout = createJobOutputDir(outputsDir, 'avatars', 'audio-upload', jobId)
+      ;(req as AuthRequest & { _audioUploadLayout?: ReturnType<typeof createJobOutputDir> })._audioUploadLayout = layout
+      await fs.mkdir(layout.outputDir, { recursive: true })
+      cb(null, layout.outputDir)
     },
-    filename: (_req, file, cb) => {
-      const timestamp = Date.now()
-      const random = Math.random().toString(36).slice(2, 8)
+    filename: (req, file, cb) => {
+      const reqWithLayout = req as AuthRequest & { _audioUploadLayout?: ReturnType<typeof createJobOutputDir> }
+      const jobId = reqWithLayout._audioUploadLayout?.jobId || uuidv4()
       const ext = path.extname(file.originalname) || '.mp3'
-      cb(null, `audio_upload_${timestamp}_${random}${ext}`)
+      cb(null, buildJobOutputFileName('audio-upload', jobId, ext))
     },
   })
 
@@ -655,7 +662,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
       sendSuccess(res, {
         audioPath: file.path,
-        audioUrl: `/outputs/${file.filename}`,
+        audioUrl: toOutputUrl(outputsDir, file.path),
       })
     } catch (error) {
       console.error('[Audio Upload] Failed:', error)
@@ -740,7 +747,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       }
 
       if (audioUrl.startsWith('/outputs/')) {
-        audioPath = sanitizePath(outputsDir, path.basename(decodeURIComponent(audioUrl)))
+        audioPath = sanitizePath(outputsDir, decodeURIComponent(audioUrl.slice('/outputs/'.length)))
       }
 
       if (!imagePath) {
@@ -780,17 +787,19 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       console.log('[Lipsync] Creating video with Hedra Character-3...')
       const result = await createHedraVideo({ imagePath: imagePathForLipsync, audioPath, aspectRatio: '9:16' })
 
-      await fs.mkdir(outputsDir, { recursive: true })
-      const outputFilename = `lipsync_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
-      await downloadHedraVideo(result.videoUrl, path.join(outputsDir, outputFilename))
+      const lipsyncJobId = uuidv4()
+      const lipsyncLayout = createJobOutputDir(outputsDir, 'avatars', 'lipsync', lipsyncJobId)
+      await fs.mkdir(lipsyncLayout.outputDir, { recursive: true })
+      const outputPath = path.join(lipsyncLayout.outputDir, buildJobOutputFileName('lipsync', lipsyncJobId, 'mp4'))
+      await downloadHedraVideo(result.videoUrl, outputPath)
 
       if (req.user?.id)
         notify(req.user.id, 'lipsync_complete', 'Lipsync Video Ready', 'Your talking avatar video is ready to download')
-      span.success({ outputFile: outputFilename, generationId: result.generationId })
+      span.success({ outputFile: path.relative(outputsDir, outputPath), generationId: result.generationId })
 
       sendSuccess(res, {
         videoUrl: result.videoUrl,
-        localPath: `/outputs/${outputFilename}`,
+        localPath: toOutputUrl(outputsDir, outputPath),
         generationId: result.generationId,
       })
     } catch (error) {
@@ -871,16 +880,18 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         aspectRatio: aspectRatio || '9:16',
       })
 
-      await fs.mkdir(outputsDir, { recursive: true })
-      const outputFilename = `i2v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
-      await downloadKlingVideo(result.videoUrl, path.join(outputsDir, outputFilename))
+      const i2vJobId = uuidv4()
+      const i2vLayout = createJobOutputDir(outputsDir, 'avatars', 'img2video', i2vJobId)
+      await fs.mkdir(i2vLayout.outputDir, { recursive: true })
+      const outputPath = path.join(i2vLayout.outputDir, buildJobOutputFileName('img2video', i2vJobId, 'mp4'))
+      await downloadKlingVideo(result.videoUrl, outputPath)
 
       if (req.user?.id) notify(req.user.id, 'i2v_complete', 'Video Ready', 'Your image-to-video is ready to download')
-      span.success({ outputFile: outputFilename, requestId: result.requestId })
+      span.success({ outputFile: path.relative(outputsDir, outputPath), requestId: result.requestId })
 
       sendSuccess(res, {
         videoUrl: result.videoUrl,
-        localPath: `/outputs/${outputFilename}`,
+        localPath: toOutputUrl(outputsDir, outputPath),
         requestId: result.requestId,
       })
     } catch (error) {
@@ -903,6 +914,9 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
     try {
       const { startImageUrl, endImageUrl, prompt, duration, aspectRatio } = req.body
+      const promptText = typeof prompt === 'string' ? prompt.trim() : ''
+      const effectivePrompt =
+        promptText || 'smooth cinematic transition from start frame to end frame, natural motion, stable camera'
       if (!startImageUrl || typeof startImageUrl !== 'string') {
         sendError(res, 400, 'Start image URL is required', 'MISSING_START_IMAGE_URL')
         return
@@ -911,11 +925,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         sendError(res, 400, 'End image URL is required', 'MISSING_END_IMAGE_URL')
         return
       }
-      if (!prompt || typeof prompt !== 'string') {
-        sendError(res, 400, 'Prompt is required', 'INVALID_PROMPT')
-        return
-      }
-      if (prompt.length > MAX_PROMPT_LENGTH) {
+      if (effectivePrompt.length > MAX_PROMPT_LENGTH) {
         sendError(res, 400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`, 'PROMPT_TOO_LONG')
         return
       }
@@ -979,22 +989,25 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
       const result = await generateKlingTransitionVideo({
         startImagePath,
         endImagePath,
-        prompt,
+        prompt: effectivePrompt,
         duration: String(duration || '5') as '5' | '10',
         aspectRatio: aspectRatio || '9:16',
+        telemetryPipeline: 'avatars.i2v-startend.provider',
       })
 
-      await fs.mkdir(outputsDir, { recursive: true })
-      const outputFilename = `i2v_startend_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
-      await downloadKlingVideo(result.videoUrl, path.join(outputsDir, outputFilename))
+      const startEndJobId = uuidv4()
+      const startEndLayout = createJobOutputDir(outputsDir, 'avatars', 'startend', startEndJobId)
+      await fs.mkdir(startEndLayout.outputDir, { recursive: true })
+      const outputPath = path.join(startEndLayout.outputDir, buildJobOutputFileName('startend', startEndJobId, 'mp4'))
+      await downloadKlingVideo(result.videoUrl, outputPath)
 
       if (req.user?.id)
         notify(req.user.id, 'i2v_complete', 'Video Ready', 'Your start/end frame video is ready to download')
-      span.success({ outputFile: outputFilename, requestId: result.requestId })
+      span.success({ outputFile: path.relative(outputsDir, outputPath), requestId: result.requestId })
 
       sendSuccess(res, {
         videoUrl: result.videoUrl,
-        localPath: `/outputs/${outputFilename}`,
+        localPath: toOutputUrl(outputsDir, outputPath),
         requestId: result.requestId,
       })
     } catch (error) {
@@ -1103,18 +1116,20 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         aspectRatio: aspectRatio || '9:16',
       })
 
-      await fs.mkdir(outputsDir, { recursive: true })
-      const outputFilename = `reaction_${reaction}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`
-      await downloadKlingVideo(result.videoUrl, path.join(outputsDir, outputFilename))
+      const reactionJobId = uuidv4()
+      const reactionLayout = createJobOutputDir(outputsDir, 'avatars', 'reaction', reactionJobId)
+      await fs.mkdir(reactionLayout.outputDir, { recursive: true })
+      const outputPath = path.join(reactionLayout.outputDir, buildJobOutputFileName('reaction', reactionJobId, 'mp4'))
+      await downloadKlingVideo(result.videoUrl, outputPath)
 
       if (req.user?.id) {
         notify(req.user.id, 'reaction_complete', 'Reaction Video Ready', `Your ${reaction} reaction video is ready`)
       }
-      span.success({ outputFile: outputFilename, requestId: result.requestId })
+      span.success({ outputFile: path.relative(outputsDir, outputPath), requestId: result.requestId })
 
       sendSuccess(res, {
         videoUrl: result.videoUrl,
-        localPath: `/outputs/${outputFilename}`,
+        localPath: toOutputUrl(outputsDir, outputPath),
         requestId: result.requestId,
       })
     } catch (error) {

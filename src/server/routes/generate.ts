@@ -8,30 +8,24 @@ import { createBatchJob, formatPromptForFal, generateBatch, generateImage, getJo
 import { createPipelineSpan, recordPipelineEvent } from '../services/telemetry.js'
 import { analyzeImage } from '../services/vision.js'
 import { sendError, sendSuccess } from '../utils/http.js'
+import { buildJobOutputFileName, createJobOutputDir, toOutputUrl } from '../utils/outputPaths.js'
 
 const MAX_PROMPTS = 20
-
-function sanitizeConcept(concept: string): string {
-  return concept
-    .replace(/\.\./g, '')
-    .replace(/[<>:"/\\|?*]/g, '')
-    .replace(/\s+/g, '_')
-    .toLowerCase()
-    .slice(0, 50)
-}
 
 interface GenerateRouterConfig {
   projectRoot: string
 }
 
-function _resolvePathInsideRoot(root: string, unsafePath: string): string | null {
-  if (unsafePath.includes('\0')) return null
+function resolveLocalUrlPath(baseDir: string, urlPath: string, prefix: '/uploads/' | '/outputs/'): string | null {
+  if (!urlPath.startsWith(prefix)) return null
 
-  const resolvedRoot = path.resolve(root)
-  const candidate = path.resolve(unsafePath)
-  const relative = path.relative(resolvedRoot, candidate)
+  const relative = decodeURIComponent(urlPath.slice(prefix.length)).trim()
+  if (!relative || relative.includes('\0')) return null
 
-  if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+  const resolvedBase = path.resolve(baseDir)
+  const candidate = path.resolve(baseDir, relative)
+
+  if (candidate === resolvedBase || candidate.startsWith(resolvedBase + path.sep)) {
     return candidate
   }
 
@@ -127,12 +121,10 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         },
       })
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const safeConcept = sanitizeConcept(concept)
-      const outputDir = path.join(outputsDir, `${safeConcept}_${timestamp}`)
-      await fs.mkdir(outputDir, { recursive: true })
-
-      const job = createBatchJob(concept, totalImages, outputDir, req.user?.id)
+      const job = createBatchJob(concept, totalImages, outputsDir, req.user?.id)
+      const outputLayout = createJobOutputDir(outputsDir, 'generate', 'batch', job.id)
+      await fs.mkdir(outputLayout.outputDir, { recursive: true })
+      job.outputDir = outputLayout.outputDir
       job.prompts = prompts
 
       const referenceImageUrls = files.map((file) => `file://${file.path}`)
@@ -159,13 +151,14 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         })
       })
 
-      span.success({ jobId: job.id, outputDir: job.outputDir })
+      span.success({ jobId: job.id, outputDir: outputLayout.outputDir })
 
       sendSuccess(res, {
         jobId: job.id,
         status: job.status,
         totalImages: job.totalImages,
-        outputDir: job.outputDir,
+        outputDir: outputLayout.outputDirUrl,
+        outputDirLocal: outputLayout.outputDir,
         referenceImageCount: files.length,
         message: 'Batch generation started',
       })
@@ -196,17 +189,19 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       return
     }
 
+    const outputLayout = createJobOutputDir(outputsDir, 'generate', 'batch', job.id)
     sendSuccess(res, {
       jobId: job.id,
       status: job.status,
       progress: Math.round((job.completedImages / job.totalImages) * 100),
       totalImages: job.totalImages,
       completedImages: job.completedImages,
-      outputDir: job.outputDir,
+      outputDir: outputLayout.outputDirUrl,
+      outputDirLocal: outputLayout.outputDir,
       images: job.images.map((img) => ({
         index: img.promptIndex,
         status: img.status,
-        url: img.localPath ? `/outputs/${path.relative(outputsDir, img.localPath)}` : img.url || undefined,
+        url: img.localPath ? toOutputUrl(outputsDir, img.localPath) : img.url || undefined,
         localPath: img.localPath || undefined,
         error: img.error || undefined,
       })),
@@ -232,6 +227,37 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         500,
         'Failed to upload image',
         'UPLOAD_FAILED',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
+    }
+  })
+
+  router.post('/cleanup-upload', async (req, res) => {
+    try {
+      const { path: uploadPath } = req.body as { path?: string }
+      if (!uploadPath || typeof uploadPath !== 'string') {
+        sendError(res, 400, 'Upload path is required', 'INVALID_UPLOAD_PATH')
+        return
+      }
+
+      const localPath = resolveLocalUrlPath(uploadsDir, uploadPath, '/uploads/')
+      if (!localPath) {
+        sendError(res, 400, 'Invalid upload path', 'INVALID_UPLOAD_PATH')
+        return
+      }
+
+      await fs.unlink(localPath).catch((error) => {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return
+        throw error
+      })
+
+      sendSuccess(res, { deleted: true, path: uploadPath })
+    } catch (error) {
+      sendError(
+        res,
+        500,
+        'Failed to cleanup upload',
+        'UPLOAD_CLEANUP_FAILED',
         error instanceof Error ? error.message : 'Unknown error',
       )
     }
@@ -278,10 +304,10 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         imageUrl,
         imageUrls,
         prompt,
-        aspectRatio = '1:1',
+        aspectRatio = '9:16',
         numberOfOutputs = 1,
-        resolution = '1K',
-        format = 'PNG',
+        resolution = '2K',
+        format = 'JPEG',
       } = req.body
 
       // Validate format parameter (whitelist to prevent path traversal)
@@ -298,37 +324,56 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         return
       }
 
-      // Support both single imageUrl and multiple imageUrls
-      // Fix empty array fallback: check length explicitly
-      const urls = imageUrls && imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : null
-
-      if (!urls || !Array.isArray(urls) || urls.length === 0) {
-        sendError(res, 400, 'At least one image URL is required', 'INVALID_IMG2IMG_PAYLOAD')
-        return
-      }
-
       if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
         sendError(res, 400, 'Valid prompt is required', 'INVALID_IMG2IMG_PAYLOAD')
         return
       }
 
-      // Validate all URLs are strings
-      if (!urls.every((url) => typeof url === 'string')) {
-        sendError(res, 400, 'All image URLs must be strings', 'INVALID_IMG2IMG_PAYLOAD')
-        return
-      }
+      // Optional reference images: allow prompt-only generation when no URLs are supplied.
+      let urls: string[] = []
 
-      // Security: Validate URLs are from safe paths only (uploads or outputs)
-      // Prevent arbitrary file:// access
-      for (const url of urls) {
-        if (url.includes('..') || url.includes('~')) {
-          sendError(res, 400, 'Invalid image URL: path traversal detected', 'INVALID_IMG2IMG_PAYLOAD')
+      if (imageUrls !== undefined) {
+        if (!Array.isArray(imageUrls)) {
+          sendError(res, 400, 'imageUrls must be an array', 'INVALID_IMG2IMG_PAYLOAD')
           return
         }
-        // Only allow /uploads/ or /outputs/ paths
-        if (!url.startsWith('/uploads/') && !url.startsWith('/outputs/')) {
-          sendError(res, 400, 'Invalid image URL: must be from /uploads/ or /outputs/', 'INVALID_IMG2IMG_PAYLOAD')
+        if (!imageUrls.every((url) => typeof url === 'string')) {
+          sendError(res, 400, 'All image URLs must be strings', 'INVALID_IMG2IMG_PAYLOAD')
           return
+        }
+        urls = imageUrls.map((url: string) => url.trim()).filter(Boolean)
+      } else if (imageUrl !== undefined) {
+        if (typeof imageUrl !== 'string') {
+          sendError(res, 400, 'imageUrl must be a string', 'INVALID_IMG2IMG_PAYLOAD')
+          return
+        }
+        const single = imageUrl.trim()
+        if (single) urls = [single]
+      }
+
+      const resolvedImagePaths: string[] = []
+      if (urls.length > 0) {
+        // Security: Validate URLs are from safe paths only (uploads or outputs)
+        // Prevent arbitrary file:// access
+        for (const url of urls) {
+          if (url.includes('..') || url.includes('~')) {
+            sendError(res, 400, 'Invalid image URL: path traversal detected', 'INVALID_IMG2IMG_PAYLOAD')
+            return
+          }
+          // Only allow /uploads/ or /outputs/ paths
+          if (!url.startsWith('/uploads/') && !url.startsWith('/outputs/')) {
+            sendError(res, 400, 'Invalid image URL: must be from /uploads/ or /outputs/', 'INVALID_IMG2IMG_PAYLOAD')
+            return
+          }
+
+          const resolvedPath = url.startsWith('/uploads/')
+            ? resolveLocalUrlPath(uploadsDir, url, '/uploads/')
+            : resolveLocalUrlPath(outputsDir, url, '/outputs/')
+          if (!resolvedPath) {
+            sendError(res, 400, 'Invalid image URL path', 'INVALID_IMG2IMG_PAYLOAD')
+            return
+          }
+          resolvedImagePaths.push(resolvedPath)
         }
       }
 
@@ -348,23 +393,11 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       console.log(`[Img2Img] Transforming ${urls.length} images`)
       console.log(`[Img2Img] Settings:`, { aspectRatio, numberOfOutputs: numOutputs, resolution, format })
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const outputDir = path.join(outputsDir, `img2img_${timestamp}`)
-      await fs.mkdir(outputDir, { recursive: true })
+      const img2imgJobId = uuidv4()
+      const outputLayout = createJobOutputDir(outputsDir, 'generate', 'img2img', img2imgJobId)
+      await fs.mkdir(outputLayout.outputDir, { recursive: true })
 
-      // Resolve all imageUrls to full paths (already validated to be safe paths)
-      const fullImagePaths = urls.map((imageUrl: string) => {
-        let fullImagePath: string
-        if (imageUrl.startsWith('/uploads/')) {
-          fullImagePath = path.join(uploadsDir, path.basename(imageUrl))
-        } else if (imageUrl.startsWith('/outputs/')) {
-          fullImagePath = path.join(outputsDir, path.basename(imageUrl))
-        } else {
-          // Should never reach here due to validation above
-          throw new Error('Invalid image path')
-        }
-        return `file://${fullImagePath}`
-      })
+      const fullImagePaths = resolvedImagePaths.map((fullImagePath) => `file://${fullImagePath}`)
 
       // Normalize format: case-insensitive comparison
       const formatUpper = format.toUpperCase()
@@ -372,7 +405,11 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
 
       // FAL API uses all image_urls together as context/reference for generation
       // num_images is the total number of output variations (max 4)
-      console.log(`[Img2Img] Generating ${numOutputs} outputs using ${fullImagePaths.length} reference images`)
+      if (fullImagePaths.length > 0) {
+        console.log(`[Img2Img] Generating ${numOutputs} outputs using ${fullImagePaths.length} reference images`)
+      } else {
+        console.log(`[Img2Img] Generating ${numOutputs} outputs in prompt-only mode`)
+      }
 
       const result = await generateImage(
         fullImagePaths, // All images as context
@@ -390,8 +427,8 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
       // Download images to local storage
       const images = await Promise.all(
         result.urls.map(async (url, index) => {
-          const fileName = `img2img_${timestamp}_output${index + 1}.${normalizedFormat}`
-          const localPath = path.join(outputDir, fileName)
+          const fileName = buildJobOutputFileName('img2img', img2imgJobId, normalizedFormat, index + 1)
+          const localPath = path.join(outputLayout.outputDir, fileName)
 
           try {
             const response = await fetch(url)
@@ -400,7 +437,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
 
             return {
               url,
-              localPath: `/outputs/${path.relative(outputsDir, localPath)}`,
+              localPath: toOutputUrl(outputsDir, localPath),
             }
           } catch (downloadErr) {
             console.error(`[Img2Img] Download failed for ${fileName}:`, downloadErr)
@@ -409,7 +446,7 @@ export function createGenerateRouter(config: GenerateRouterConfig): Router {
         }),
       )
 
-      span.success({ outputDir, imageCount: images.length })
+      span.success({ outputDir: outputLayout.outputDirUrl, imageCount: images.length })
 
       sendSuccess(res, { images })
     } catch (error) {

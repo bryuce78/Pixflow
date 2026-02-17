@@ -40,7 +40,14 @@ export function SelectableResultCard({
         alt=""
       />
 
-      <button type="button" aria-label="Select result" className="absolute inset-0 z-0" onClick={() => onSelect(id)} />
+      <button
+        type="button"
+        aria-label="Select result"
+        className="absolute inset-0 z-0"
+        onClick={() => onSelect(id)}
+        onDoubleClick={() => onOpenModal(assetUrl(displayUrl), id)}
+        title="Double click to preview"
+      />
 
       {/* Video play icon */}
       {isVideo && (
@@ -50,14 +57,6 @@ export function SelectableResultCard({
           </div>
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => onOpenModal(assetUrl(displayUrl), id)}
-        className="absolute bottom-2 right-2 px-2 py-1 rounded bg-surface-900/70 hover:bg-surface-900 text-white text-xs z-20"
-      >
-        View
-      </button>
 
       {/* Selection checkbox */}
       <button

@@ -3,8 +3,10 @@ import path from 'node:path'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
+import { v4 as uuidv4 } from 'uuid'
 import { renderSelectedCaptions, runAutoSubtitle, uploadVideoFile } from '../services/captions.js'
 import { sendError, sendSuccess } from '../utils/http.js'
+import { buildJobOutputFileName, createJobOutputDir } from '../utils/outputPaths.js'
 
 interface CaptionsRouterConfig {
   projectRoot: string
@@ -318,10 +320,19 @@ export function createCaptionsRouter(config: CaptionsRouterConfig): express.Rout
         return
       }
 
-      const outputDir = path.join(projectRoot, 'outputs')
+      const outputLayout = createJobOutputDir(
+        path.join(projectRoot, 'outputs'),
+        'captions',
+        'render-selected',
+        uuidv4(),
+      )
+      await fs.mkdir(outputLayout.outputDir, { recursive: true })
       const result = await renderSelectedCaptions({
         videoUrl: sourceVideoUrl,
-        outputDir,
+        outputDir: outputLayout.outputDir,
+        projectRoot,
+        outputUrlPrefix: outputLayout.outputDirUrl,
+        outputFileName: buildJobOutputFileName('render-selected', outputLayout.jobId, 'mp4'),
         segments,
         fontName: body.fontName || undefined,
         fontSize: toNumber(body.fontSize) ?? undefined,

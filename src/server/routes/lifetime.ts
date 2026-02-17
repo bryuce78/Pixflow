@@ -12,6 +12,7 @@ import { downloadKlingVideo, generateKlingTransitionVideo } from '../services/kl
 import { createPipelineSpan } from '../services/telemetry.js'
 import { predictGenderHint } from '../services/vision.js'
 import { sendError, sendSuccess } from '../utils/http.js'
+import { buildJobOutputFileName, createJobOutputDir } from '../utils/outputPaths.js'
 
 interface LifetimeRouterConfig {
   projectRoot: string
@@ -326,26 +327,31 @@ async function runWithConcurrency<T>(
   if (firstError) throw firstError.reason
 }
 
-function makeFrameOutputPath(outputDir: string, age: number): string {
+function getLifetimeSessionOutputLayout(outputsDir: string, sessionId: string) {
+  return createJobOutputDir(outputsDir, 'lifetime', 'timeline', sessionId)
+}
+
+function makeFrameOutputPath(outputDir: string, sessionId: string, age: number): string {
+  return path.join(outputDir, buildJobOutputFileName(`frame-age-${String(age).padStart(2, '0')}`, sessionId, 'jpg'))
+}
+
+function makeSourceFrameOutputPath(outputDir: string, sessionId: string): string {
+  return path.join(outputDir, buildJobOutputFileName('frame-age-00', sessionId, 'jpg'))
+}
+
+function makeTransitionOutputPath(outputDir: string, sessionId: string, fromAge: number, toAge: number): string {
   return path.join(
     outputDir,
-    `lifetime_age_${String(age).padStart(2, '0')}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+    buildJobOutputFileName(
+      `transition-${String(fromAge).padStart(2, '0')}-to-${String(toAge).padStart(2, '0')}`,
+      sessionId,
+      'mp4',
+    ),
   )
 }
 
-function makeSourceFrameOutputPath(outputDir: string): string {
-  return path.join(outputDir, `lifetime_source_baby_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`)
-}
-
-function makeTransitionOutputPath(outputDir: string, fromAge: number, toAge: number): string {
-  return path.join(
-    outputDir,
-    `lifetime_transition_${String(fromAge).padStart(2, '0')}_to_${String(toAge).padStart(2, '0')}_${Date.now()}.mp4`,
-  )
-}
-
-function makeFinalVideoOutputPath(outputDir: string): string {
-  return path.join(outputDir, `lifetime_final_${Date.now()}.mp4`)
+function makeFinalVideoOutputPath(outputDir: string, sessionId: string): string {
+  return path.join(outputDir, buildJobOutputFileName('final', sessionId, 'mp4'))
 }
 
 async function saveManifest(manifest: LifetimeSessionManifest): Promise<void> {
@@ -362,12 +368,29 @@ async function loadManifest(outputsDir: string, sessionId: string): Promise<Life
     throw new Error('Invalid session id')
   }
 
-  const outputDir = path.join(outputsDir, safeSessionId)
-  const raw = await fs.readFile(manifestFilePath(outputDir), 'utf8')
-  const manifest = JSON.parse(raw) as LifetimeSessionManifest
+  const layout = getLifetimeSessionOutputLayout(outputsDir, safeSessionId)
+  const candidateDirs = [layout.outputDir, path.join(outputsDir, safeSessionId)]
+  let manifest: LifetimeSessionManifest | null = null
+  let outputDir = layout.outputDir
+
+  for (const candidate of candidateDirs) {
+    try {
+      const raw = await fs.readFile(manifestFilePath(candidate), 'utf8')
+      manifest = JSON.parse(raw) as LifetimeSessionManifest
+      outputDir = candidate
+      break
+    } catch {
+      // try next
+    }
+  }
+  if (!manifest) {
+    throw new Error('Session manifest not found')
+  }
   if (!manifest || manifest.sessionId !== safeSessionId) {
     throw new Error('Invalid session manifest')
   }
+  manifest.outputDir = manifest.outputDir || outputDir
+  manifest.outputDirUrl = manifest.outputDirUrl || toPublicOutputPath(outputsDir, manifest.outputDir)
   if (!manifest.sourceFramePath) {
     manifest.sourceFramePath = manifest.originalReferencePath
   }
@@ -446,15 +469,16 @@ function runFfmpeg(args: string[]): Promise<void> {
 async function buildFinalLifetimeVideo(params: {
   outputDir: string
   outputsDir: string
+  sessionId: string
   transitionVideoPaths: string[]
   targetDurationSec: number
 }): Promise<{ videoPath: string; videoUrl: string }> {
-  const { outputDir, outputsDir, transitionVideoPaths, targetDurationSec } = params
+  const { outputDir, outputsDir, sessionId, transitionVideoPaths, targetDurationSec } = params
   if (transitionVideoPaths.length === 0) {
     throw new Error('No transition videos to merge')
   }
 
-  const outputPath = makeFinalVideoOutputPath(outputDir)
+  const outputPath = makeFinalVideoOutputPath(outputDir, sessionId)
   const totalDurationSec = transitionVideoPaths.length * KLING_SEGMENT_DURATION_SEC
   const speedFactor = Math.max(1, totalDurationSec / targetDurationSec)
   const speedExpr = Number(speedFactor.toFixed(6))
@@ -1245,6 +1269,7 @@ function releaseEarlyTransitionSlot(jobId: string): void {
 
 function fireEarlyTransition(params: {
   jobId: string
+  sessionId: string
   outputsDir: string
   outputDir: string
   fromAge: number
@@ -1254,8 +1279,18 @@ function fireEarlyTransition(params: {
   backgroundMode: LifetimeBackgroundMode
   narrativeTrack?: LifetimeNarrativeTrack
 }): Promise<void> {
-  const { jobId, outputsDir, outputDir, fromAge, fromImagePath, toAge, toImagePath, backgroundMode, narrativeTrack } =
-    params
+  const {
+    jobId,
+    sessionId,
+    outputsDir,
+    outputDir,
+    fromAge,
+    fromImagePath,
+    toAge,
+    toImagePath,
+    backgroundMode,
+    narrativeTrack,
+  } = params
   const key = `${fromAge}-${toAge}`
 
   const job = lifetimeRunJobs.get(jobId)
@@ -1278,7 +1313,7 @@ function fireEarlyTransition(params: {
         duration: '5',
         aspectRatio: '9:16',
       })
-      const outputPath = makeTransitionOutputPath(outputDir, fromAge, toAge)
+      const outputPath = makeTransitionOutputPath(outputDir, sessionId, fromAge, toAge)
       await downloadKlingVideo(videoResult.videoUrl, outputPath)
 
       const doneJob = lifetimeRunJobs.get(jobId)
@@ -1341,7 +1376,8 @@ async function runGenerateFramesJob(params: {
     }
 
     const sessionId = makeSessionId()
-    const outputDir = path.join(outputsDir, sessionId)
+    const outputLayout = getLifetimeSessionOutputLayout(outputsDir, sessionId)
+    const outputDir = outputLayout.outputDir
     await fs.mkdir(outputDir, { recursive: true })
 
     const narrativeTrack =
@@ -1349,8 +1385,8 @@ async function runGenerateFramesJob(params: {
         ? NARRATIVE_TRACKS[Math.floor(Math.random() * NARRATIVE_TRACKS.length)]
         : undefined
 
-    const inputExt = path.extname(workingInputPath).toLowerCase() || '.jpg'
-    const originalReferencePath = path.join(outputDir, `input_reference${inputExt}`)
+    const inputExt = path.extname(workingInputPath).replace(/^\./, '').toLowerCase() || 'jpg'
+    const originalReferencePath = path.join(outputDir, buildJobOutputFileName('reference', sessionId, inputExt))
     await fs.copyFile(workingInputPath, originalReferencePath)
 
     let sourceFramePath = originalReferencePath
@@ -1374,7 +1410,7 @@ async function runGenerateFramesJob(params: {
         throw new Error('No source frame URL returned')
       }
 
-      sourceFramePath = makeSourceFrameOutputPath(outputDir)
+      sourceFramePath = makeSourceFrameOutputPath(outputDir, sessionId)
       await downloadImage(sourceGeneratedUrl, sourceFramePath)
       sourceFrameUrl = toPublicOutputPath(outputsDir, sourceFramePath)
 
@@ -1427,7 +1463,7 @@ async function runGenerateFramesJob(params: {
         throw new Error(`No image URL returned for age ${age}`)
       }
 
-      const outputPath = makeFrameOutputPath(outputDir, age)
+      const outputPath = makeFrameOutputPath(outputDir, sessionId, age)
       await downloadImage(generatedUrl, outputPath)
       const frame: LifetimeFrameRecord = {
         age,
@@ -1463,6 +1499,7 @@ async function runGenerateFramesJob(params: {
       const prevAge = index === 0 ? 0 : frames[index - 1].age
       const transitionPromise = fireEarlyTransition({
         jobId,
+        sessionId,
         outputsDir,
         outputDir,
         fromAge: prevAge,
@@ -1644,7 +1681,7 @@ async function runCreateVideosJob(params: {
           duration: '5',
           aspectRatio: '9:16',
         })
-        const outputPath = makeTransitionOutputPath(manifest.outputDir, fromFrame.age, toFrame.age)
+        const outputPath = makeTransitionOutputPath(manifest.outputDir, manifest.sessionId, fromFrame.age, toFrame.age)
         await downloadKlingVideo(videoResult.videoUrl, outputPath)
 
         transitionSlots[index] = {
@@ -1686,6 +1723,7 @@ async function runCreateVideosJob(params: {
     const finalVideo = await buildFinalLifetimeVideo({
       outputDir: manifest.outputDir,
       outputsDir,
+      sessionId: manifest.sessionId,
       transitionVideoPaths: transitions.map((t) => t.videoPath),
       targetDurationSec,
     })
@@ -1849,10 +1887,15 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       return { fromAge, toAge, status: 'pending' as const }
     })
 
+    const outputLayout =
+      job.sessionId && parseSessionId(job.sessionId) ? getLifetimeSessionOutputLayout(outputsDir, job.sessionId) : null
+
     sendSuccess(res, {
       jobId: job.jobId,
       status: job.status,
       sessionId: job.sessionId,
+      outputDirUrl: outputLayout?.outputDirUrl || '',
+      outputDirLocal: outputLayout?.outputDir || '',
       error: job.error,
       progress: job.progress,
       sourceFrameUrl: job.sourceFrameUrl,
@@ -1907,7 +1950,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
           throw new Error('No image URL returned for regenerated source frame')
         }
 
-        const nextSourcePath = makeSourceFrameOutputPath(manifest.outputDir)
+        const nextSourcePath = makeSourceFrameOutputPath(manifest.outputDir, manifest.sessionId)
         await downloadImage(sourceGeneratedUrl, nextSourcePath)
         const previousSourcePath = manifest.sourceFramePath
 
@@ -1995,7 +2038,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
         throw new Error(`No image URL returned for regenerated age ${targetAge}`)
       }
 
-      const nextOutputPath = makeFrameOutputPath(manifest.outputDir, currentFrame.age)
+      const nextOutputPath = makeFrameOutputPath(manifest.outputDir, manifest.sessionId, currentFrame.age)
       await downloadImage(generatedUrl, nextOutputPath)
       const previousPath = currentFrame.imagePath
 
@@ -2104,10 +2147,15 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       return
     }
 
+    const outputLayout =
+      job.sessionId && parseSessionId(job.sessionId) ? getLifetimeSessionOutputLayout(outputsDir, job.sessionId) : null
+
     sendSuccess(res, {
       jobId: job.jobId,
       status: job.status,
       sessionId: job.sessionId,
+      outputDirUrl: outputLayout?.outputDirUrl || '',
+      outputDirLocal: outputLayout?.outputDir || '',
       error: job.error,
       progress: job.progress,
       transitions: job.transitions,

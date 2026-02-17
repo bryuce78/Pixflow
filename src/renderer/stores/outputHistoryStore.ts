@@ -23,6 +23,7 @@ export interface OutputHistoryArtifact {
 
 export interface OutputHistoryEntry {
   id: string
+  internalJobId?: string
   category: OutputHistoryCategory
   title: string
   status: OutputHistoryStatus
@@ -30,6 +31,18 @@ export interface OutputHistoryEntry {
   updatedAt: number
   message?: string
   artifacts: OutputHistoryArtifact[]
+}
+
+export function selectPreviousGenerations(
+  entries: OutputHistoryEntry[],
+  category: OutputHistoryCategory,
+): OutputHistoryEntry[] {
+  const sorted = entries
+    .filter((entry) => entry.category === category)
+    .sort((a, b) => b.startedAt - a.startedAt || b.updatedAt - a.updatedAt)
+
+  if (sorted.length <= 1) return []
+  return sorted.slice(1)
 }
 
 interface OutputHistoryState {
@@ -50,7 +63,11 @@ export const useOutputHistoryStore = create<OutputHistoryState>()((set) => ({
     set((state) => {
       const index = state.entries.findIndex((item) => item.id === entry.id)
       if (index === -1) {
-        return { entries: [entry, ...state.entries] }
+        const withInternalId = {
+          ...entry,
+          internalJobId: entry.internalJobId || createOutputHistoryId('job'),
+        }
+        return { entries: [withInternalId, ...state.entries] }
       }
       const next = [...state.entries]
       next[index] = { ...next[index], ...entry, updatedAt: Date.now() }

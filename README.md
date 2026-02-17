@@ -1,6 +1,6 @@
 # Pixflow
 
-Last updated: 2026-02-15
+Last updated: 2026-02-16
 
 Pixflow is a web-first AI production workspace for social/media creative pipelines.
 
@@ -9,7 +9,7 @@ Pixflow is a web-first AI production workspace for social/media creative pipelin
 - `Prompt Factory`: research-backed structured prompt generation (concept/image input).
 - `Asset Monster`: batch image generation (prompt-only or multi-reference identity anchoring).
 - `Img2Engine`: image-to-video generation with queue-based execution.
-- `Avatar Studio`: script, voice, and talking-avatar generation flows.
+- `Avatar Studio`: script, voice, and talking-avatar generation flows (`Have an Audio` mode uses direct audio -> lipsync without auto transcription).
 - `Captions`: subtitle generation, sentence selection, and burned-in rendering.
 - `The Machine`: end-to-end pipeline orchestration from concept to final media.
 - `Lifetime`: baby photo -> age frames -> transition videos -> merged timeline video.

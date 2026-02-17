@@ -18,7 +18,11 @@ import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../l
 import { notify } from '../../lib/toast'
 import { useAvatarStore } from '../../stores/avatarStore'
 import { useMachineStore } from '../../stores/machineStore'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { ScriptRefinementToolbar } from '../avatar-studio/ScriptRefinementToolbar'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
@@ -143,7 +147,7 @@ export default function MachinePage() {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'machine'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'machine'),
     [outputHistoryEntries],
   )
 
@@ -860,7 +864,7 @@ export default function MachinePage() {
           )}
 
           {isDone && (
-            <div className="bg-surface-50 rounded-lg p-6 space-y-6">
+            <div data-output-category="machine" className="bg-surface-50 rounded-lg p-6 space-y-6">
               <StepHeader stepNumber={5} title="Output" subtitle={concept || undefined} />
 
               {hasAnyAsset && (

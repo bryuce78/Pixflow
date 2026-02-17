@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fal } from '@fal-ai/client'
 import ffmpegStatic from 'ffmpeg-static'
 import { ensureFalConfig } from './falConfig.js'
-import { isMockProvidersEnabled, makeMockId, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
+import { isMockProvidersEnabled, recordMockProviderSuccess, runWithRetries } from './providerRuntime.js'
 
 const PRIMARY_MODEL_ID = 'fal-ai/workflow-utilities/auto-subtitle'
 const FALLBACK_MODEL_ID = 'fal-ai/auto-caption'
@@ -120,6 +120,9 @@ export interface CaptionSegment {
 export interface RenderSelectedCaptionsInput {
   videoUrl: string
   outputDir: string
+  projectRoot?: string
+  outputUrlPrefix?: string
+  outputFileName?: string
   segments: CaptionSegment[]
   fontName?: string
   fontSize?: number
@@ -229,15 +232,32 @@ async function runAutoCaptionFallback(input: AutoSubtitleInput): Promise<AutoSub
 
 export async function runAutoSubtitle(input: AutoSubtitleInput): Promise<AutoSubtitleResult> {
   if (isMockProvidersEnabled()) {
+    const mockTranscription = 'This is a mock caption transcript for preview testing.'
+    const mockWords = [
+      { text: 'This', start: 0, end: 0.3 },
+      { text: 'is', start: 0.3, end: 0.45 },
+      { text: 'a', start: 0.45, end: 0.55 },
+      { text: 'mock', start: 0.55, end: 0.85 },
+      { text: 'caption', start: 0.85, end: 1.2 },
+      { text: 'transcript', start: 1.2, end: 1.65 },
+      { text: 'for', start: 1.65, end: 1.85 },
+      { text: 'preview', start: 1.85, end: 2.2 },
+      { text: 'testing.', start: 2.2, end: 2.7 },
+    ]
+
     await recordMockProviderSuccess({
       pipeline: 'captions.auto_subtitle.provider',
       provider: 'fal',
       metadata: { mock: true },
     })
     return {
-      videoUrl: `https://fal.mock/${makeMockId('caption')}.mp4`,
-      transcription: 'Mock transcription for captions.',
-      subtitleCount: 12,
+      videoUrl: input.videoUrl,
+      transcription: mockTranscription,
+      subtitleCount: 1,
+      words: mockWords,
+      transcriptionMetadata: {
+        segments: [{ start: 0, end: 2.7, text: mockTranscription }],
+      },
     }
   }
 
@@ -573,15 +593,25 @@ function escapeFilterPath(filePath: string): string {
   return filePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'")
 }
 
-async function resolveInputVideoPath(videoUrl: string, outputDir: string, destinationPath: string): Promise<void> {
+function inferProjectRootFromOutputDir(outputDir: string): string {
+  const resolved = path.resolve(outputDir)
+  const outputsMarker = `${path.sep}outputs${path.sep}`
+  const markerIndex = resolved.lastIndexOf(outputsMarker)
+  if (markerIndex > 0) {
+    return resolved.slice(0, markerIndex)
+  }
+  return path.dirname(resolved)
+}
+
+async function resolveInputVideoPath(videoUrl: string, projectRoot: string, destinationPath: string): Promise<void> {
   if (videoUrl.startsWith('/')) {
-    const projectRoot = path.dirname(outputDir)
     const allowedPrefixes = ['/outputs/', '/uploads/']
     if (!allowedPrefixes.some((prefix) => videoUrl.startsWith(prefix))) {
       throw new Error('Unsupported local video path. Use /outputs/... or /uploads/...')
     }
-    const localPath = path.resolve(projectRoot, `.${videoUrl}`)
-    const relative = path.relative(projectRoot, localPath)
+    const normalizedRoot = path.resolve(projectRoot)
+    const localPath = path.resolve(normalizedRoot, `.${videoUrl}`)
+    const relative = path.relative(normalizedRoot, localPath)
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
       throw new Error('Invalid local video path')
     }
@@ -655,13 +685,16 @@ export async function renderSelectedCaptions(
   const inputPath = path.join(tempDir, 'input.mp4')
   const subtitlesSrtPath = path.join(tempDir, 'captions.srt')
   const subtitlesAssPath = path.join(tempDir, 'captions.ass')
-  const outputName = `captioned_${runId}.mp4`
+  const outputName = input.outputFileName || `captioned_${runId}.mp4`
   const outputPath = path.join(input.outputDir, outputName)
+  const projectRoot = input.projectRoot?.trim()
+    ? path.resolve(input.projectRoot)
+    : inferProjectRootFromOutputDir(input.outputDir)
 
   await fs.mkdir(tempDir, { recursive: true })
 
   try {
-    await resolveInputVideoPath(input.videoUrl, input.outputDir, inputPath)
+    await resolveInputVideoPath(input.videoUrl, projectRoot, inputPath)
     await fs.writeFile(subtitlesSrtPath, buildSrt(segments), 'utf8')
     await fs.writeFile(subtitlesAssPath, buildAssFile(segments, input), 'utf8')
 
@@ -722,8 +755,9 @@ export async function renderSelectedCaptions(
       ])
     }
 
+    const outputUrlPrefix = (input.outputUrlPrefix || '/outputs').replace(/\/+$/, '')
     return {
-      videoUrl: `/outputs/${outputName}`,
+      videoUrl: `${outputUrlPrefix}/${outputName}`,
       subtitleCount: segments.length,
     }
   } finally {

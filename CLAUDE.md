@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-15
+> Last updated: 2026-02-16
 
 ## Project
 
@@ -164,6 +164,8 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
 - Concurrency control: `runWithConcurrency(items, limit, fn)` pattern (TTS=4, Lipsync=4)
 - Rate limit retry: `authFetchWithRateLimitRetry()` with exponential backoff via retry-after header
 - Request dedup: counter-based stale response rejection (e.g. `transcriptionRequestId`)
+- Avatar Studio language cards: auto-detect may set `detectedLanguage` label, but must not auto-add a language card selection.
+- Avatar Studio `Have an Audio`: upload audio directly to `generatedAudioUrl` and generate lipsync from that audio (no forced transcript step).
 
 ### Express App Init Order (createApp.ts)
 `validateServerEnv` → `initDatabase` → `migrateJsonToSqlite` → `ensureBootstrapAdminIfConfigured` → `scheduleAutoExport` → CORS → JSON (10mb limit) → static routes → health → public routes (auth, products) → protected routes → error handler
@@ -246,8 +248,9 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - DB uses WAL mode → `data/` contains .db, .db-wal, .db-shm files (all gitignored, auto-created)
 - DB seeds tables + presets on every startup (idempotent)
 - AppShell measures tab-switch perf via double-RAF pattern (two nested requestAnimationFrame calls)
-- Avatar green screen detection: hardcoded thresholds (minGreen: 120, minDominance: 35, ratio: 0.6)
+- Avatar uploads in Avatar Studio are direct gallery uploads (`/api/avatars/upload`); do not silently auto-trigger `generate-from-reference` on upload.
 - Caption segments: max 8 words / 72 chars per segment
+- `POST /api/prompts/text-to-json` currently allows up to 8000 chars (long-form custom prompt conversion).
 - FAL.ai Kling model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
 - Server does not hot-reload all service file changes — restart `npm run dev` after modifying services like `kling.ts`, `promptGenerator.ts`
 - GitHub Actions: push to main triggers Cloudflare Pages deploy when `src/renderer/**`, `public/**`, `package.json`, `package-lock.json`, `vite.web.config.ts`, or `wrangler.toml` change; needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets

@@ -941,7 +941,7 @@ Examples:
       <div className="space-y-6">
         {/* Step 4: Final Outputs */}
         {batchProgress && (
-          <div className="bg-surface-50 rounded-lg p-4">
+          <div data-output-category="asset_monster" className="bg-surface-50 rounded-lg p-4">
             <StepHeader stepNumber={4} title="Final Outputs" />
 
             {
@@ -1219,7 +1219,7 @@ Examples:
 
         {/* Previous Batches */}
         {completedBatches.length > 0 && (
-          <div className="bg-surface-50 rounded-lg p-4">
+          <div data-output-category="asset_monster" className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-surface-400 uppercase tracking-wider">Previous Batches</h3>
               <Button variant="ghost-muted" size="xs" onClick={clearCompletedBatches}>

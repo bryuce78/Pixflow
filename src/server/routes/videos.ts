@@ -6,6 +6,7 @@ import path from 'node:path'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
+import { v4 as uuidv4 } from 'uuid'
 import type { AuthRequest } from '../middleware/auth.js'
 import { transcribeVideo } from '../services/wizper.js'
 import {
@@ -15,6 +16,7 @@ import {
   isFacebookAdsLibraryUrl,
 } from '../services/ytdlp.js'
 import { sendError, sendSuccess } from '../utils/http.js'
+import { buildJobOutputFileName, createJobOutputDir, toOutputUrl } from '../utils/outputPaths.js'
 
 interface VideosRouterConfig {
   projectRoot: string
@@ -32,14 +34,23 @@ const transcriptionLimiter = rateLimit({
 export function createVideosRouter(config: VideosRouterConfig) {
   const router = express.Router()
   const outputsDir = path.join(config.projectRoot, 'outputs')
+  type UploadRequest = AuthRequest & { _uploadLayout?: ReturnType<typeof createJobOutputDir> }
 
   // Configure multer for video uploads
   const storage = multer.diskStorage({
-    destination: outputsDir,
-    filename: (_req, file, cb) => {
-      const timestamp = Date.now()
-      const sanitized = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')
-      cb(null, `uploaded_${timestamp}_${sanitized}`)
+    destination: async (req, _file, cb) => {
+      const jobId = uuidv4()
+      const layout = createJobOutputDir(outputsDir, 'videos', 'upload', jobId)
+      ;(req as UploadRequest)._uploadLayout = layout
+      await fs.mkdir(layout.outputDir, { recursive: true })
+      cb(null, layout.outputDir)
+    },
+    filename: (req, file, cb) => {
+      const layout = (req as UploadRequest)._uploadLayout
+      const ext = path.extname(file.originalname).replace(/^\./, '').toLowerCase() || 'bin'
+      const mode = layout?.mode || 'upload'
+      const jobId = layout?.jobId || uuidv4()
+      cb(null, buildJobOutputFileName(mode, jobId, ext))
     },
   })
 
@@ -57,36 +68,55 @@ export function createVideosRouter(config: VideosRouterConfig) {
     },
   })
 
-  /**
-   * Sanitize and validate file path to prevent directory traversal.
-   * Only allows files from outputs directory.
-   */
-  function sanitizePath(userPath: string): string {
-    // Remove leading slash if present
-    const cleanPath = userPath.startsWith('/') ? userPath.slice(1) : userPath
-
-    // Resolve to absolute path
-    const absolutePath = path.join(config.projectRoot, cleanPath)
-
-    // Verify it's within outputs directory
-    if (!absolutePath.startsWith(outputsDir)) {
+  function sanitizeOutputPath(userPath: string): string {
+    const relative = decodeURIComponent(userPath.replace(/^\/+/, '').replace(/^outputs\//, ''))
+    const absolutePath = path.resolve(outputsDir, relative)
+    const resolvedOutputsDir = path.resolve(outputsDir)
+    if (absolutePath !== resolvedOutputsDir && !absolutePath.startsWith(resolvedOutputsDir + path.sep)) {
       throw new Error('Invalid path: must be within outputs directory')
     }
-
     return absolutePath
+  }
+
+  async function listVideoFilesRecursively(rootDir: string): Promise<string[]> {
+    const stack = [rootDir]
+    const results: string[] = []
+
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current) continue
+      let entries: Array<import('node:fs').Dirent> = []
+      try {
+        entries = await fs.readdir(current, { withFileTypes: true })
+      } catch {
+        continue
+      }
+
+      for (const entry of entries) {
+        const absolute = path.join(current, entry.name)
+        if (entry.isDirectory()) {
+          stack.push(absolute)
+          continue
+        }
+        if (entry.isFile() && /\.mp4$/i.test(entry.name)) {
+          results.push(absolute)
+        }
+      }
+    }
+
+    return results
   }
 
   /**
    * Download video from external URL to temp file
    */
-  async function downloadVideoFromUrl(url: string): Promise<string> {
+  async function downloadVideoFromUrl(url: string, targetPath: string): Promise<string> {
     const userAgent =
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     const maxRedirects = 5
 
     return new Promise((resolve, reject) => {
-      const tempPath = path.join(outputsDir, `temp_download_${Date.now()}.mp4`)
-      const stream = createWriteStream(tempPath)
+      const stream = createWriteStream(targetPath)
       let settled = false
 
       const complete = (fn: () => void) => {
@@ -97,7 +127,7 @@ export function createVideosRouter(config: VideosRouterConfig) {
 
       const cleanupAndReject = (error: Error) => {
         stream.destroy()
-        fs.unlink(tempPath).catch(() => {})
+        fs.unlink(targetPath).catch(() => {})
         complete(() => reject(error))
       }
 
@@ -139,7 +169,7 @@ export function createVideosRouter(config: VideosRouterConfig) {
 
             response.pipe(stream, { end: false })
             response.on('end', () => {
-              stream.end(() => complete(() => resolve(tempPath)))
+              stream.end(() => complete(() => resolve(targetPath)))
             })
             response.on('error', (err) => {
               cleanupAndReject(err instanceof Error ? err : new Error(String(err)))
@@ -156,27 +186,44 @@ export function createVideosRouter(config: VideosRouterConfig) {
     })
   }
 
+  async function normalizeDownloadedVideoPath(
+    layout: ReturnType<typeof createJobOutputDir>,
+    sourcePath: string,
+  ): Promise<string> {
+    const extension = path.extname(sourcePath).replace(/^\./, '').toLowerCase() || 'mp4'
+    const targetPath = path.join(layout.outputDir, buildJobOutputFileName(layout.mode, layout.jobId, extension))
+    if (sourcePath === targetPath) return sourcePath
+
+    try {
+      await fs.rename(sourcePath, targetPath)
+      return targetPath
+    } catch {
+      const bytes = await fs.readFile(sourcePath)
+      await fs.writeFile(targetPath, bytes)
+      await fs.unlink(sourcePath).catch(() => {})
+      return targetPath
+    }
+  }
+
   /**
    * GET /api/videos/list
    * List all video files in outputs directory
    */
   router.get('/list', async (_req, res) => {
     try {
-      const files = await fs.readdir(outputsDir)
-
+      const files = await listVideoFilesRecursively(outputsDir)
       const videoFiles = await Promise.all(
-        files
-          .filter((f) => f.endsWith('.mp4'))
-          .map(async (filename) => {
-            const filePath = path.join(outputsDir, filename)
-            const stats = await fs.stat(filePath)
-            return {
-              filename,
-              url: `/outputs/${filename}`,
-              size: stats.size,
-              modifiedAt: stats.mtime.toISOString(),
-            }
-          }),
+        files.map(async (filePath) => {
+          const stats = await fs.stat(filePath)
+          const relative = path.relative(outputsDir, filePath).split(path.sep).join('/')
+          return {
+            filename: path.basename(filePath),
+            relativePath: relative,
+            url: toOutputUrl(outputsDir, filePath),
+            size: stats.size,
+            modifiedAt: stats.mtime.toISOString(),
+          }
+        }),
       )
 
       // Sort by modification time (newest first)
@@ -200,14 +247,17 @@ export function createVideosRouter(config: VideosRouterConfig) {
         return
       }
 
-      const videoUrl = `/outputs/${req.file.filename}`
+      const uploadReq = req as UploadRequest
+      const videoUrl = toOutputUrl(outputsDir, req.file.path)
+      const outputDirUrl = uploadReq._uploadLayout?.outputDirUrl || videoUrl.split('/').slice(0, -1).join('/')
 
       console.log(`[Videos] Media uploaded: ${videoUrl}`)
 
       sendSuccess(res, {
         url: videoUrl,
-        filename: req.file.filename,
+        filename: path.basename(req.file.path),
         size: req.file.size,
+        outputDir: outputDirUrl,
       })
     } catch (error) {
       console.error('[Videos] Upload failed:', error)
@@ -252,6 +302,12 @@ export function createVideosRouter(config: VideosRouterConfig) {
       }
 
       console.log('[Videos] Transcribe request:', { clientRequestId, videoUrl })
+      const transcribeLayout = createJobOutputDir(outputsDir, 'videos', 'transcribe', uuidv4())
+      await fs.mkdir(transcribeLayout.outputDir, { recursive: true })
+      const transcribeTargetPath = path.join(
+        transcribeLayout.outputDir,
+        buildJobOutputFileName(transcribeLayout.mode, transcribeLayout.jobId, 'mp4'),
+      )
 
       let videoPath: string
 
@@ -263,8 +319,8 @@ export function createVideosRouter(config: VideosRouterConfig) {
         if (isFacebookAdsLibraryUrl(videoUrl)) {
           console.log('[Videos] Detected Facebook Ads Library URL, downloading with yt-dlp...', { clientRequestId })
           try {
-            const result = await downloadVideoWithYtDlp(videoUrl, outputsDir)
-            videoPath = result.videoPath
+            const result = await downloadVideoWithYtDlp(videoUrl, transcribeLayout.outputDir)
+            videoPath = await normalizeDownloadedVideoPath(transcribeLayout, result.videoPath)
             tempDownloadPath = videoPath
             console.log('[Videos] Facebook Ads yt-dlp download complete:', {
               clientRequestId,
@@ -283,7 +339,7 @@ export function createVideosRouter(config: VideosRouterConfig) {
                 directVideoUrl: directVideoUrl.slice(0, 160),
               })
 
-              videoPath = await downloadVideoFromUrl(directVideoUrl)
+              videoPath = await downloadVideoFromUrl(directVideoUrl, transcribeTargetPath)
               tempDownloadPath = videoPath
               console.log('[Videos] Facebook Ads direct video download complete:', {
                 clientRequestId,
@@ -308,8 +364,8 @@ export function createVideosRouter(config: VideosRouterConfig) {
             // Use yt-dlp for platform videos
             console.log(`[Videos] Detected ${platform} video, using yt-dlp...`)
             try {
-              const result = await downloadVideoWithYtDlp(videoUrl, outputsDir)
-              videoPath = result.videoPath
+              const result = await downloadVideoWithYtDlp(videoUrl, transcribeLayout.outputDir)
+              videoPath = await normalizeDownloadedVideoPath(transcribeLayout, result.videoPath)
               tempDownloadPath = videoPath
               console.log(`[Videos] yt-dlp download complete: ${result.title} (${result.platform})`)
             } catch (error) {
@@ -321,7 +377,7 @@ export function createVideosRouter(config: VideosRouterConfig) {
           } else {
             // Direct URL download for non-platform videos
             console.log(`[Videos] Downloading video from direct URL: ${videoUrl}`)
-            videoPath = await downloadVideoFromUrl(videoUrl)
+            videoPath = await downloadVideoFromUrl(videoUrl, transcribeTargetPath)
             tempDownloadPath = videoPath
           }
         }
@@ -334,7 +390,7 @@ export function createVideosRouter(config: VideosRouterConfig) {
 
         // Sanitize and resolve path
         try {
-          videoPath = sanitizePath(videoUrl)
+          videoPath = sanitizeOutputPath(videoUrl)
         } catch (err) {
           sendError(
             res,

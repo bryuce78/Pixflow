@@ -1,6 +1,6 @@
 # Pixflow UI Rules (Feb 2026)
 
-Last updated: 2026-02-15
+Last updated: 2026-02-16
 
 ## Purpose
 Keep the UI consistent and predictable across all Pixflow categories. These rules are the source of truth for layout, navigation, and state feedback.
@@ -11,6 +11,9 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - Forms: Use `grid-cols-1 sm:grid-cols-2` for dense field groups.
 - Long lists/grids: keep padding and card radius consistent (`rounded-lg` + surface background).
 - Result grids: `grid-cols-2 sm:grid-cols-3 xl:grid-cols-4` — not page-specific column counts.
+- Transcript Media (Avatar Studio): selected avatar thumbnail and script textarea must share the same top baseline and exact visual height.
+- Preferred implementation for Transcript Media alignment: 2-column grid (`thumbnail`, `script`) with a dedicated header row and content row.
+- `Have an Audio` (Avatar Studio): while uploading, show only progress UI; after completion, replace progress with audio preview card.
 
 ## Navigation
 - Top-level category navigation: `SideNav` (collapsible icon/label sidebar).

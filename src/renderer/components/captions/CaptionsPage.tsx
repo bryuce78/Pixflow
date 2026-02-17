@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
 import { notify } from '../../lib/toast'
 import { useCaptionsPresetStore } from '../../stores/captionsPresetStore'
-import { createOutputHistoryId, useOutputHistoryStore } from '../../stores/outputHistoryStore'
+import {
+  createOutputHistoryId,
+  selectPreviousGenerations,
+  useOutputHistoryStore,
+} from '../../stores/outputHistoryStore'
 import { StepHeader } from '../asset-monster/StepHeader'
 import { PreviousGenerationsPanel } from '../shared/PreviousGenerationsPanel'
 import { Button } from '../ui/Button'
@@ -286,7 +290,7 @@ export default function CaptionsPage() {
   const removeHistory = useOutputHistoryStore((state) => state.remove)
   const removeManyHistory = useOutputHistoryStore((state) => state.removeMany)
   const historyEntries = useMemo(
-    () => outputHistoryEntries.filter((entry) => entry.category === 'captions'),
+    () => selectPreviousGenerations(outputHistoryEntries, 'captions'),
     [outputHistoryEntries],
   )
 
@@ -1408,7 +1412,7 @@ export default function CaptionsPage() {
           </div>
         </div>
 
-        <div className="bg-surface-50 rounded-lg p-4 space-y-4">
+        <div data-output-category="captions" className="bg-surface-50 rounded-lg p-4 space-y-4">
           <StepHeader stepNumber={4} title="Output" />
           <div className="space-y-3">
             {outputUrl && (

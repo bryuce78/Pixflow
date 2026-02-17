@@ -1,6 +1,6 @@
 # Pixflow Regression Gate
 
-Generated at: 2026-02-15T22:19:55.519Z
+Generated at: 2026-02-17T07:26:33.160Z
 Mode: block
 Decision: **SKIPPED_NO_BASELINE**
 Source: `/Users/pixery/Projects/pixflow/logs/telemetry-trends.json`
