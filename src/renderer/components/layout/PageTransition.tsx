@@ -6,5 +6,9 @@ interface PageTransitionProps {
 }
 
 export function PageTransition({ pageKey, children }: PageTransitionProps) {
-  return <div key={pageKey}>{children}</div>
+  return (
+    <div key={pageKey} className="page-enter">
+      {children}
+    </div>
+  )
 }

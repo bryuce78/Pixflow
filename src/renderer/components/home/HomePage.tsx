@@ -1,4 +1,16 @@
-import { BarChart3, Film, Layers, LayoutGrid, MessageSquareText, TimerReset, Video, Wand2, X, Zap } from 'lucide-react'
+import {
+  ArrowRight,
+  BarChart3,
+  Film,
+  Layers,
+  LayoutGrid,
+  MessageSquareText,
+  TimerReset,
+  Video,
+  Wand2,
+  X,
+  Zap,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigationStore } from '../../stores/navigationStore'
 import { type OutputHistoryEntry, useOutputHistoryStore } from '../../stores/outputHistoryStore'
@@ -53,6 +65,43 @@ const CATEGORIES = [
       'Track competitor creatives from the last 7 days with a focused report. Start with Clone AI and expand to richer market signals.',
   },
 ]
+
+const PIPELINE_STEPS = [
+  { icon: Wand2, label: 'Prompts' },
+  { icon: Layers, label: 'Images' },
+  { icon: Film, label: 'Video' },
+  { icon: Video, label: 'Avatar' },
+  { icon: MessageSquareText, label: 'Captions' },
+] as const
+
+function PipelineFlow() {
+  return (
+    <div className="bg-surface-50 rounded-xl border border-surface-200/50 px-5 py-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-3">End-to-end pipeline</p>
+      <div className="flex items-center gap-1 flex-wrap">
+        {PIPELINE_STEPS.map((step, i) => {
+          const Icon = step.icon
+          return (
+            <div key={step.label} className="flex items-center gap-1">
+              {i > 0 && <ArrowRight className="w-3 h-3 text-surface-300 shrink-0" />}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-100 border border-surface-200/60">
+                <Icon className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                <span className="text-xs font-semibold text-surface-600 whitespace-nowrap">{step.label}</span>
+              </div>
+            </div>
+          )
+        })}
+        <div className="flex items-center gap-1">
+          <ArrowRight className="w-3 h-3 text-surface-300 shrink-0" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-brand-500/10 border border-brand-500/20">
+            <Zap className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+            <span className="text-xs font-semibold text-brand-400 whitespace-nowrap">The Machine</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const VISITED_KEY = 'pixflow_visited'
 const BANNER_DISMISSED_KEY = 'pixflow_banner_dismissed'
@@ -151,6 +200,8 @@ export default function HomePage() {
         </div>
       )}
 
+      <PipelineFlow />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {CATEGORIES.map((category, index) => {
           const Icon = category.icon
@@ -165,10 +216,10 @@ export default function HomePage() {
               }}
               disabled={isDisabled}
               title={isDisabled ? `${brandedName(category.id)} (Under Development)` : brandedName(category.id)}
-              className={`home-card-enter text-left bg-surface-50 rounded-xl border border-surface-200/50 p-5 transition ${
+              className={`home-card-enter text-left bg-surface-50 rounded-xl border border-surface-200/50 p-5 transition-all duration-200 ${
                 isDisabled
                   ? 'opacity-65 cursor-not-allowed'
-                  : 'hover:border-brand-500/40 hover:shadow-sm cursor-pointer'
+                  : 'hover:border-brand-500/40 hover:shadow-md hover:scale-[1.015] active:scale-[1.005] cursor-pointer'
               }`}
               style={{ animationDelay: `${240 + index * 160}ms` }}
             >
