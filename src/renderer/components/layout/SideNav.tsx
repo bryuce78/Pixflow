@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   Film,
+  HelpCircle,
   Layers,
   Loader2,
   MessageSquareText,
@@ -21,9 +22,11 @@ import { useHistoryStore } from '../../stores/historyStore'
 import { useMachineStore } from '../../stores/machineStore'
 import { type TabId, useNavigationStore } from '../../stores/navigationStore'
 import { usePromptStore } from '../../stores/promptStore'
+import { useShortcutHelpStore } from '../../stores/shortcutHelpStore'
 import { useThemeStore } from '../../stores/themeStore'
 import { Badge } from '../ui/Badge'
 import { brandedName, brandedPlainText } from '../ui/BrandedName'
+import { Tooltip } from '../ui/Tooltip'
 import { NotificationBell } from './NotificationBell'
 import { UserMenu } from './UserMenu'
 
@@ -49,6 +52,7 @@ export function SideNav() {
   const favoritesCount = useHistoryStore((s) => s.favorites.length)
   const { mode, toggleMode } = useThemeStore()
   const userName = useAuthStore((s) => s.user?.name || 'User')
+  const toggleShortcutHelp = useShortcutHelpStore((s) => s.toggle)
 
   useEffect(() => {
     const mql = window.matchMedia(LG_BREAKPOINT)
@@ -128,78 +132,97 @@ export function SideNav() {
           return (
             <Fragment key={item.id}>
               {isCompetitor && <div className="my-2 border-t border-surface-200/70" aria-hidden="true" />}
-              <button
-                type="button"
-                onClick={() => {
-                  if (isDisabled) return
-                  navigate(item.id)
-                }}
-                disabled={isDisabled}
-                title={isDisabled ? `${brandedPlainText(item.id)} (Under Development)` : brandedPlainText(item.id)}
-                className={`relative flex items-center w-full rounded-lg py-3 text-base font-black transition ${
-                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
-                } ${
-                  isActive
-                    ? 'bg-brand-500/10 text-surface-900 border border-transparent shadow-sm'
-                    : isDisabled
-                      ? 'text-surface-400/70 cursor-not-allowed opacity-70'
-                      : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
-                }`}
+              <Tooltip
+                content={isDisabled ? `${brandedPlainText(item.id)} (Under Development)` : brandedPlainText(item.id)}
+                side="right"
+                delay={300}
+                enabled={sidebarCollapsed}
               >
-                <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-400' : ''}`} />
-                  {!sidebarCollapsed && (
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="whitespace-nowrap">
-                        {brandedName(item.id, isCompetitor ? 'text-secondary-500' : undefined)}
-                      </span>
-                      {isDisabled && (
-                        <span
-                          className="inline-flex w-4 h-4 items-center justify-center rounded-full border border-surface-300/70 text-surface-400"
-                          aria-hidden="true"
-                          title="Under development"
-                        >
-                          <Loader2 className="w-2.5 h-2.5" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isDisabled) return
+                    navigate(item.id)
+                  }}
+                  disabled={isDisabled}
+                  className={`relative flex items-center w-full rounded-lg py-3 text-base font-black transition ${
+                    sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-4'
+                  } ${
+                    isActive
+                      ? 'bg-brand-500/10 text-surface-900 border border-transparent shadow-sm'
+                      : isDisabled
+                        ? 'text-surface-400/70 cursor-not-allowed opacity-70'
+                        : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
+                  }`}
+                >
+                  <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-3'}`}>
+                    <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-400' : ''}`} />
+                    {!sidebarCollapsed && (
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="whitespace-nowrap">
+                          {brandedName(item.id, isCompetitor ? 'text-secondary-500' : undefined)}
                         </span>
-                      )}
-                    </span>
+                        {isDisabled && (
+                          <span
+                            className="inline-flex w-4 h-4 items-center justify-center rounded-full border border-surface-300/70 text-surface-400"
+                            aria-hidden="true"
+                          >
+                            <Loader2 className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
+                  {sidebarCollapsed && item.badge && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-500" />
                   )}
-                </div>
-                {!sidebarCollapsed && item.badge && <span className="flex items-center">{item.badge}</span>}
-                {sidebarCollapsed && item.badge && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-500" />
-                )}
-              </button>
+                </button>
+              </Tooltip>
             </Fragment>
           )
         })}
       </nav>
       <div className="border-t border-surface-100 py-3 space-y-2 px-4">
-        <button
-          type="button"
-          onClick={toggleSidebarCollapsed}
-          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
-        >
-          <span className="w-11 h-11 inline-flex items-center justify-center">
-            {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </span>
-          <span className="sr-only">Toggle sidebar</span>
-        </button>
+        <Tooltip content={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
+          >
+            <span className="w-11 h-11 inline-flex items-center justify-center">
+              {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </span>
+            <span className="sr-only">Toggle sidebar</span>
+          </button>
+        </Tooltip>
         <div className="flex items-center text-surface-500 w-full">
           <NotificationBell compact buttonClassName="w-11 h-11 p-0" />
         </div>
-        <button
-          type="button"
-          onClick={toggleMode}
-          title={mode === 'dark' ? 'Light mode' : 'Dark mode'}
-          className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
-        >
-          <span className="w-11 h-11 inline-flex items-center justify-center">
-            {mode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </span>
-          <span className="sr-only">Toggle theme</span>
-        </button>
+        <Tooltip content={mode === 'dark' ? 'Light mode' : 'Dark mode'} side="right">
+          <button
+            type="button"
+            onClick={toggleMode}
+            className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
+          >
+            <span className="w-11 h-11 inline-flex items-center justify-center">
+              {mode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </span>
+            <span className="sr-only">Toggle theme</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Keyboard shortcuts (?)" side="right">
+          <button
+            type="button"
+            onClick={toggleShortcutHelp}
+            className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
+          >
+            <span className="w-11 h-11 inline-flex items-center justify-center">
+              <HelpCircle className="w-4 h-4" />
+            </span>
+            {!sidebarCollapsed && <span className="text-sm">Keyboard shortcuts</span>}
+          </button>
+        </Tooltip>
         <div className="grid grid-cols-[44px_1fr] items-center gap-2 text-surface-500 w-full">
           <UserMenu compact buttonClassName="w-11 h-11 p-0" />
           {!sidebarCollapsed && <span className="text-sm font-medium">{userName}</span>}

@@ -22,6 +22,7 @@ import { useProductStore } from '../../stores/productStore'
 import { useThemeStore } from '../../stores/themeStore'
 import { FeedbackWidget } from '../feedback/FeedbackWidget'
 import { JobMonitorWidget } from '../shared/JobMonitorWidget'
+import { ShortcutHelpModal } from '../shared/ShortcutHelpModal'
 import { brandedName } from '../ui/BrandedName'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { Skeleton } from '../ui/Skeleton'
@@ -178,6 +179,7 @@ export function AppShell() {
       <AvatarPreviewOverlay />
       <FeedbackWidget />
       <JobMonitorWidget />
+      <ShortcutHelpModal />
       <Toaster
         position="bottom-right"
         toastOptions={{
