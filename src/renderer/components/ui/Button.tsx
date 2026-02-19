@@ -103,12 +103,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       requestAnimationFrame(scrollAppTop)
     }
 
+    const isDisabled = disabled || loading
+    const colorClasses = isDisabled
+      ? 'bg-surface-200 text-surface-400 cursor-not-allowed'
+      : variantClasses[effectiveVariant]
+
     return (
       <button
         ref={ref}
         type={type}
-        disabled={disabled || loading}
-        className={`inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-surface-0 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[effectiveVariant]} ${sizeClasses[size]} ${className}`}
+        disabled={isDisabled}
+        className={`inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-surface-0 ${colorClasses} ${sizeClasses[size]} ${className}`}
         onClick={handleClick}
         {...rest}
       >
