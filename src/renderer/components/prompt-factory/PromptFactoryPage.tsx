@@ -435,7 +435,7 @@ export default function PromptFactoryPage() {
   const pendingAnalyzeCount = analyzeEntries.filter((e) => !e.prompt).length
   const promptModeTabs: { id: 'concept' | 'image'; label: string; icon: JSX.Element }[] = [
     { id: 'concept', label: 'Create Prompts', icon: <Sparkles className="w-4 h-4" /> },
-    { id: 'image', label: 'Image to Prompt', icon: <ScanSearch className="w-4 h-4" /> },
+    { id: 'image', label: 'Img2Prompt', icon: <ScanSearch className="w-4 h-4" /> },
   ]
 
   if (promptMode === 'image') {
@@ -444,7 +444,13 @@ export default function PromptFactoryPage() {
         {/* LEFT PANEL - Inputs & Controls */}
         <div className="xl:col-span-1 self-start bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
           <StepHeader stepNumber={1} title="Create Prompts" />
-          <SegmentedTabs value={promptMode} items={promptModeTabs} onChange={setPromptMode} ariaLabel="Prompt mode" />
+          <SegmentedTabs
+            value={promptMode}
+            items={promptModeTabs}
+            onChange={setPromptMode}
+            ariaLabel="Prompt mode"
+            size="sm"
+          />
 
           {/* Context Input - OPTIONAL */}
           <div>
@@ -766,7 +772,13 @@ export default function PromptFactoryPage() {
       <div className="xl:col-span-1 self-start bg-surface-100/50 rounded-xl border border-surface-200/50 p-6 flex flex-col gap-4 overflow-visible xl:overflow-hidden">
         <StepHeader stepNumber={1} title="Create Prompts" />
         {/* Mode Toggle */}
-        <SegmentedTabs value={promptMode} items={promptModeTabs} onChange={setPromptMode} ariaLabel="Prompt mode" />
+        <SegmentedTabs
+          value={promptMode}
+          items={promptModeTabs}
+          onChange={setPromptMode}
+          ariaLabel="Prompt mode"
+          size="sm"
+        />
 
         {/* Input Section */}
         <Input
