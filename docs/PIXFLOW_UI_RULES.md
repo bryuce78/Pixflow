@@ -1,6 +1,6 @@
 # Pixflow UI Rules (Feb 2026)
 
-Last updated: 2026-02-16
+Last updated: 2026-02-20
 
 ## Purpose
 Keep the UI consistent and predictable across all Pixflow categories. These rules are the source of truth for layout, navigation, and state feedback.
@@ -49,7 +49,8 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 
 ## Buttons
 - Use shared `Button` variants for all actions.
-- **Generate/Regenerate buttons:** Let auto-lime detection handle variant. Never manually set `variant="success"` or `variant="warning"` on generate actions.
+- **Generate/Regenerate buttons:** Let auto-lime detection handle variant. Never manually set `variant="lime"`, `variant="success"`, or `variant="warning"` on generate actions — the Button component detects "generate"/"regenerate" labels and applies lime automatically.
+- **Disabled state:** `Button` renders `bg-surface-200 text-surface-400` when `disabled` or `loading`, bypassing variant color. Do not rely on `opacity-50` for disabled — it is not used.
 - Avoid raw `<button>` unless the element is a card overlay or complex hit-target.
 
 ## Destructive Actions
@@ -90,6 +91,16 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - No ad-hoc empty text — use `EmptyState`.
 - No single-click destructive actions — use `ConfirmationDialog`.
 
+## Tooltips
+- Use `Tooltip` (`src/renderer/components/ui/Tooltip.tsx`) for icon-only or collapsed-sidebar labels.
+- `enabled` prop: set `enabled={false}` to suppress tooltip when label is already visible (e.g. expanded sidebar).
+- Default `delay={300}`. Do not use `delay=99999` as a disable hack — use `enabled={false}`.
+- Portal-rendered to `document.body`, z-index 55 (above JobMonitorWidget z-45, below Modal z-50).
+
+## Page Transitions
+- `PageTransition` wraps all page content with `page-enter` animation (220ms ease-out fade+slide).
+- `prefers-reduced-motion` disables the animation automatically.
+
 ## Component Map
 - `SideNav`: top-level category navigation
 - `SegmentedTabs`: in-page mode toggles
@@ -100,3 +111,6 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - `LoadingState`: neutral loading placeholder
 - `ProgressBar`: generation or upload progress
 - `ConfirmationDialog`: destructive action confirmation
+- `Tooltip`: hover labels for icon-only controls
+- `ShortcutHelpModal`: keyboard shortcuts overlay (`?` key, `useShortcutHelpStore`)
+- `WhatsNewModal`: changelog overlay (`useWhatsNew`, `pixflow_whats_new_seen` localStorage)

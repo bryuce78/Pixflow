@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-17
+> Last updated: 2026-02-20
 
 ## Project
 
@@ -246,10 +246,12 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 
 - `npm run native:rebuild` needed after switching Node versions (better-sqlite3 native binding)
 - DB uses WAL mode → `data/` contains .db, .db-wal, .db-shm files (all gitignored, auto-created)
-- DB seeds tables + presets on every startup (idempotent)
+- DB seeds tables + presets on every startup; **builtin presets are now upserted** (not skip-if-exists), so schema.ts preset changes take effect on next restart without manual DB wipe
 - AppShell measures tab-switch perf via double-RAF pattern (two nested requestAnimationFrame calls)
 - Avatar uploads in Avatar Studio are direct gallery uploads (`/api/avatars/upload`); do not silently auto-trigger `generate-from-reference` on upload.
-- Caption segments: max 8 words / 72 chars per segment
+- Caption segments: max 8 words / 72 chars per segment. `wordsPerSubtitle` is applied via `normalizeRenderSegments` both at `auto-subtitle` segment extraction and at `render-selected` — if segments look wrong, check both paths.
+- Captions `enableAnimation` is hardcoded `true`; the UI setting was removed (2026-02-20). Do not re-add without also re-wiring the state, preset apply, and both submit paths.
+- Captions builtin preset defaults (2026-02-20): `fontSize=72`, `position=center`. Puppeteer Chrome required for Facebook Ads fallback — run `npx puppeteer browsers install chrome` if missing.
 - `POST /api/prompts/text-to-json` currently allows up to 8000 chars (long-form custom prompt conversion).
 - FAL.ai Kling model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
 - Server does not hot-reload all service file changes — restart `npm run dev` after modifying services like `kling.ts`, `promptGenerator.ts`
@@ -259,6 +261,8 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Prompt Factory: `ResearchBrief` properties live under `trend_findings.*`, `technical_recommendations.*`, `competitor_insights.*`, `sub_themes[]` — NOT flat fields like `key_themes` or `visual_elements`.
 - Research: if web grounding silently falls back to model-only behavior, verify server process is restarted and confirm `effective_mode` in `research` meta.
 - Mock-provider video pipelines now emit valid MP4 data URLs (Kling/Hedra). If FFmpeg reports `moov atom not found`, suspect stale old mock files generated before 2026-02-17.
+- `Tooltip` `enabled` prop: use `enabled={false}` to suppress — never `delay=99999`.
+- `Button` disabled/loading state renders grey (`bg-surface-200 text-surface-400`), not faded variant color. Do not use `disabled:opacity-50` on Button — it is no longer applied.
 - Legacy materials in `Burgflow Archive/` - do not reference in new code
 - Keep "Pixflow" naming in all new docs, routes, and UX copy
 

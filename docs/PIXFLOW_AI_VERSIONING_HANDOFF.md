@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-17 (docs sync: mock media stabilization + captions/lifetime mock pipeline fix + release gate recovery)
+Last updated: 2026-02-20 (docs sync: Phase 2 UI polish + Captions pipeline fixes + Button disabled state)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,34 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.11) Phase 2 UI Polish + Captions Fixes (2026-02-20)
+
+- Commits: `df02b62` → `68fd7cd` (Phase 1 critique fixes → Phase 2 → Captions pipeline)
+- **Phase 1 design critique fixes** (`df02b62`):
+  - SegmentedTabs `size="sm"` on Prompt Factory mode tabs (Img2Prompt label)
+  - All builtin preset `fontSize` set to 72; server-side ASS default also 72
+  - Builtin presets now upserted on every server restart (not skip-if-exists)
+- **Phase 2 UI** (`847fafd`, `f40cd91`):
+  - `Tooltip` primitive (`src/renderer/components/ui/Tooltip.tsx`): portal-based, `enabled` prop, z-55
+  - `ShortcutHelpModal` + `useShortcutHelpStore`: `?` key toggles keyboard shortcuts overlay
+  - `WhatsNewModal` + `useWhatsNew`: `pixflow_whats_new_seen` localStorage versioning (`2026.02`)
+  - SideNav: tooltip wrappers on collapsed nav items, HelpCircle + Sparkles footer buttons, What's New dot badge
+  - `page-enter` animation (220ms fade+slide, `prefers-reduced-motion` guard) in `PageTransition`
+  - HomePage: `PipelineFlow` pipeline visualization component
+  - Home cards: `hover:scale-[1.015]` micro-animation
+- **Button disabled state** (`86dbd54`):
+  - `disabled || loading` → `bg-surface-200 text-surface-400` grey, bypasses variant color entirely
+- **Captions pipeline** (`059a372`, `f60c7e8`, `68fd7cd`):
+  - Animation setting removed from UI; `enableAnimation` hardcoded `true` everywhere
+  - `wordsPerSubtitle` fix: `normalizeRenderSegments` exported; applied to `auto-subtitle` extracted segments before sending to frontend, ensuring frontend sentence selector sees correctly-split segments
+  - `normalizeRenderSegments` `shouldSplit` guard simplified: `wordCount > wordsPerSubtitle` (removed overly restrictive duration/count conditions)
+  - `buildHighlightedDialogueText`: entire line rendered in highlight color (was only first word)
+  - Output section (Step 4) gated behind `hasGenerated` state — hidden until first generate
+  - Default `position`: `bottom` → `center` (state, preset fallback, all builtins)
+- **Puppeteer Chrome**:
+  - `npx puppeteer browsers install chrome` run; Chrome 145.0.7632.67 installed at `/Users/pixery/.cache/puppeteer`
+  - Facebook Ads Library fallback extraction now unblocked
 
 ### 0.10) Pipeline Stabilization + Gate Recovery (2026-02-17)
 
