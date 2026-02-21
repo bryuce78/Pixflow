@@ -37,22 +37,24 @@ export const ASPECT_DIMENSIONS: Record<AspectRatio, { width: number; height: num
 
 interface ComposeState {
   layers: ComposeLayer[]
-  selectedLayerId: string | null
+  selectedLayerIds: string[]
   aspectRatio: AspectRatio
+  compositionLength: number
   playbackTime: number
   isPlaying: boolean
   exportJob: ComposeExportJob | null
 
   addLayer: (file: File) => Promise<void>
   removeLayer: (id: string) => void
-  moveLayerUp: (id: string) => void
-  moveLayerDown: (id: string) => void
+  reorderLayer: (id: string, newIndex: number) => void
   updateLayer: (
     id: string,
     patch: Partial<Pick<ComposeLayer, 'duration' | 'startTime' | 'blendMode' | 'opacity' | 'name' | 'visible'>>,
   ) => void
-  selectLayer: (id: string | null) => void
+  selectLayer: (id: string | null, opts?: { toggle?: boolean; range?: boolean }) => void
+  sequenceLayers: (imageDuration: number, useSelectionOrder: boolean) => void
   setAspectRatio: (ratio: AspectRatio) => void
+  setCompositionLength: (length: number) => void
   setPlaybackTime: (time: number) => void
   setIsPlaying: (playing: boolean) => void
   clearAll: () => void
@@ -83,8 +85,9 @@ function probeVideoDuration(url: string): Promise<number> {
 
 export const useComposeStore = create<ComposeState>()((set, get) => ({
   layers: [],
-  selectedLayerId: null,
+  selectedLayerIds: [],
   aspectRatio: '9:16',
+  compositionLength: 30,
   playbackTime: 0,
   isPlaying: false,
   exportJob: null,
@@ -115,7 +118,7 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
 
     set((state) => ({
       layers: [...state.layers, layer],
-      selectedLayerId: layer.id,
+      selectedLayerIds: [layer.id],
     }))
   },
 
@@ -125,25 +128,18 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       if (removed) URL.revokeObjectURL(removed.mediaUrl)
       return {
         layers: state.layers.filter((l) => l.id !== id),
-        selectedLayerId: state.selectedLayerId === id ? null : state.selectedLayerId,
+        selectedLayerIds: state.selectedLayerIds.filter((sid) => sid !== id),
       }
     }),
 
-  moveLayerUp: (id) =>
+  reorderLayer: (id, newIndex) =>
     set((state) => {
       const idx = state.layers.findIndex((l) => l.id === id)
-      if (idx <= 0) return state
+      if (idx === -1 || newIndex === idx) return state
+      const clamped = Math.max(0, Math.min(state.layers.length - 1, newIndex))
       const next = [...state.layers]
-      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
-      return { layers: next }
-    }),
-
-  moveLayerDown: (id) =>
-    set((state) => {
-      const idx = state.layers.findIndex((l) => l.id === id)
-      if (idx === -1 || idx >= state.layers.length - 1) return state
-      const next = [...state.layers]
-      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      const [moved] = next.splice(idx, 1)
+      next.splice(clamped, 0, moved)
       return { layers: next }
     }),
 
@@ -152,8 +148,58 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       layers: state.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
     })),
 
-  selectLayer: (id) => set({ selectedLayerId: id }),
+  selectLayer: (id, opts) =>
+    set((state) => {
+      if (!id) return { selectedLayerIds: [] }
+
+      if (opts?.toggle) {
+        return {
+          selectedLayerIds: state.selectedLayerIds.includes(id)
+            ? state.selectedLayerIds.filter((sid) => sid !== id)
+            : [...state.selectedLayerIds, id],
+        }
+      }
+
+      if (opts?.range && state.selectedLayerIds.length > 0) {
+        const anchor = state.selectedLayerIds.at(-1)!
+        const anchorIdx = state.layers.findIndex((l) => l.id === anchor)
+        const targetIdx = state.layers.findIndex((l) => l.id === id)
+        if (anchorIdx === -1 || targetIdx === -1) return { selectedLayerIds: [id] }
+        const [lo, hi] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx]
+        const rangeIds = state.layers.slice(lo, hi + 1).map((l) => l.id)
+        return { selectedLayerIds: [...new Set([...state.selectedLayerIds, ...rangeIds])] }
+      }
+
+      return { selectedLayerIds: [id] }
+    }),
+
+  sequenceLayers: (imageDuration, useSelectionOrder) =>
+    set((state) => {
+      if (state.selectedLayerIds.length < 2) return state
+      const orderedIds = useSelectionOrder
+        ? state.selectedLayerIds
+        : state.layers.filter((l) => state.selectedLayerIds.includes(l.id)).map((l) => l.id)
+
+      let cursor = 0
+      const updates = new Map<string, { startTime: number; duration?: number }>()
+      for (const id of orderedIds) {
+        const layer = state.layers.find((l) => l.id === id)
+        if (!layer) continue
+        const dur = layer.mediaType === 'video' ? layer.sourceDuration : imageDuration
+        updates.set(id, { startTime: cursor, ...(layer.mediaType === 'image' ? { duration: dur } : {}) })
+        cursor += dur
+      }
+
+      return {
+        layers: state.layers.map((l) => {
+          const patch = updates.get(l.id)
+          return patch ? { ...l, ...patch } : l
+        }),
+      }
+    }),
+
   setAspectRatio: (ratio) => set({ aspectRatio: ratio }),
+  setCompositionLength: (length) => set({ compositionLength: length }),
   setPlaybackTime: (time) => set({ playbackTime: time }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
 
@@ -162,18 +208,15 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       for (const layer of state.layers) URL.revokeObjectURL(layer.mediaUrl)
       return {
         layers: [],
-        selectedLayerId: null,
+        selectedLayerIds: [],
+        compositionLength: 30,
         playbackTime: 0,
         isPlaying: false,
         exportJob: null,
       }
     }),
 
-  totalDuration: () => {
-    const { layers } = get()
-    if (layers.length === 0) return 0
-    return Math.max(...layers.map((l) => l.startTime + l.duration))
-  },
+  totalDuration: () => get().compositionLength,
 
   startExport: async () => {
     const { layers, aspectRatio } = get()
