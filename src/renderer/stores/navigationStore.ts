@@ -9,6 +9,7 @@ export type TabId =
   | 'img2video'
   | 'avatars'
   | 'captions'
+  | 'compose'
   | 'machine'
   | 'history'
   | 'competitors'

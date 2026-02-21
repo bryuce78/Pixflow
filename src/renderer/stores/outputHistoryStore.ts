@@ -4,6 +4,7 @@ export type OutputHistoryCategory =
   | 'avatars_talking'
   | 'avatars_reaction'
   | 'captions'
+  | 'compose'
   | 'machine'
   | 'lifetime'
   | 'asset_monster'

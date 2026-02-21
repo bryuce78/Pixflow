@@ -39,6 +39,7 @@ const CATEGORY_TO_TAB: Record<OutputHistoryEntry['category'], TabId> = {
   avatars_talking: 'avatars',
   avatars_reaction: 'avatars',
   captions: 'captions',
+  compose: 'compose',
   machine: 'machine',
   lifetime: 'lifetime',
 }

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Blend,
   BookOpen,
   Film,
   Layers,
@@ -37,6 +38,7 @@ const LifetimePage = lazy(() => import('../lifetime/LifetimePage'))
 const Img2VideoQueuePage = lazy(() => import('../img2video/Img2VideoQueuePage'))
 const AvatarStudioPage = lazy(() => import('../avatar-studio/AvatarStudioPage'))
 const CaptionsPage = lazy(() => import('../captions/CaptionsPage'))
+const ComposePage = lazy(() => import('../compose/ComposePage'))
 const MachinePage = lazy(() => import('../machine/MachinePage'))
 const LibraryPage = lazy(() => import('../library/LibraryPage'))
 const CompetitorReportPage = lazy(() => import('../competitor-report/CompetitorReportPage'))
@@ -50,6 +52,7 @@ const PAGES = {
   img2video: Img2VideoQueuePage,
   avatars: AvatarStudioPage,
   captions: CaptionsPage,
+  compose: ComposePage,
   machine: MachinePage,
   history: LibraryPage,
   competitors: CompetitorReportPage,
@@ -63,6 +66,7 @@ const PAGE_ICONS: Record<keyof typeof PAGES, typeof Wand2> = {
   img2video: Film,
   avatars: Video,
   captions: MessageSquareText,
+  compose: Blend,
   machine: Zap,
   history: BookOpen,
   competitors: BarChart3,

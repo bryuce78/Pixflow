@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Blend,
   BookOpen,
   Film,
   HelpCircle,
@@ -39,6 +40,7 @@ const SIDEBAR_ITEMS: { id: TabId; icon: typeof Wand2 }[] = [
   { id: 'avatars', icon: Video },
   { id: 'captions', icon: MessageSquareText },
   { id: 'machine', icon: Zap },
+  { id: 'compose', icon: Blend },
   { id: 'lifetime', icon: TimerReset },
   { id: 'history', icon: BookOpen },
   { id: 'competitors', icon: BarChart3 },

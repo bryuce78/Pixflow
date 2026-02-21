@@ -24,6 +24,7 @@ const CATEGORY_NAMES: Record<string, NameDef> = {
   img2video: { prefix: 'Img2', suffix: 'Engine' },
   avatars: { prefix: 'Avatar', suffix: 'Studio' },
   captions: { prefix: 'Cap', suffix: 'tions' },
+  compose: { prefix: 'Com', suffix: 'pose' },
   machine: { prefix: 'The', suffix: 'Machine' },
   lifetime: { prefix: 'Life', suffix: 'time' },
   history: { prefix: 'Lib', suffix: 'rary' },
