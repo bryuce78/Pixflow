@@ -1,12 +1,12 @@
 # Pixflow Documentation Index
 
-Last updated: 2026-02-20
+Last updated: 2026-02-21
 
 This file defines the active documentation set to avoid duplication and drift.
 
 ## Command Alias
 
-`docs sync` (and typo `dosc sync`) means:
+`docs sync` (and typo `dosc sync` / `docs synch`) means:
 1. Use this index as the source of truth.
 2. Update active docs only (core/supporting, as needed).
 3. Do not modify `docs/archive/*` unless explicitly requested.

@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-20 (docs sync: Phase 2 UI polish + Captions pipeline fixes + Button disabled state)
+Last updated: 2026-02-21 (docs sync: Compose editor layout/timeline overhaul + docs alignment)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,43 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.12) Compose Editor Overhaul (2026-02-21)
+
+- Working-tree delta (pre-commit): Compose page and timeline were redesigned to match latest UI standards.
+- Layout and step structure:
+  - top area changed to `2/3 - 1/3` split (`Compose controls` left, `Preview` right),
+  - timeline moved to a full-width section under the top grid,
+  - output card is intentionally hidden for now (export tracked via job/history flow).
+- New asset-first workflow:
+  - media now enters an `AssetsPanel` tray first,
+  - user adds to timeline by click or drag/drop,
+  - tray shows compact first-frame thumbnails in a fixed 10-column strip.
+- Timeline and editing improvements:
+  - snap-aware playhead scrub + layer move + resize,
+  - left index column (`#1...`) per layer row,
+  - lime playhead,
+  - compact row height and video-first-frame thumbnails,
+  - resize handles on both layer edges.
+- Layer settings redesign:
+  - Blend Mode and Opacity as single-row controls,
+  - Start/End in same row,
+  - action row: `Duplicate`, `Split`, `Delete`.
+- Store/runtime updates:
+  - compose store now tracks `assets` + `layers` separately,
+  - undo/redo snapshot stack with batched interactions,
+  - frame stepping (`±1/30s`) and keyboard shortcuts (compose-aware Undo/Redo + ArrowLeft/ArrowRight),
+  - export sends `compositionLength` to backend and exports only visible layers.
+- Main files touched:
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/compose/ComposePage.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/compose/ComposeTimeline.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/compose/ComposeCanvas.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/compose/LayerSettings.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/compose/AssetsPanel.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/stores/composeStore.ts`
+  - `/Users/pixery/Projects/pixflow/src/renderer/hooks/useKeyboardShortcuts.ts`
+  - `/Users/pixery/Projects/pixflow/src/server/routes/compose.ts`
+  - `/Users/pixery/Projects/pixflow/src/server/services/compose.ts`
 
 ### 0.11) Phase 2 UI Polish + Captions Fixes (2026-02-20)
 

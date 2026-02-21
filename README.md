@@ -1,6 +1,6 @@
 # Pixflow
 
-Last updated: 2026-02-17
+Last updated: 2026-02-21
 
 Pixflow is a web-first AI production workspace for social/media creative pipelines.
 
@@ -11,6 +11,7 @@ Pixflow is a web-first AI production workspace for social/media creative pipelin
 - `Img2Engine`: image-to-video generation with queue-based execution.
 - `Avatar Studio`: script, voice, and talking-avatar generation flows (`Have an Audio` mode uses direct audio -> lipsync without auto transcription).
 - `Captions`: subtitle generation, sentence selection, and burned-in rendering.
+- `Compose`: timeline-based multi-layer editor with asset tray, snapping timeline, and ffmpeg export.
 - `The Machine`: end-to-end pipeline orchestration from concept to final media.
 - `Lifetime`: baby photo -> age frames -> transition videos -> merged timeline video.
 - `Library`: saved history, favorites, and reusable assets.
@@ -122,7 +123,7 @@ avatars/      # Curated avatar assets
 ## Documentation Map
 
 Use `docs/INDEX.md` to see active vs archived documentation.
-Command alias: `docs sync` (or `dosc sync`) means update active docs via `docs/INDEX.md`.
+Command alias: `docs sync` (or `dosc sync` / `docs synch`) means update active docs via `docs/INDEX.md`.
 
 ## Environment Notes
 

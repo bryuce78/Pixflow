@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-20
+> Last updated: 2026-02-21
 
 ## Project
 
@@ -11,6 +11,7 @@ Pixflow is a web app for AI asset production workflows:
 - Img2Engine (image-to-video generation)
 - Avatar Studio (avatar, script, TTS, lipsync)
 - Captions (AI-generated video captions with sentence selection)
+- Compose (asset-driven timeline editor for multi-layer composition/export)
 - Lifetime (age progression: baby photo → aging frames → transition videos → final compilation)
 - The Machine (end-to-end pipeline orchestration)
 - Library (history, favorites, reuse)
@@ -63,6 +64,7 @@ npm run pgp:lock:update  # Update PGP lock fingerprint (requires explicit unlock
 Trigger phrases:
 - `docs sync`
 - `dosc sync` (common typo; treat as `docs sync`)
+- `docs synch` (common typo; treat as `docs sync`)
 
 Required behavior when triggered:
 1. Read `docs/INDEX.md` first.
@@ -157,6 +159,12 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
   - `prompt_factory` (Prompt Factory SSE prompt generation)
   - `asset_monster` (Asset Monster batch generation)
   - `img2img`, `img2video`, `startend`, `captions`, `machine`, `lifetime`, `avatars_*`
+
+### Compose Pipeline (composeStore + compose routes)
+- Asset-first editing: files enter an asset tray (`assets`), then become timeline layers via click or drag/drop.
+- Timeline UX: snap-enabled scrub/drag/resize, numbered rows, frame stepping, and compact first-frame thumbnails.
+- Undo/redo model: snapshot history with batched actions for drag/resize slider operations.
+- Export contract: only visible layers are exported, and `compositionLength` is sent to `/api/compose/export` so output duration stays deterministic.
 
 ### Zustand Stores
 - State + actions in single `create()` call

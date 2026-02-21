@@ -1,12 +1,13 @@
 # Pixflow UI Rules (Feb 2026)
 
-Last updated: 2026-02-20
+Last updated: 2026-02-21
 
 ## Purpose
 Keep the UI consistent and predictable across all Pixflow categories. These rules are the source of truth for layout, navigation, and state feedback.
 
 ## Layout
 - Desktop: Inputs left, outputs right. Two-column layout must be `grid-cols-1 xl:grid-cols-2`.
+- Compose exception: top block uses `grid-cols-1 xl:grid-cols-3` with controls in `xl:col-span-2` and preview in `xl:col-span-1`; timeline stays full-width under this block.
 - Mobile: Single column with inputs first, outputs second.
 - Forms: Use `grid-cols-1 sm:grid-cols-2` for dense field groups.
 - Long lists/grids: keep padding and card radius consistent (`rounded-lg` + surface background).
@@ -35,6 +36,7 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - Use `PreviousGenerationsPanel` for archived outputs (keep history visible until user deletes).
 - Video output grids: prefer `grid-cols-2` for large previews.
 - Image output grids: default `grid-cols-2 sm:grid-cols-3 xl:grid-cols-4` unless the product explicitly requires otherwise.
+- Compose exception (temporary product decision): hide inline output section; track exports via Job Monitor/Previous Generations flow.
 
 ## Global Progress
 - Use the global `Job Monitor` (bottom-right overlay) for cross-tab job visibility.
