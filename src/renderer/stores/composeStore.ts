@@ -5,8 +5,18 @@ import { createOutputHistoryId, useOutputHistoryStore } from './outputHistorySto
 export type BlendMode = 'normal' | 'screen' | 'multiply' | 'overlay' | 'darken' | 'lighten'
 export type AspectRatio = '9:16' | '16:9' | '1:1' | '4:5'
 
+export interface ComposeAsset {
+  id: string
+  name: string
+  file: File
+  mediaUrl: string
+  mediaType: 'image' | 'video'
+  sourceDuration: number
+}
+
 export interface ComposeLayer {
   id: string
+  assetId: string
   name: string
   mediaUrl: string
   mediaType: 'image' | 'video'
@@ -35,17 +45,45 @@ export const ASPECT_DIMENSIONS: Record<AspectRatio, { width: number; height: num
   '4:5': { width: 1080, height: 1350 },
 }
 
+const FRAME_DURATION = 1 / 30
+const MAX_HISTORY = 50
+const MAX_ASSETS = 50
+const MAX_FILE_SIZE = 200 * 1024 * 1024
+const MIN_LAYER_DURATION = 0.1
+
+interface ComposeSnapshot {
+  layers: ComposeLayer[]
+  assets: ComposeAsset[]
+  selectedLayerIds: string[]
+  aspectRatio: AspectRatio
+  compositionLength: number
+}
+
 interface ComposeState {
   layers: ComposeLayer[]
+  assets: ComposeAsset[]
   selectedLayerIds: string[]
   aspectRatio: AspectRatio
   compositionLength: number
   playbackTime: number
   isPlaying: boolean
   exportJob: ComposeExportJob | null
+  _history: ComposeSnapshot[]
+  _historyIndex: number
+  _undoBatching: boolean
+  _epoch: number
+  canUndo: boolean
+  canRedo: boolean
 
+  beginUndoBatch: () => void
+  endUndoBatch: () => void
+  addAsset: (file: File) => Promise<void>
+  addLayerFromAsset: (assetId: string, startTime?: number) => void
+  removeAsset: (id: string) => boolean
   addLayer: (file: File) => Promise<void>
   removeLayer: (id: string) => void
+  duplicateLayer: (id: string) => boolean
+  splitLayerAt: (id: string, time: number) => boolean
   reorderLayer: (id: string, newIndex: number) => void
   updateLayer: (
     id: string,
@@ -57,14 +95,22 @@ interface ComposeState {
   setCompositionLength: (length: number) => void
   setPlaybackTime: (time: number) => void
   setIsPlaying: (playing: boolean) => void
+  stepFrame: (direction: 1 | -1) => void
   clearAll: () => void
   totalDuration: () => number
+  pushSnapshot: () => void
+  undo: () => void
+  redo: () => void
   startExport: () => Promise<void>
   pollExportStatus: (jobId: string, historyId: string) => Promise<void>
 }
 
 function generateLayerId(): string {
   return `layer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function generateAssetId(): string {
+  return `asset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
 function probeVideoDuration(url: string): Promise<number> {
@@ -83,33 +129,180 @@ function probeVideoDuration(url: string): Promise<number> {
   })
 }
 
+function takeSnapshot(state: ComposeState): ComposeSnapshot {
+  return {
+    layers: state.layers.map((l) => ({ ...l })),
+    assets: state.assets.map((a) => ({ ...a })),
+    selectedLayerIds: [...state.selectedLayerIds],
+    aspectRatio: state.aspectRatio,
+    compositionLength: state.compositionLength,
+  }
+}
+
 export const useComposeStore = create<ComposeState>()((set, get) => ({
   layers: [],
+  assets: [],
   selectedLayerIds: [],
   aspectRatio: '9:16',
   compositionLength: 30,
   playbackTime: 0,
   isPlaying: false,
   exportJob: null,
+  _history: [],
+  _historyIndex: -1,
+  _undoBatching: false,
+  _epoch: 0,
+  canUndo: false,
+  canRedo: false,
 
-  addLayer: async (file) => {
+  beginUndoBatch: () => {
+    if (get()._undoBatching) return
+    if (get()._history.length === 0) get().pushSnapshot()
+    set({ _undoBatching: true })
+  },
+
+  endUndoBatch: () => {
+    if (!get()._undoBatching) return
+    set({ _undoBatching: false })
+    get().pushSnapshot()
+  },
+
+  pushSnapshot: () =>
+    set((state) => {
+      const snap = takeSnapshot(state)
+      const history = state._history.slice(0, state._historyIndex + 1)
+      history.push(snap)
+      if (history.length > MAX_HISTORY) history.shift()
+      const idx = history.length - 1
+      return { _history: history, _historyIndex: idx, canUndo: idx > 0, canRedo: false }
+    }),
+
+  undo: () =>
+    set((state) => {
+      if (state._historyIndex <= 0) return state
+      const idx = state._historyIndex - 1
+      const snap = state._history[idx]
+      return { ...snap, _historyIndex: idx, canUndo: idx > 0, canRedo: true }
+    }),
+
+  redo: () =>
+    set((state) => {
+      if (state._historyIndex >= state._history.length - 1) return state
+      const idx = state._historyIndex + 1
+      const snap = state._history[idx]
+      return { ...snap, _historyIndex: idx, canUndo: true, canRedo: idx < state._history.length - 1 }
+    }),
+
+  addAsset: async (file) => {
+    if (file.size > MAX_FILE_SIZE || get().assets.length >= MAX_ASSETS) return
+    if (get()._history.length === 0) get().pushSnapshot()
+    const epoch = get()._epoch
     const isVideo = file.type.startsWith('video/')
     const blobUrl = URL.createObjectURL(file)
-    let duration = 5
     let sourceDuration = Infinity
 
     if (isVideo) {
       sourceDuration = await probeVideoDuration(URL.createObjectURL(file))
-      duration = sourceDuration
     }
+
+    if (get()._epoch !== epoch) {
+      URL.revokeObjectURL(blobUrl)
+      return
+    }
+
+    const asset: ComposeAsset = {
+      id: generateAssetId(),
+      name: file.name,
+      file,
+      mediaUrl: blobUrl,
+      mediaType: isVideo ? 'video' : 'image',
+      sourceDuration,
+    }
+
+    set((state) => ({ assets: [...state.assets, asset] }))
+    get().pushSnapshot()
+  },
+
+  addLayerFromAsset: (assetId, startTime) => {
+    const { assets, playbackTime } = get()
+    const asset = assets.find((a) => a.id === assetId)
+    if (!asset) return
+
+    if (get()._history.length === 0) get().pushSnapshot()
+    const layer: ComposeLayer = {
+      id: generateLayerId(),
+      assetId,
+      name: asset.name,
+      mediaUrl: asset.mediaUrl,
+      mediaType: asset.mediaType,
+      startTime: startTime ?? playbackTime,
+      duration: asset.mediaType === 'video' ? asset.sourceDuration : 5,
+      sourceDuration: asset.sourceDuration,
+      blendMode: 'normal',
+      opacity: 1,
+      visible: true,
+    }
+
+    set((state) => ({
+      layers: [...state.layers, layer],
+      selectedLayerIds: [layer.id],
+    }))
+    get().pushSnapshot()
+  },
+
+  removeAsset: (id) => {
+    const { layers, assets } = get()
+    if (layers.some((l) => l.assetId === id)) return false
+    const asset = assets.find((a) => a.id === id)
+    if (!asset) return false
+    URL.revokeObjectURL(asset.mediaUrl)
+    set((state) => ({
+      assets: state.assets.filter((a) => a.id !== id),
+      _history: [],
+      _historyIndex: -1,
+      canUndo: false,
+      canRedo: false,
+    }))
+    return true
+  },
+
+  addLayer: async (file) => {
+    if (file.size > MAX_FILE_SIZE || get().assets.length >= MAX_ASSETS) return
+    const epoch = get()._epoch
+    const isVideo = file.type.startsWith('video/')
+    const blobUrl = URL.createObjectURL(file)
+    let sourceDuration = Infinity
+
+    if (isVideo) {
+      sourceDuration = await probeVideoDuration(URL.createObjectURL(file))
+    }
+
+    if (get()._epoch !== epoch) {
+      URL.revokeObjectURL(blobUrl)
+      return
+    }
+
+    const assetId = generateAssetId()
+    const asset: ComposeAsset = {
+      id: assetId,
+      name: file.name,
+      file,
+      mediaUrl: blobUrl,
+      mediaType: isVideo ? 'video' : 'image',
+      sourceDuration,
+    }
+
+    if (get()._history.length === 0) get().pushSnapshot()
+    set((state) => ({ assets: [...state.assets, asset] }))
 
     const layer: ComposeLayer = {
       id: generateLayerId(),
+      assetId,
       name: file.name,
       mediaUrl: blobUrl,
       mediaType: isVideo ? 'video' : 'image',
       startTime: 0,
-      duration,
+      duration: isVideo ? sourceDuration : 5,
       sourceDuration,
       blendMode: 'normal',
       opacity: 1,
@@ -120,19 +313,91 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       layers: [...state.layers, layer],
       selectedLayerIds: [layer.id],
     }))
+    get().pushSnapshot()
   },
 
-  removeLayer: (id) =>
-    set((state) => {
-      const removed = state.layers.find((l) => l.id === id)
-      if (removed) URL.revokeObjectURL(removed.mediaUrl)
-      return {
-        layers: state.layers.filter((l) => l.id !== id),
-        selectedLayerIds: state.selectedLayerIds.filter((sid) => sid !== id),
-      }
-    }),
+  removeLayer: (id) => {
+    if (get()._history.length === 0) get().pushSnapshot()
+    set((state) => ({
+      layers: state.layers.filter((l) => l.id !== id),
+      selectedLayerIds: state.selectedLayerIds.filter((sid) => sid !== id),
+    }))
+    get().pushSnapshot()
+  },
 
-  reorderLayer: (id, newIndex) =>
+  duplicateLayer: (id) => {
+    const state = get()
+    const source = state.layers.find((layer) => layer.id === id)
+    if (!source) return false
+
+    if (state._history.length === 0) get().pushSnapshot()
+
+    const maxDuration = Math.max(MIN_LAYER_DURATION, state.compositionLength)
+    const duration = Math.min(source.duration, maxDuration)
+    const proposedStart = source.startTime + 0.1
+    const maxStart = Math.max(0, state.compositionLength - duration)
+    const startTime = Math.max(0, Math.min(proposedStart, maxStart))
+
+    const copy: ComposeLayer = {
+      ...source,
+      id: generateLayerId(),
+      name: `${source.name} copy`,
+      startTime,
+      duration,
+    }
+
+    set((prev) => ({
+      layers: [...prev.layers, copy],
+      selectedLayerIds: [copy.id],
+    }))
+    get().pushSnapshot()
+    return true
+  },
+
+  splitLayerAt: (id, time) => {
+    const state = get()
+    const index = state.layers.findIndex((layer) => layer.id === id)
+    if (index === -1) return false
+
+    const source = state.layers[index]
+    if (source.mediaType !== 'image') return false
+
+    const start = source.startTime
+    const end = source.startTime + source.duration
+    if (time <= start + MIN_LAYER_DURATION || time >= end - MIN_LAYER_DURATION) return false
+
+    if (state._history.length === 0) get().pushSnapshot()
+
+    const firstDuration = time - start
+    const secondDuration = end - time
+
+    const firstLayer: ComposeLayer = {
+      ...source,
+      duration: firstDuration,
+    }
+    const secondLayer: ComposeLayer = {
+      ...source,
+      id: generateLayerId(),
+      name: `${source.name} part 2`,
+      startTime: time,
+      duration: secondDuration,
+    }
+
+    set((prev) => {
+      const nextLayers = [...prev.layers]
+      nextLayers[index] = firstLayer
+      nextLayers.splice(index + 1, 0, secondLayer)
+      return {
+        layers: nextLayers,
+        selectedLayerIds: [secondLayer.id],
+      }
+    })
+    get().pushSnapshot()
+    return true
+  },
+
+  reorderLayer: (id, newIndex) => {
+    if (!get()._undoBatching && get()._history.length === 0) get().pushSnapshot()
     set((state) => {
       const idx = state.layers.findIndex((l) => l.id === id)
       if (idx === -1 || newIndex === idx) return state
@@ -141,12 +406,17 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       const [moved] = next.splice(idx, 1)
       next.splice(clamped, 0, moved)
       return { layers: next }
-    }),
+    })
+    if (!get()._undoBatching) get().pushSnapshot()
+  },
 
-  updateLayer: (id, patch) =>
+  updateLayer: (id, patch) => {
+    if (!get()._undoBatching && get()._history.length === 0) get().pushSnapshot()
     set((state) => ({
       layers: state.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-    })),
+    }))
+    if (!get()._undoBatching) get().pushSnapshot()
+  },
 
   selectLayer: (id, opts) =>
     set((state) => {
@@ -173,7 +443,8 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       return { selectedLayerIds: [id] }
     }),
 
-  sequenceLayers: (imageDuration, useSelectionOrder) =>
+  sequenceLayers: (imageDuration, useSelectionOrder) => {
+    if (get()._history.length === 0) get().pushSnapshot()
     set((state) => {
       if (state.selectedLayerIds.length < 2) return state
       const orderedIds = useSelectionOrder
@@ -196,31 +467,58 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
           return patch ? { ...l, ...patch } : l
         }),
       }
-    }),
+    })
+    get().pushSnapshot()
+  },
 
-  setAspectRatio: (ratio) => set({ aspectRatio: ratio }),
-  setCompositionLength: (length) => set({ compositionLength: length }),
+  setAspectRatio: (ratio) => {
+    if (get()._history.length === 0) get().pushSnapshot()
+    set({ aspectRatio: ratio })
+    get().pushSnapshot()
+  },
+  setCompositionLength: (length) => {
+    if (get()._history.length === 0) get().pushSnapshot()
+    set({ compositionLength: length })
+    get().pushSnapshot()
+  },
   setPlaybackTime: (time) => set({ playbackTime: time }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
 
+  stepFrame: (direction) => {
+    const { playbackTime, compositionLength, isPlaying } = get()
+    if (isPlaying) set({ isPlaying: false })
+    const next = Math.round((playbackTime + direction * FRAME_DURATION) * 30) / 30
+    set({ playbackTime: Math.max(0, Math.min(compositionLength, next)) })
+  },
+
   clearAll: () =>
     set((state) => {
-      for (const layer of state.layers) URL.revokeObjectURL(layer.mediaUrl)
+      for (const asset of state.assets) URL.revokeObjectURL(asset.mediaUrl)
       return {
         layers: [],
+        assets: [],
         selectedLayerIds: [],
         compositionLength: 30,
         playbackTime: 0,
         isPlaying: false,
         exportJob: null,
+        _history: [],
+        _historyIndex: -1,
+        _undoBatching: false,
+        _epoch: state._epoch + 1,
+        canUndo: false,
+        canRedo: false,
       }
     }),
 
   totalDuration: () => get().compositionLength,
 
   startExport: async () => {
-    const { layers, aspectRatio } = get()
-    if (layers.length === 0) return
+    const { layers, aspectRatio, compositionLength } = get()
+    const visibleLayers = layers.filter((layer) => layer.visible)
+    if (visibleLayers.length === 0) {
+      throw new Error('Select at least one visible layer before exporting')
+    }
 
     const dims = ASPECT_DIMENSIONS[aspectRatio]
     const historyId = createOutputHistoryId('compose')
@@ -228,7 +526,7 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
     useOutputHistoryStore.getState().upsert({
       id: historyId,
       category: 'compose',
-      title: `Compose (${layers.length} layers)`,
+      title: `Compose (${visibleLayers.length} layers)`,
       status: 'running',
       startedAt: Date.now(),
       updatedAt: Date.now(),
@@ -240,7 +538,7 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       exportJob: {
         jobId: '',
         status: 'uploading',
-        progress: { completed: 0, total: layers.length + 1, message: 'Uploading media...' },
+        progress: { completed: 0, total: visibleLayers.length + 1, message: 'Uploading media...' },
         outputUrl: '',
         error: '',
       },
@@ -255,59 +553,87 @@ export const useComposeStore = create<ComposeState>()((set, get) => ({
       opacity: number
     }> = []
 
-    for (const layer of layers) {
-      if (!layer.visible) continue
+    try {
+      for (const layer of visibleLayers) {
+        const blob = await fetch(layer.mediaUrl).then((r) => r.blob())
+        const form = new FormData()
+        form.append('file', blob, layer.name)
 
-      const blob = await fetch(layer.mediaUrl).then((r) => r.blob())
-      const form = new FormData()
-      form.append('file', blob, layer.name)
+        const uploadRes = await authFetch(apiUrl('/api/compose/upload'), { method: 'POST', body: form })
+        const uploadData = unwrapApiData<{ fileUrl: string }>(await uploadRes.json())
 
-      const uploadRes = await authFetch(apiUrl('/api/compose/upload'), { method: 'POST', body: form })
-      const uploadData = unwrapApiData<{ fileUrl: string }>(await uploadRes.json())
+        uploadedLayers.push({
+          mediaUrl: uploadData.fileUrl,
+          mediaType: layer.mediaType,
+          startTime: layer.startTime,
+          duration: layer.duration,
+          blendMode: layer.blendMode,
+          opacity: layer.opacity,
+        })
 
-      uploadedLayers.push({
-        mediaUrl: uploadData.fileUrl,
-        mediaType: layer.mediaType,
-        startTime: layer.startTime,
-        duration: layer.duration,
-        blendMode: layer.blendMode,
-        opacity: layer.opacity,
+        const uploadMessage = `Uploaded ${uploadedLayers.length}/${visibleLayers.length}`
+        set((state) => ({
+          exportJob: state.exportJob
+            ? {
+                ...state.exportJob,
+                progress: {
+                  ...state.exportJob.progress,
+                  completed: uploadedLayers.length,
+                  message: uploadMessage,
+                },
+              }
+            : null,
+        }))
+        useOutputHistoryStore.getState().patch(historyId, { message: uploadMessage })
+      }
+
+      useOutputHistoryStore.getState().patch(historyId, { message: 'Starting export...' })
+
+      const exportRes = await authFetch(apiUrl('/api/compose/export'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          layers: uploadedLayers,
+          width: dims.width,
+          height: dims.height,
+          fps: 30,
+          compositionLength,
+        }),
+      })
+      const exportData = unwrapApiData<{ jobId: string }>(await exportRes.json())
+
+      set({
+        exportJob: {
+          jobId: exportData.jobId,
+          status: 'exporting',
+          progress: { completed: 0, total: 1, message: 'Composing video...' },
+          outputUrl: '',
+          error: '',
+        },
       })
 
-      set((state) => ({
-        exportJob: state.exportJob
-          ? {
-              ...state.exportJob,
-              progress: {
-                ...state.exportJob.progress,
-                completed: uploadedLayers.length,
-                message: `Uploaded ${uploadedLayers.length}/${layers.filter((l) => l.visible).length}`,
-              },
-            }
-          : null,
-      }))
+      get().pollExportStatus(exportData.jobId, historyId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export failed'
+      set({
+        exportJob: {
+          jobId: '',
+          status: 'failed',
+          progress: {
+            completed: uploadedLayers.length,
+            total: visibleLayers.length + 1,
+            message,
+          },
+          outputUrl: '',
+          error: message,
+        },
+      })
+      useOutputHistoryStore.getState().patch(historyId, {
+        status: 'failed',
+        message,
+      })
+      throw error
     }
-
-    useOutputHistoryStore.getState().patch(historyId, { message: 'Starting export...' })
-
-    const exportRes = await authFetch(apiUrl('/api/compose/export'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ layers: uploadedLayers, width: dims.width, height: dims.height, fps: 30 }),
-    })
-    const exportData = unwrapApiData<{ jobId: string }>(await exportRes.json())
-
-    set({
-      exportJob: {
-        jobId: exportData.jobId,
-        status: 'exporting',
-        progress: { completed: 0, total: 1, message: 'Composing video...' },
-        outputUrl: '',
-        error: '',
-      },
-    })
-
-    get().pollExportStatus(exportData.jobId, historyId)
   },
 
   pollExportStatus: async (jobId, historyId) => {

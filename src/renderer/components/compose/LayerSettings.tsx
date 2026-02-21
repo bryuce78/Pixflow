@@ -1,5 +1,6 @@
-import { Eye, EyeOff, Image, Video, X } from 'lucide-react'
+import { Copy, Eye, EyeOff, Image, Scissors, Trash2, Video } from 'lucide-react'
 import { type BlendMode, useComposeStore } from '../../stores/composeStore'
+import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 
 const BLEND_OPTIONS: { value: BlendMode; label: string }[] = [
@@ -10,12 +11,19 @@ const BLEND_OPTIONS: { value: BlendMode; label: string }[] = [
   { value: 'darken', label: 'Darken' },
   { value: 'lighten', label: 'Lighten' },
 ]
+const MIN_LAYER_DURATION = 0.1
 
 export function LayerSettings() {
   const layers = useComposeStore((s) => s.layers)
   const selectedLayerIds = useComposeStore((s) => s.selectedLayerIds)
   const updateLayer = useComposeStore((s) => s.updateLayer)
   const removeLayer = useComposeStore((s) => s.removeLayer)
+  const duplicateLayer = useComposeStore((s) => s.duplicateLayer)
+  const splitLayerAt = useComposeStore((s) => s.splitLayerAt)
+  const compositionLength = useComposeStore((s) => s.compositionLength)
+  const playbackTime = useComposeStore((s) => s.playbackTime)
+  const beginUndoBatch = useComposeStore((s) => s.beginUndoBatch)
+  const endUndoBatch = useComposeStore((s) => s.endUndoBatch)
 
   const primaryId = selectedLayerIds.at(-1)
   const layer = primaryId ? layers.find((l) => l.id === primaryId) : null
@@ -23,6 +31,12 @@ export function LayerSettings() {
   if (!layer) return <EmptyState title="No layer selected" subtitle="Click a layer in the timeline" />
 
   const isImage = layer.mediaType === 'image'
+  const endTime = layer.startTime + layer.duration
+  const sourceLimit =
+    !isImage && Number.isFinite(layer.sourceDuration) ? layer.sourceDuration : Number.POSITIVE_INFINITY
+  const maxEnd = Math.min(compositionLength, layer.startTime + sourceLimit)
+  const canSplit =
+    isImage && playbackTime > layer.startTime + MIN_LAYER_DURATION && playbackTime < endTime - MIN_LAYER_DURATION
 
   return (
     <div className="rounded-lg border border-surface-200 bg-surface-0 p-4">
@@ -50,18 +64,10 @@ export function LayerSettings() {
         >
           {layer.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
         </button>
-        <button
-          type="button"
-          onClick={() => removeLayer(layer.id)}
-          className="p-1.5 rounded hover:bg-danger/10 transition text-surface-400 hover:text-danger"
-          title="Remove"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <label className="space-y-1">
+      <div className="space-y-3 text-sm">
+        <label className="block space-y-1">
           <span className="text-surface-500">Blend Mode</span>
           <select
             value={layer.blendMode}
@@ -76,7 +82,7 @@ export function LayerSettings() {
           </select>
         </label>
 
-        <label className="space-y-1">
+        <label className="block space-y-1">
           <span className="text-surface-500">Opacity ({Math.round(layer.opacity * 100)}%)</span>
           <input
             type="range"
@@ -84,41 +90,82 @@ export function LayerSettings() {
             max={1}
             step={0.05}
             value={layer.opacity}
+            onPointerDown={beginUndoBatch}
+            onPointerUp={endUndoBatch}
             onChange={(e) => updateLayer(layer.id, { opacity: Number(e.target.value) })}
             className="w-full"
           />
         </label>
 
-        <label className="space-y-1">
-          <span className="text-surface-500">Start (s)</span>
-          <input
-            type="number"
-            min={0}
-            step={0.1}
-            value={layer.startTime}
-            onChange={(e) => updateLayer(layer.id, { startTime: Math.max(0, Number(e.target.value)) })}
-            className="w-full rounded-md border border-surface-200 bg-surface-0 px-2 py-1.5 text-sm"
-          />
-        </label>
-
-        {isImage ? (
+        <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-surface-500">Duration (s)</span>
+            <span className="text-surface-500">Start (s)</span>
             <input
               type="number"
-              min={0.1}
+              min={0}
               step={0.1}
-              value={layer.duration}
-              onChange={(e) => updateLayer(layer.id, { duration: Math.max(0.1, Number(e.target.value)) })}
+              value={layer.startTime}
+              onChange={(e) => {
+                const nextStart = Math.max(
+                  0,
+                  Math.min(Number(e.target.value), Math.max(0, compositionLength - layer.duration)),
+                )
+                updateLayer(layer.id, { startTime: nextStart })
+              }}
               className="w-full rounded-md border border-surface-200 bg-surface-0 px-2 py-1.5 text-sm"
             />
           </label>
-        ) : (
-          <div className="space-y-1">
-            <span className="text-surface-500">Duration</span>
-            <div className="px-2 py-1.5 text-sm text-surface-400">{layer.sourceDuration.toFixed(1)}s (source)</div>
-          </div>
+
+          <label className="space-y-1">
+            <span className="text-surface-500">End (s)</span>
+            <input
+              type="number"
+              min={layer.startTime + MIN_LAYER_DURATION}
+              max={maxEnd}
+              step={0.1}
+              value={endTime}
+              onChange={(e) => {
+                const rawEnd = Number(e.target.value)
+                const clampedEnd = Math.max(layer.startTime + MIN_LAYER_DURATION, Math.min(rawEnd, maxEnd))
+                updateLayer(layer.id, { duration: clampedEnd - layer.startTime })
+              }}
+              className="w-full rounded-md border border-surface-200 bg-surface-0 px-2 py-1.5 text-sm"
+            />
+          </label>
+        </div>
+
+        {!isImage && (
+          <p className="text-xs text-surface-400">Video source length: {layer.sourceDuration.toFixed(1)}s</p>
         )}
+
+        <div className="flex items-center gap-2 pt-2 border-t border-surface-200">
+          <Button
+            variant="ghost-muted"
+            size="sm"
+            onClick={() => duplicateLayer(layer.id)}
+            icon={<Copy className="w-3 h-3" />}
+          >
+            Duplicate
+          </Button>
+          <Button
+            variant="ghost-muted"
+            size="sm"
+            onClick={() => splitLayerAt(layer.id, playbackTime)}
+            disabled={!canSplit}
+            icon={<Scissors className="w-3 h-3" />}
+          >
+            Split
+          </Button>
+          <Button
+            variant="ghost-danger"
+            size="sm"
+            onClick={() => removeLayer(layer.id)}
+            icon={<Trash2 className="w-3 h-3" />}
+            className="ml-auto"
+          >
+            Delete
+          </Button>
+        </div>
       </div>
 
       {selectedLayerIds.length > 1 && (

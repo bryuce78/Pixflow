@@ -97,16 +97,24 @@ export function createComposeRouter(config: ComposeRouterConfig): Router {
   router.post('/export', exportLimiter, async (req: AuthRequest, res) => {
     pruneOldJobs()
 
-    const { layers, width, height, fps } = req.body as {
+    const { layers, width, height, fps, compositionLength } = req.body as {
       layers: ComposeLayerInput[]
       width: number
       height: number
       fps: number
+      compositionLength?: number
     }
 
     if (!Array.isArray(layers) || layers.length === 0) {
       sendError(res, 400, 'At least one layer is required')
       return
+    }
+
+    if (compositionLength !== undefined) {
+      if (typeof compositionLength !== 'number' || !Number.isFinite(compositionLength) || compositionLength <= 0) {
+        sendError(res, 400, 'Composition length must be a positive number')
+        return
+      }
     }
 
     for (const layer of layers) {
@@ -162,6 +170,7 @@ export function createComposeRouter(config: ComposeRouterConfig): Router {
           width: width || 1080,
           height: height || 1920,
           fps: fps || 30,
+          compositionLength,
           outputDir,
           outputFile,
           projectRoot,

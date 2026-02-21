@@ -21,6 +21,7 @@ export interface ComposeExportParams {
   width: number
   height: number
   fps: number
+  compositionLength?: number
   outputDir: string
   outputFile: string
   projectRoot: string
@@ -74,10 +75,14 @@ function resolveMediaPath(projectRoot: string, mediaUrl: string): string {
 }
 
 export async function runComposeExport(params: ComposeExportParams): Promise<ComposeExportResult> {
-  const { layers, width, height, fps, outputDir, outputFile, projectRoot } = params
+  const { layers, width, height, fps, outputDir, outputFile, projectRoot, compositionLength } = params
   await fs.mkdir(outputDir, { recursive: true })
 
-  const totalDuration = Math.max(...layers.map((l) => l.startTime + l.duration))
+  const layersDuration = Math.max(...layers.map((l) => l.startTime + l.duration))
+  const totalDuration =
+    typeof compositionLength === 'number' && Number.isFinite(compositionLength) && compositionLength > 0
+      ? compositionLength
+      : layersDuration
   const outputPath = path.join(outputDir, outputFile)
 
   const inputArgs: string[] = []

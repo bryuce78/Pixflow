@@ -69,7 +69,8 @@ export function ComposeCanvas() {
       ctx.fillStyle = '#000'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      for (const layer of layers) {
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const layer = layers[i]
         if (!layer.visible) continue
         if (time < layer.startTime || time >= layer.startTime + layer.duration) continue
 
@@ -173,21 +174,11 @@ export function ComposeCanvas() {
     }
   }, [isPlaying, totalDuration, setPlaybackTime, setIsPlaying, layers])
 
-  const containerAspect = dims.width / dims.height
-  const maxW = containerAspect >= 1 ? '100%' : `${containerAspect * 100}%`
-
   return (
-    <div
-      className="flex justify-center bg-surface-900 rounded-xl p-2"
-      style={{ aspectRatio: `${dims.width}/${dims.height}`, maxWidth: maxW }}
-    >
-      <canvas
-        ref={canvasRef}
-        width={dims.width}
-        height={dims.height}
-        className="w-full h-full rounded-lg"
-        style={{ objectFit: 'contain' }}
-      />
+    <div className="w-full rounded-xl bg-black p-2">
+      <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: `${dims.width}/${dims.height}` }}>
+        <canvas ref={canvasRef} width={dims.width} height={dims.height} className="block w-full h-full bg-black" />
+      </div>
     </div>
   )
 }
