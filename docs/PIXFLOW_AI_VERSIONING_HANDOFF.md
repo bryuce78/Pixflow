@@ -57,7 +57,7 @@ Project root: `/Users/pixery/Projects/pixflow`
   - Output section (Step 4) gated behind `hasGenerated` state — hidden until first generate
   - Default `position`: `bottom` → `center` (state, preset fallback, all builtins)
 - **Puppeteer Chrome**:
-  - `npx puppeteer browsers install chrome` run; Chrome 145.0.7632.67 installed at `/Users/pixery/.cache/puppeteer`
+  - `npx puppeteer browsers install chrome` run; Chrome 145.0.7632.67 installed to local Puppeteer cache
   - Facebook Ads Library fallback extraction now unblocked
 
 ### 0.10) Pipeline Stabilization + Gate Recovery (2026-02-17)

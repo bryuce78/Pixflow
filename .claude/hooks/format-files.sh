@@ -6,5 +6,5 @@ if [[ ! "$FILE_PATH" =~ \.(ts|tsx|js|jsx)$ ]]; then
   exit 0
 fi
 
-npx biome format --write "$FILE_PATH" 2>/dev/null
+npx biome format --write -- "$FILE_PATH" 2>/dev/null
 exit 0

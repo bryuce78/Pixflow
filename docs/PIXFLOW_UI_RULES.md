@@ -76,7 +76,7 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - **Secondary text:** `text-surface-400` = hint/disabled, `text-surface-500` = secondary, `text-surface-600` = label.
 - **Borders:** `border-surface-200/50` for card edges. `border-surface-100` for section dividers.
 - **Icon sizes:** `w-4 h-4` inline, `w-5 h-5` section headers, `w-6 h-6` hero/page icons. Never use arbitrary sizes.
-- **Animation durations:** `duration-150` (fast, hover/focus), `duration-300` (medium, transitions), `duration-500` (slow, page enter).
+- **Animation durations:** `duration-150` (fast, hover/focus), `duration-300` (medium, transitions). Page-enter uses a custom 220ms ease-out keyframe (not a Tailwind duration class).
 
 ## Accessibility Baseline
 - Tabs must be keyboard navigable (ArrowLeft/ArrowRight/Home/End).
@@ -94,8 +94,8 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 ## Tooltips
 - Use `Tooltip` (`src/renderer/components/ui/Tooltip.tsx`) for icon-only or collapsed-sidebar labels.
 - `enabled` prop: set `enabled={false}` to suppress tooltip when label is already visible (e.g. expanded sidebar).
-- Default `delay={300}`. Do not use `delay=99999` as a disable hack — use `enabled={false}`.
-- Portal-rendered to `document.body`, z-index 55 (above JobMonitorWidget z-45, below Modal z-50).
+- Default `delay={500}`. Do not use `delay=99999` as a disable hack — use `enabled={false}`.
+- Portal-rendered to `document.body`, z-index 55 (above JobMonitorWidget z-45, above Modal z-50 — tooltips dismiss on click so overlap is transient).
 
 ## Page Transitions
 - `PageTransition` wraps all page content with `page-enter` animation (220ms ease-out fade+slide).
