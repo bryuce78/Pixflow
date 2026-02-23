@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-21
+> Last updated: 2026-02-23
 
 ## Project
 
@@ -183,6 +183,7 @@ Adding a new page requires syncing these files:
 1. `AppShell.tsx` - lazy import + PAGES object + PAGE_ICONS (titles via `brandedName()`)
 2. `SideNav.tsx` - SIDEBAR_ITEMS array + badge logic if needed (imports from stores for badge counts)
 3. `navigationStore.ts` - TabId union type
+4. Lock policy: if a category is under development, lock both click path and programmatic navigation (`SideNav` disabled set + `navigationStore.navigate` guard).
 
 ### Lifetime Pipeline (lifetime.ts)
 - In-memory job maps: `lifetimeRunJobs` (`lrun_` prefix, frame gen) and `lifetimeVideoJobs` (`lvid_` prefix, video creation)
@@ -268,6 +269,7 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Prompt Factory: `generateSinglePromptWithTheme()` catches ALL errors and returns fallback — outer code sees "success". Always check server logs for `[generateSinglePrompt]` prefixed errors.
 - Prompt Factory: `ResearchBrief` properties live under `trend_findings.*`, `technical_recommendations.*`, `competitor_insights.*`, `sub_themes[]` — NOT flat fields like `key_themes` or `visual_elements`.
 - Research: if web grounding silently falls back to model-only behavior, verify server process is restarted and confirm `effective_mode` in `research` meta.
+- Current UX policy (2026-02-23): `Library` and `Competitor Report` are visible but locked in sidebar; Home page shows `Compose` card and does not show `Competitor Report`.
 - Mock-provider video pipelines now emit valid MP4 data URLs (Kling/Hedra). If FFmpeg reports `moov atom not found`, suspect stale old mock files generated before 2026-02-17.
 - `Tooltip` `enabled` prop: use `enabled={false}` to suppress — never `delay=99999`.
 - `Button` disabled/loading state renders grey (`bg-surface-200 text-surface-400`), not faded variant color. Do not use `disabled:opacity-50` on Button — it is no longer applied.

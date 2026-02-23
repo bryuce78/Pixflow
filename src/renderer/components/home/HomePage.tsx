@@ -1,6 +1,6 @@
 import {
   ArrowRight,
-  BarChart3,
+  Blend,
   Film,
   Layers,
   LayoutGrid,
@@ -59,10 +59,10 @@ const CATEGORIES = [
       'Build an age progression timeline from a baby photo. Generate white-background age frames and transition videos end-to-end.',
   },
   {
-    id: 'competitors' as const,
-    icon: BarChart3,
+    id: 'compose' as const,
+    icon: Blend,
     description:
-      'Track competitor creatives from the last 7 days with a focused report. Start with Clone AI and expand to richer market signals.',
+      'Compose layered timelines with assets, snapping controls, and frame-level precision for final video assembly.',
   },
 ]
 
@@ -205,7 +205,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {CATEGORIES.map((category, index) => {
           const Icon = category.icon
-          const isDisabled = category.id === 'competitors'
+          const isDisabled = false
           return (
             <button
               key={category.id}

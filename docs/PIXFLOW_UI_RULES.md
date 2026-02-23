@@ -1,6 +1,6 @@
 # Pixflow UI Rules (Feb 2026)
 
-Last updated: 2026-02-21
+Last updated: 2026-02-23
 
 ## Purpose
 Keep the UI consistent and predictable across all Pixflow categories. These rules are the source of truth for layout, navigation, and state feedback.
@@ -23,6 +23,8 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - If a control changes the view/state, it is a tab. If it triggers work, it is a button.
 - Tab switch scrolls content to top automatically.
 - Active category set (current): Prompt Factory, Asset Monster, Img2Engine, Avatar Studio, Captions, The Machine, Lifetime, Library, Competitor Report.
+- Under-development lock policy: categories can remain visible but non-clickable in `SideNav`; lock must be enforced in both UI and navigation store.
+- Home page card policy (current): `Competitor Report` hidden from main cards; `Compose` card shown alongside `Lifetime`.
 
 ## Steps
 - Wizard-like flows use `StepHeader` for numbering + titles.

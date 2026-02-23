@@ -40,12 +40,12 @@ const SIDEBAR_ITEMS: { id: TabId; icon: typeof Wand2 }[] = [
   { id: 'avatars', icon: Video },
   { id: 'captions', icon: MessageSquareText },
   { id: 'machine', icon: Zap },
-  { id: 'compose', icon: Blend },
   { id: 'lifetime', icon: TimerReset },
+  { id: 'compose', icon: Blend },
   { id: 'history', icon: BookOpen },
   { id: 'competitors', icon: BarChart3 },
 ]
-const DISABLED_ITEMS = new Set<TabId>(['competitors'])
+const DISABLED_ITEMS = new Set<TabId>(['history', 'competitors'])
 
 const LG_BREAKPOINT = '(min-width: 1024px)'
 

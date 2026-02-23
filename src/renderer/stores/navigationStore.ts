@@ -45,7 +45,7 @@ export const useNavigationStore = create<NavigationState>()((set) => ({
   pendingNavigationPerf: null,
 
   navigate: (tab, options) => {
-    if (tab === 'competitors') return
+    if (tab === 'competitors' || tab === 'history') return
 
     set((state) => {
       if (state.activeTab === tab) return state

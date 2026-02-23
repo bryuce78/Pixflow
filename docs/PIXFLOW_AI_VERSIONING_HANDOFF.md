@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-21 (docs sync: Compose editor layout/timeline overhaul + docs alignment)
+Last updated: 2026-02-23 (docs sync: navigation lock updates + home card adjustments)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,21 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.13) Navigation Lock + Home Cards Alignment (2026-02-23)
+
+- Sidebar lock behavior expanded:
+  - `Library` is now locked the same way as `Competitor Report`.
+  - lock is enforced at both levels:
+    - UI level: disabled item in `SideNav`.
+    - state level: `navigationStore.navigate` guard blocks programmatic navigation.
+- Home page cards updated:
+  - `Competitor Report` removed from main page category cards.
+  - `Compose` card retained and positioned next to `Lifetime` in the two-column grid.
+- Files updated:
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/layout/SideNav.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/stores/navigationStore.ts`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/home/HomePage.tsx`
 
 ### 0.12) Compose Editor Overhaul (2026-02-21)
 
