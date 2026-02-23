@@ -1428,6 +1428,24 @@ async function runGenerateFramesJob(params: {
         job.progress.currentAge = null
         job.progress.message = `Baby source frame ready (1/${job.progress.total})`
       })
+    } else {
+      updateJob(jobId, (job) => {
+        job.progress.currentAge = null
+        job.progress.message = 'Normalizing input photo to 9:16'
+      })
+      const normalizedPath = makeSourceFrameOutputPath(outputDir, sessionId)
+      await runFfmpeg([
+        '-y',
+        '-i',
+        originalReferencePath,
+        '-vf',
+        'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
+        '-frames:v',
+        '1',
+        normalizedPath,
+      ])
+      sourceFramePath = normalizedPath
+      sourceFrameUrl = toPublicOutputPath(outputsDir, normalizedPath)
     }
 
     updateJob(jobId, (job) => {
@@ -1454,12 +1472,7 @@ async function runGenerateFramesJob(params: {
               effectiveGenderHint,
               narrativeTrack,
             )
-      const referenceImagePaths =
-        index === 0
-          ? backgroundMode === 'white_bg'
-            ? `file://${sourceFramePath}`
-            : `file://${originalReferencePath}`
-          : `file://${frames[index - 1].imagePath}`
+      const referenceImagePaths = index === 0 ? `file://${sourceFramePath}` : `file://${frames[index - 1].imagePath}`
 
       const result = await generateImage(referenceImagePaths, prompt, {
         resolution: '2K',
@@ -2030,11 +2043,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
             )
       const sourceAnchorPath = manifest.sourceFramePath || manifest.originalReferencePath
       const referenceImagePaths =
-        frameIndex === 0
-          ? manifest.backgroundMode === 'white_bg'
-            ? `file://${sourceAnchorPath}`
-            : `file://${manifest.originalReferencePath}`
-          : `file://${manifest.frames[frameIndex - 1].imagePath}`
+        frameIndex === 0 ? `file://${sourceAnchorPath}` : `file://${manifest.frames[frameIndex - 1].imagePath}`
 
       const result = await generateImage(referenceImagePaths, prompt, {
         resolution: '2K',
