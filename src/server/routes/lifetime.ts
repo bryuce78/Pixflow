@@ -30,6 +30,20 @@ const lifetimeLimiter = rateLimit({
 
 const TARGET_AGES = [7, 12, 18, 25, 35, 45, 55, 65, 75]
 const BACKGROUND_MODES = ['white_bg', 'natural_bg'] as const
+const COLOR_BG_SWATCHES = [
+  '#FFFFFF',
+  '#000000',
+  '#EF4444',
+  '#F97316',
+  '#FACC15',
+  '#84CC16',
+  '#22C55E',
+  '#06B6D4',
+  '#3B82F6',
+  '#A855F7',
+] as const
+const COLOR_BG_SWATCH_SET = new Set<string>(COLOR_BG_SWATCHES)
+const DEFAULT_COLOR_BG = COLOR_BG_SWATCHES[0]
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const MAX_INPUT_IMAGE_BYTES = 10 * 1024 * 1024
 const JOB_RETENTION_MS = 2 * 60 * 60 * 1000
@@ -140,6 +154,7 @@ interface LifetimeSessionManifest {
   sourceFramePath: string
   sourceFrameUrl: string
   backgroundMode: LifetimeBackgroundMode
+  backgroundColor: string
   genderHint: LifetimeGenderHint
   narrativeTrack?: LifetimeNarrativeTrack
   ages: number[]
@@ -156,6 +171,7 @@ interface LifetimeRunJob {
   startedAt: string
   updatedAt: string
   backgroundMode: LifetimeBackgroundMode
+  backgroundColor: string
   progress: {
     total: number
     completed: number
@@ -201,6 +217,20 @@ function parseBackgroundMode(value: unknown): LifetimeBackgroundMode {
     return value as LifetimeBackgroundMode
   }
   return 'white_bg'
+}
+
+function normalizeHexColor(value: string): string {
+  const trimmed = value.trim().toUpperCase()
+  if (!trimmed) return ''
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`
+  return /^#[0-9A-F]{6}$/.test(withHash) ? withHash : ''
+}
+
+function parseBackgroundColor(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_COLOR_BG
+  const normalized = normalizeHexColor(value)
+  if (!normalized) return DEFAULT_COLOR_BG
+  return COLOR_BG_SWATCH_SET.has(normalized) ? normalized : DEFAULT_COLOR_BG
 }
 
 function parseSessionId(value: unknown): string {
@@ -391,26 +421,46 @@ async function loadManifest(outputsDir: string, sessionId: string): Promise<Life
   }
   manifest.outputDir = manifest.outputDir || outputDir
   manifest.outputDirUrl = manifest.outputDirUrl || toPublicOutputPath(outputsDir, manifest.outputDir)
+  let shouldSave = false
   if (!manifest.sourceFramePath) {
     manifest.sourceFramePath = manifest.originalReferencePath
+    shouldSave = true
   }
   if (!manifest.sourceFrameUrl) {
     manifest.sourceFrameUrl = toPublicOutputPath(outputsDir, manifest.sourceFramePath)
+    shouldSave = true
+  }
+  const normalizedBackgroundColor = normalizeHexColor(manifest.backgroundColor || '')
+  if (normalizedBackgroundColor && COLOR_BG_SWATCH_SET.has(normalizedBackgroundColor)) {
+    if (manifest.backgroundColor !== normalizedBackgroundColor) {
+      manifest.backgroundColor = normalizedBackgroundColor
+      shouldSave = true
+    }
+  } else {
+    manifest.backgroundColor = DEFAULT_COLOR_BG
+    shouldSave = true
   }
   if (manifest.genderHint !== 'male' && manifest.genderHint !== 'female' && manifest.genderHint !== 'auto') {
     manifest.genderHint = 'auto'
+    shouldSave = true
   }
   if (typeof manifest.finalVideoPath !== 'string') {
     manifest.finalVideoPath = ''
+    shouldSave = true
   }
   if (typeof manifest.finalVideoUrl !== 'string') {
     manifest.finalVideoUrl = ''
+    shouldSave = true
   }
   if (typeof manifest.finalVideoDurationSec !== 'number') {
     manifest.finalVideoDurationSec = 0
+    shouldSave = true
   }
   if (!manifest.narrativeTrack && manifest.backgroundMode === 'natural_bg') {
     manifest.narrativeTrack = NARRATIVE_TRACKS[Math.floor(Math.random() * NARRATIVE_TRACKS.length)]
+    shouldSave = true
+  }
+  if (shouldSave) {
     await saveManifest(manifest)
   }
   return manifest
@@ -1030,12 +1080,47 @@ function ageGapEmphasisRule(fromAge: number, toAge: number): string {
   ].join(' ')
 }
 
-function outfitContinuityRule(fromAge: number, toAge: number): string {
+function outfitContinuityRule(fromAge: number, toAge: number, mode: LifetimeBackgroundMode): string {
+  if (mode === 'white_bg') {
+    return [
+      `Outfit continuity rule from ${fromAge} -> ${toAge}:`,
+      'Wardrobe must evolve gradually and age-appropriately.',
+      'Do not keep the exact same outfit across adjacent frames.',
+      'Avoid radical costume jumps; keep clean visual continuity.',
+    ].join(' ')
+  }
+
+  if (toAge <= 30) {
+    return [
+      `Natural-mode style evolution rule from ${fromAge} -> ${toAge}:`,
+      'Age-appropriate styling is mandatory, but meaningful style pivots are allowed and encouraged.',
+      'Hair style, facial-hair pattern (if applicable), and wardrobe may change strongly if plausible for that life stage.',
+      'Do not lock the subject into one fixed identity aesthetic or one fixed profession look.',
+      'Examples of acceptable variation: ballet era, punk/rock era, heavy-music era, sport-focused era, academic era.',
+      'Keep changes believable and non-caricatured; preserve core face identity.',
+    ].join(' ')
+  }
+
   return [
-    `Outfit continuity rule from ${fromAge} -> ${toAge}:`,
-    'Wardrobe must evolve gradually and age-appropriately.',
-    'Do not keep the exact same outfit across adjacent frames.',
-    'Do not make radical costume jumps; keep realistic continuity.',
+    `Natural-mode mature style rule from ${fromAge} -> ${toAge}:`,
+    'Maintain age-appropriate evolution with room for noticeable lifestyle/style shifts.',
+    'Wardrobe and grooming can change significantly when context supports it, but avoid chaotic/random costume noise.',
+    'Preserve identity and plausibility while allowing distinct chapters of life.',
+  ].join(' ')
+}
+
+function naturalModeVariationRule(toAge: number): string {
+  if (toAge <= 30) {
+    return [
+      'Natural mode variation emphasis:',
+      'For child/teen/young-adult stages, allow bold but plausible identity-preserving experiments in hairstyle, clothing aesthetics, and vibe.',
+      'Do not force conservative continuity if age-appropriate variation is more realistic.',
+    ].join(' ')
+  }
+  return [
+    'Natural mode variation emphasis:',
+    'At mature ages, variation remains allowed but should feel intentional, grounded, and age-appropriate.',
+    'Distinct life chapters are welcome as long as identity continuity is preserved.',
   ].join(' ')
 }
 
@@ -1065,11 +1150,13 @@ function buildNormalizePrompt(
   mode: LifetimeBackgroundMode,
   genderHint: LifetimeGenderHint,
   track?: LifetimeNarrativeTrack,
+  backgroundColor: string = DEFAULT_COLOR_BG,
 ): string {
   const backgroundRule =
     mode === 'white_bg' || !track
-      ? 'Pure white solid background (#FFFFFF). Keep identical pose and framing across timeline.'
+      ? `Color background mode: use a flat solid background color ${backgroundColor} across the entire frame. No gradients, no texture, no scene details. Keep identical pose and framing across timeline.`
       : `Natural background mode: place the subject in ${sceneForAge(age, track, genderHint)}. Environment must be photorealistic and narrative-consistent.`
+  const variationRule = mode === 'white_bg' ? '' : naturalModeVariationRule(age)
   const appearanceRule = ageAppearanceRule(age, genderHint)
   const framingRule = mediumShotFramingRule()
   const genderRule = genderHintRule(genderHint)
@@ -1082,6 +1169,7 @@ function buildNormalizePrompt(
     `Professional direction: "How the baby in the reference photo would look at the age of ${age}."`,
     genderRule,
     appearanceRule,
+    variationRule,
     framingRule,
     backgroundRule,
     'Vertical 9:16 composition, centered framing, no extra people, no props, no text.',
@@ -1106,16 +1194,18 @@ function buildProgressionPrompt(
   frameIndex: number,
   genderHint: LifetimeGenderHint,
   track?: LifetimeNarrativeTrack,
+  backgroundColor: string = DEFAULT_COLOR_BG,
 ): string {
   const backgroundRule =
     mode === 'white_bg' || !track
-      ? 'Pure white solid background (#FFFFFF). Keep visual continuity while allowing pose/framing updates required by stage rules.'
+      ? `Color background mode: keep a flat solid ${backgroundColor} background in every frame. No gradients, no texture, no scene details. Keep visual continuity while allowing pose/framing updates required by stage rules.`
       : `Natural background mode: update the environment to match age ${toAge} — ${sceneForAge(toAge, track, genderHint)}.`
   const stagePoseRule = buildStagePoseRule(frameIndex)
   const appearanceRule = ageAppearanceRule(toAge, genderHint)
   const framingRule = mediumShotFramingRule()
   const gapRule = ageGapEmphasisRule(fromAge, toAge)
-  const wardrobeRule = outfitContinuityRule(fromAge, toAge)
+  const wardrobeRule = outfitContinuityRule(fromAge, toAge, mode)
+  const variationRule = mode === 'white_bg' ? '' : naturalModeVariationRule(toAge)
   const genderRule = genderHintRule(genderHint)
   return [
     'CRITICAL: Use ALL provided reference images as mandatory identity anchors.',
@@ -1128,6 +1218,7 @@ function buildProgressionPrompt(
     gapRule,
     appearanceRule,
     wardrobeRule,
+    variationRule,
     framingRule,
     stagePoseRule,
     backgroundRule,
@@ -1140,11 +1231,12 @@ function buildTransitionPrompt(
   toAge: number,
   mode: LifetimeBackgroundMode,
   track?: LifetimeNarrativeTrack,
+  backgroundColor: string = DEFAULT_COLOR_BG,
 ): string {
   const transitionBackgroundRule =
     mode === 'white_bg' || !track
-      ? 'Keep pure white background throughout the whole transition.'
-      : `Background should transition naturally from the age-${fromAge} scene to the age-${toAge} scene, reflecting the life journey of the subject.`
+      ? `Keep a flat solid ${backgroundColor} background throughout the whole transition. No gradient and no scene texture.`
+      : `Background should transition naturally from the age-${fromAge} scene to the age-${toAge} scene, reflecting the life journey of the subject. Allow noticeable age-appropriate wardrobe/hair/vibe shifts between frames when plausible; keep identity stable.`
   return [
     `Smooth cinematic age transition of the exact same person from ${fromAge}-years old to ${toAge}-years old.`,
     'CRITICAL HARD CONSTRAINT: Keep medium-shot continuity during the entire transition (mid-torso to head, both shoulders visible).',
@@ -1153,14 +1245,18 @@ function buildTransitionPrompt(
   ].join(' ')
 }
 
-function buildSourceFramePrompt(mode: LifetimeBackgroundMode, genderHint: LifetimeGenderHint): string {
+function buildSourceFramePrompt(
+  mode: LifetimeBackgroundMode,
+  genderHint: LifetimeGenderHint,
+  backgroundColor: string = DEFAULT_COLOR_BG,
+): string {
   const genderRule = genderHintRule(genderHint)
   if (mode === 'white_bg') {
     return [
       REFERENCE_IDENTITY_SOURCE_CRITICAL,
       'CRITICAL: Keep the exact same baby identity, facial structure, skin tone, and age.',
       genderRule,
-      'Remove the existing background completely and replace it with pure white (#FFFFFF).',
+      `Remove the existing background completely and replace it with flat solid ${backgroundColor}.`,
       'Create a clean studio-style 9:16 medium shot with the baby centered and clearly visible.',
       'Face must be directly front-facing to camera.',
       'Keep both shoulders visible and include upper torso/outfit in frame.',
@@ -1171,7 +1267,8 @@ function buildSourceFramePrompt(mode: LifetimeBackgroundMode, genderHint: Lifeti
     REFERENCE_IDENTITY_SOURCE_CRITICAL,
     'Keep the exact same baby identity and apparent age.',
     genderRule,
-    'Create a clean, natural-looking 9:16 portrait with realistic environment continuity.',
+    'Create a clean, natural-looking 9:16 portrait with photoreal realism.',
+    'This source frame should anchor identity and framing quality, not freeze a single lifelong style.',
     'No extra people, no text, no logos.',
   ].join(' ')
 }
@@ -1226,15 +1323,16 @@ function cleanupOldJobs(): void {
   }
 }
 
-function createJob(backgroundMode: LifetimeBackgroundMode): LifetimeRunJob {
+function createJob(backgroundMode: LifetimeBackgroundMode, backgroundColor: string): LifetimeRunJob {
   const nowIso = new Date().toISOString()
-  const totalSteps = TARGET_AGES.length + (backgroundMode === 'white_bg' ? 1 : 0)
+  const totalSteps = TARGET_AGES.length + 1
   return {
     jobId: makeRunJobId(),
     status: 'queued',
     startedAt: nowIso,
     updatedAt: nowIso,
     backgroundMode,
+    backgroundColor,
     progress: {
       total: totalSteps,
       completed: 0,
@@ -1286,6 +1384,7 @@ function fireEarlyTransition(params: {
   toAge: number
   toImagePath: string
   backgroundMode: LifetimeBackgroundMode
+  backgroundColor: string
   narrativeTrack?: LifetimeNarrativeTrack
 }): Promise<void> {
   const {
@@ -1298,6 +1397,7 @@ function fireEarlyTransition(params: {
     toAge,
     toImagePath,
     backgroundMode,
+    backgroundColor,
     narrativeTrack,
   } = params
   const key = `${fromAge}-${toAge}`
@@ -1314,7 +1414,7 @@ function fireEarlyTransition(params: {
     }
 
     try {
-      const prompt = buildTransitionPrompt(fromAge, toAge, backgroundMode, narrativeTrack)
+      const prompt = buildTransitionPrompt(fromAge, toAge, backgroundMode, narrativeTrack, backgroundColor)
       const videoResult = await generateKlingTransitionVideo({
         startImagePath: fromImagePath,
         endImagePath: toImagePath,
@@ -1351,10 +1451,21 @@ async function runGenerateFramesJob(params: {
   inputImagePath: string
   inputImageUrl: string
   backgroundMode: LifetimeBackgroundMode
+  backgroundColor: string
   genderHint: LifetimeGenderHint
   userId: number | undefined
 }): Promise<void> {
-  const { jobId, outputsDir, uploadsDir, inputImagePath, inputImageUrl, backgroundMode, genderHint, userId } = params
+  const {
+    jobId,
+    outputsDir,
+    uploadsDir,
+    inputImagePath,
+    inputImageUrl,
+    backgroundMode,
+    backgroundColor,
+    genderHint,
+    userId,
+  } = params
   let span: ReturnType<typeof createPipelineSpan> | null = null
   let workingInputPath = inputImagePath
   let effectiveGenderHint: LifetimeGenderHint = genderHint
@@ -1370,6 +1481,7 @@ async function runGenerateFramesJob(params: {
       userId,
       metadata: {
         backgroundMode,
+        backgroundColor,
         genderHintRequested: genderHint,
         frameCount: TARGET_AGES.length,
         mode: 'async',
@@ -1401,52 +1513,32 @@ async function runGenerateFramesJob(params: {
     let sourceFramePath = originalReferencePath
     let sourceFrameUrl = toPublicOutputPath(outputsDir, originalReferencePath)
 
-    if (backgroundMode === 'white_bg') {
-      updateJob(jobId, (job) => {
-        job.progress.currentAge = null
-        job.progress.message = `Generating baby source frame (1/${job.progress.total})`
-      })
+    updateJob(jobId, (job) => {
+      job.progress.currentAge = null
+      job.progress.message = `Generating baby source frame (1/${job.progress.total})`
+    })
 
-      const sourcePrompt = buildSourceFramePrompt(backgroundMode, effectiveGenderHint)
-      const sourceResult = await generateImage(`file://${originalReferencePath}`, sourcePrompt, {
-        resolution: '2K',
-        aspectRatio: '9:16',
-        numImages: 1,
-        outputFormat: 'jpeg',
-      })
-      const sourceGeneratedUrl = sourceResult.urls[0]
-      if (!sourceGeneratedUrl) {
-        throw new Error('No source frame URL returned')
-      }
-
-      sourceFramePath = makeSourceFrameOutputPath(outputDir, sessionId)
-      await downloadImage(sourceGeneratedUrl, sourceFramePath)
-      sourceFrameUrl = toPublicOutputPath(outputsDir, sourceFramePath)
-
-      updateJob(jobId, (job) => {
-        job.progress.completed = 1
-        job.progress.currentAge = null
-        job.progress.message = `Baby source frame ready (1/${job.progress.total})`
-      })
-    } else {
-      updateJob(jobId, (job) => {
-        job.progress.currentAge = null
-        job.progress.message = 'Normalizing input photo to 9:16'
-      })
-      const normalizedPath = makeSourceFrameOutputPath(outputDir, sessionId)
-      await runFfmpeg([
-        '-y',
-        '-i',
-        originalReferencePath,
-        '-vf',
-        'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
-        '-frames:v',
-        '1',
-        normalizedPath,
-      ])
-      sourceFramePath = normalizedPath
-      sourceFrameUrl = toPublicOutputPath(outputsDir, normalizedPath)
+    const sourcePrompt = buildSourceFramePrompt(backgroundMode, effectiveGenderHint, backgroundColor)
+    const sourceResult = await generateImage(`file://${originalReferencePath}`, sourcePrompt, {
+      resolution: '2K',
+      aspectRatio: '9:16',
+      numImages: 1,
+      outputFormat: 'jpeg',
+    })
+    const sourceGeneratedUrl = sourceResult.urls[0]
+    if (!sourceGeneratedUrl) {
+      throw new Error('No source frame URL returned')
     }
+
+    sourceFramePath = makeSourceFrameOutputPath(outputDir, sessionId)
+    await downloadImage(sourceGeneratedUrl, sourceFramePath)
+    sourceFrameUrl = toPublicOutputPath(outputsDir, sourceFramePath)
+
+    updateJob(jobId, (job) => {
+      job.progress.completed = 1
+      job.progress.currentAge = null
+      job.progress.message = `Baby source frame ready (1/${job.progress.total})`
+    })
 
     updateJob(jobId, (job) => {
       job.sourceFrameUrl = sourceFrameUrl
@@ -1463,7 +1555,7 @@ async function runGenerateFramesJob(params: {
 
       const prompt =
         index === 0
-          ? buildNormalizePrompt(age, backgroundMode, effectiveGenderHint, narrativeTrack)
+          ? buildNormalizePrompt(age, backgroundMode, effectiveGenderHint, narrativeTrack, backgroundColor)
           : buildProgressionPrompt(
               TARGET_AGES[index - 1],
               age,
@@ -1471,6 +1563,7 @@ async function runGenerateFramesJob(params: {
               index,
               effectiveGenderHint,
               narrativeTrack,
+              backgroundColor,
             )
       const referenceImagePaths = index === 0 ? `file://${sourceFramePath}` : `file://${frames[index - 1].imagePath}`
 
@@ -1510,9 +1603,9 @@ async function runGenerateFramesJob(params: {
       }
 
       updateJob(jobId, (job) => {
-        const sourceStepOffset = backgroundMode === 'white_bg' ? 1 : 0
+        const sourceStepOffset = 1
         job.progress.completed = sourceStepOffset + frames.length
-        const sourceFrameEntry = backgroundMode === 'white_bg' ? [{ age: 0, imageUrl: sourceFrameUrl }] : []
+        const sourceFrameEntry = [{ age: 0, imageUrl: sourceFrameUrl }]
         job.frames = [...sourceFrameEntry, ...frames.map((item) => ({ age: item.age, imageUrl: item.imageUrl }))]
         job.progress.message = `Generated ${sourceStepOffset + frames.length}/${job.progress.total} steps`
       })
@@ -1529,6 +1622,7 @@ async function runGenerateFramesJob(params: {
         toAge: frame.age,
         toImagePath: frame.imagePath,
         backgroundMode,
+        backgroundColor,
         narrativeTrack,
       })
       updateJob(jobId, (job) => {
@@ -1547,6 +1641,7 @@ async function runGenerateFramesJob(params: {
       sourceFramePath,
       sourceFrameUrl,
       backgroundMode,
+      backgroundColor,
       genderHint: effectiveGenderHint,
       narrativeTrack,
       ages: [...TARGET_AGES],
@@ -1564,7 +1659,7 @@ async function runGenerateFramesJob(params: {
       job.status = 'completed'
       job.sessionId = sessionId
       job.sourceFrameUrl = sourceFrameUrl
-      const sourceFrameEntry = backgroundMode === 'white_bg' ? [{ age: 0, imageUrl: sourceFrameUrl }] : []
+      const sourceFrameEntry = [{ age: 0, imageUrl: sourceFrameUrl }]
       job.frames = [...sourceFrameEntry, ...frames.map((item) => ({ age: item.age, imageUrl: item.imageUrl }))]
       job.progress.currentAge = null
       job.progress.completed = job.progress.total
@@ -1577,6 +1672,7 @@ async function runGenerateFramesJob(params: {
       outputDir,
       genderHintRequested: genderHint,
       genderHintEffective: effectiveGenderHint,
+      backgroundColor,
     })
   } catch (error) {
     console.error('[Lifetime] Frame generation job failed:', error)
@@ -1695,6 +1791,7 @@ async function runCreateVideosJob(params: {
           toFrame.age,
           manifest.backgroundMode,
           manifest.narrativeTrack,
+          manifest.backgroundColor || DEFAULT_COLOR_BG,
         )
         const videoResult = await generateKlingTransitionVideo({
           startImagePath: fromFrame.imagePath,
@@ -1845,8 +1942,9 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
 
       cleanupOldJobs()
       const backgroundMode = parseBackgroundMode(req.body.backgroundMode)
+      const backgroundColor = parseBackgroundColor(req.body.backgroundColor)
       const genderHint = parseGenderHint(req.body.genderHint)
-      const job = createJob(backgroundMode)
+      const job = createJob(backgroundMode, backgroundColor)
       lifetimeRunJobs.set(job.jobId, job)
 
       launched = true
@@ -1857,6 +1955,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
         inputImagePath,
         inputImageUrl,
         backgroundMode,
+        backgroundColor,
         genderHint,
         userId: req.user?.id,
       })
@@ -1864,8 +1963,9 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
       sendSuccess(res, {
         jobId: job.jobId,
         status: job.status,
-        totalFrames: TARGET_AGES.length + (backgroundMode === 'white_bg' ? 1 : 0),
-        ages: backgroundMode === 'white_bg' ? [0, ...TARGET_AGES] : [...TARGET_AGES],
+        totalFrames: TARGET_AGES.length + 1,
+        ages: [0, ...TARGET_AGES],
+        backgroundColor,
       })
     } catch (error) {
       console.error('[Lifetime] Failed to start frame generation:', error)
@@ -1960,7 +2060,11 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
           metadata: { sessionId, backgroundMode: manifest.backgroundMode },
         })
 
-        const sourcePrompt = buildSourceFramePrompt(manifest.backgroundMode, manifest.genderHint || 'auto')
+        const sourcePrompt = buildSourceFramePrompt(
+          manifest.backgroundMode,
+          manifest.genderHint || 'auto',
+          manifest.backgroundColor || DEFAULT_COLOR_BG,
+        )
         const sourceResult = await generateImage(`file://${manifest.originalReferencePath}`, sourcePrompt, {
           resolution: '2K',
           aspectRatio: '9:16',
@@ -2032,6 +2136,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
               manifest.backgroundMode,
               manifest.genderHint || 'auto',
               manifest.narrativeTrack,
+              manifest.backgroundColor || DEFAULT_COLOR_BG,
             )
           : buildProgressionPrompt(
               manifest.frames[frameIndex - 1].age,
@@ -2040,6 +2145,7 @@ export function createLifetimeRouter(config: LifetimeRouterConfig): Router {
               frameIndex,
               manifest.genderHint || 'auto',
               manifest.narrativeTrack,
+              manifest.backgroundColor || DEFAULT_COLOR_BG,
             )
       const sourceAnchorPath = manifest.sourceFramePath || manifest.originalReferencePath
       const referenceImagePaths =

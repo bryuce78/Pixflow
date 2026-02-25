@@ -71,9 +71,22 @@ const VIDEO_DURATION_MAX_SEC = 45
 const VIDEO_DURATION_DEFAULT_SEC = 12
 
 const BACKGROUND_MODE_OPTIONS = [
-  { id: 'white_bg' as const, label: 'White BG' },
+  { id: 'white_bg' as const, label: 'Color BG' },
   { id: 'natural_bg' as const, label: 'Natural BG' },
 ]
+
+const COLOR_BG_OPTIONS = [
+  { hex: '#FFFFFF', label: 'White' },
+  { hex: '#000000', label: 'Black' },
+  { hex: '#EF4444', label: 'Red' },
+  { hex: '#F97316', label: 'Orange' },
+  { hex: '#FACC15', label: 'Yellow' },
+  { hex: '#84CC16', label: 'Lime' },
+  { hex: '#22C55E', label: 'Green' },
+  { hex: '#06B6D4', label: 'Cyan' },
+  { hex: '#3B82F6', label: 'Blue' },
+  { hex: '#A855F7', label: 'Purple' },
+] as const
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -109,6 +122,7 @@ export default function LifetimePage() {
   const [babyFile, setBabyFile] = useState<File | null>(null)
   const [babyImageUrl, setBabyImageUrl] = useState('')
   const [backgroundMode, setBackgroundMode] = useState<LifetimeBackgroundMode>('white_bg')
+  const [backgroundColor, setBackgroundColor] = useState<string>('#FFFFFF')
   const [genderHint, setGenderHint] = useState<LifetimeGenderHint>('auto')
   const [running, setRunning] = useState(false)
   const [creatingVideos, setCreatingVideos] = useState(false)
@@ -493,7 +507,7 @@ export default function LifetimePage() {
     upsertHistory({
       id: historyId,
       category: 'lifetime',
-      title: `Lifetime (${backgroundMode === 'white_bg' ? 'White BG' : 'Natural BG'})`,
+      title: `Lifetime (${backgroundMode === 'white_bg' ? 'Color BG' : 'Natural BG'})`,
       status: 'running',
       startedAt: Date.now(),
       updatedAt: Date.now(),
@@ -514,6 +528,7 @@ export default function LifetimePage() {
         formData.append('babyImageUrl', babyImageUrl)
       }
       formData.append('backgroundMode', backgroundMode)
+      formData.append('backgroundColor', backgroundColor)
       formData.append('genderHint', genderHint)
 
       const res = await authFetch(apiUrl('/api/lifetime/run'), {
@@ -581,6 +596,47 @@ export default function LifetimePage() {
               onChange={setBackgroundMode}
               ariaLabel="Lifetime background mode"
             />
+            {backgroundMode === 'white_bg' && (
+              <div className="mt-4 pt-4 border-t border-surface-200/60 space-y-2">
+                <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
+                  Background Color
+                </span>
+                <div className="grid grid-cols-5 gap-2">
+                  {COLOR_BG_OPTIONS.map((option) => {
+                    const selected = backgroundColor === option.hex
+                    return (
+                      <button
+                        key={option.hex}
+                        type="button"
+                        onClick={() => {
+                          if (backgroundColor === option.hex) return
+                          setBackgroundColor(option.hex)
+                          resetLifetimeResults()
+                        }}
+                        aria-label={`Use ${option.label} background`}
+                        title={option.label}
+                        className={`relative w-full aspect-square rounded-md border transition ${
+                          selected
+                            ? 'border-brand-500 ring-2 ring-brand-500/40'
+                            : 'border-surface-200 hover:border-surface-300'
+                        }`}
+                        style={{ backgroundColor: option.hex }}
+                      >
+                        {selected && (
+                          <span
+                            className={`absolute inset-0 flex items-center justify-center ${
+                              option.hex === '#FFFFFF' || option.hex === '#FACC15' ? 'text-surface-500' : 'text-white'
+                            }`}
+                          >
+                            <Check className="w-4 h-4" />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-surface-50 rounded-lg p-4">

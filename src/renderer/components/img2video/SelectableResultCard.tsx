@@ -29,8 +29,7 @@ export function SelectableResultCard({
   onOpenModal,
 }: SelectableResultCardProps) {
   const displayUrl = resultUrl || imageUrl
-  const aspectClass =
-    aspectRatio === '1:1' ? 'aspect-square' : aspectRatio === '4:5' ? 'aspect-[4/5]' : 'aspect-[9/16]'
+  const aspectClass = aspectRatio === '1:1' ? 'aspect-square' : aspectRatio === '4:5' ? 'aspect-[4/5]' : 'aspect-[9/16]'
 
   return (
     <div

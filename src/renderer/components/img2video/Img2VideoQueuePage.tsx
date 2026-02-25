@@ -714,6 +714,13 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
   const selectedItem =
     selectedId && queueItems[selectedId]?.workflowType === 'img2video' ? queueItems[selectedId] : null
 
+  // Keep img2video controls interactive by ensuring a valid img2video item is always selected.
+  useEffect(() => {
+    if (img2videoItems.length === 0) return
+    if (selectedItem) return
+    selectItem(img2videoItems[0].id)
+  }, [img2videoItems, selectedItem, selectItem])
+
   // Stats
   const totalCount = img2videoItems.length
   const completedCount = img2videoItems.filter((item) => item.status === 'completed').length
