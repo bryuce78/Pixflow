@@ -6,4 +6,4 @@ export const REFERENCE_STYLE_PREFIX = `Using the provided reference image(s), pr
 
 export const GREENBOX_REFERENCE_PROMPT = `Using the provided reference image(s), preserve the face, identity, age, and pose exactly for every referenced subject. ${USER_MAY_PROVIDE_MULTI_REFERENCE} If multiple references are provided, keep each person distinct and do not merge identities. Isolate the subject cleanly and place them on a solid chroma green (#1ebf1a) background. No extra objects or text. Keep clothing and proportions unchanged. High-quality cutout.`
 
-export const AVATAR_STUDIO_UPLOAD_PROMPT = `Photo of the person in the reference image. Background: solid green (#1ebf1a). Outfit: casual. Pose: at ease. Framing: medium shot. Slightly smiling.`
+export const AVATAR_STUDIO_UPLOAD_PROMPT = `${REFERENCE_IDENTITY_SOURCE_CRITICAL} Photo of the person in the reference image. Preserve face, identity, age, and facial structure exactly. Background: solid green (#1ebf1a). Outfit: casual. Pose: at ease. Framing: medium shot. Slightly smiling.`

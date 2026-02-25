@@ -9,6 +9,7 @@ import {
 } from './providerRuntime.js'
 
 const AVATAR_MODEL = 'fal-ai/nano-banana-pro'
+const AVATAR_EDIT_MODEL = 'fal-ai/nano-banana-pro/edit'
 
 export interface AvatarGenerationOptions {
   resolution?: '1K' | '2K' | '4K'
@@ -104,7 +105,7 @@ export async function generateAvatarFromReference(
 
   const result = await runWithRetries(
     () =>
-      fal.subscribe(AVATAR_MODEL, {
+      fal.subscribe(AVATAR_EDIT_MODEL, {
         input: {
           prompt,
           image_urls: [referenceImageUrl],
