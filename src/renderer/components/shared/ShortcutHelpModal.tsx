@@ -8,17 +8,28 @@ const TAB_ORDER: TabId[] = [
   'home',
   'prompts',
   'generate',
-  'lifetime',
   'img2video',
   'avatars',
   'captions',
   'machine',
-  'history',
-  'competitors',
+  'lifetime',
+  'compose',
 ]
 
 const isMac = /mac/i.test(navigator.userAgent) && !/windows|linux/i.test(navigator.userAgent)
-const MOD = isMac ? '⌘' : 'Ctrl'
+const MOD = isMac ? 'Cmd' : 'Ctrl'
+
+const COMPOSE_SHORTCUTS = [
+  { label: 'Undo (Compose)', key: `${MOD} Z` },
+  { label: 'Redo (Compose)', key: `${MOD} Shift Z` },
+  { label: 'Step frame back (Compose)', key: 'Left Arrow' },
+  { label: 'Step frame forward (Compose)', key: 'Right Arrow' },
+]
+
+const GENERAL_SHORTCUTS = [
+  { label: 'Close preview/modal', key: 'Esc' },
+  { label: 'Show / hide this overlay', key: '?' },
+]
 
 export function ShortcutHelpModal() {
   const { open, toggle, close } = useShortcutHelpStore()
@@ -47,7 +58,7 @@ export function ShortcutHelpModal() {
               <div key={tabId} className="flex items-center justify-between">
                 <span className="text-sm text-surface-600">{brandedPlainText(tabId)}</span>
                 <kbd className="inline-flex items-center gap-0.5 rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-xs font-mono text-surface-500">
-                  {MOD} {i === 9 ? '0' : i + 1}
+                  {MOD} {i + 1}
                 </kbd>
               </div>
             ))}
@@ -56,18 +67,27 @@ export function ShortcutHelpModal() {
         <div className="border-t border-surface-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2">General</p>
           <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-surface-600">Close preview</span>
-              <kbd className="inline-flex items-center rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-xs font-mono text-surface-500">
-                Esc
-              </kbd>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-surface-600">Show / hide this overlay</span>
-              <kbd className="inline-flex items-center rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-xs font-mono text-surface-500">
-                ?
-              </kbd>
-            </div>
+            {GENERAL_SHORTCUTS.map((shortcut) => (
+              <div key={shortcut.label} className="flex items-center justify-between">
+                <span className="text-sm text-surface-600">{shortcut.label}</span>
+                <kbd className="inline-flex items-center rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-xs font-mono text-surface-500">
+                  {shortcut.key}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-surface-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2">Compose</p>
+          <div className="space-y-1">
+            {COMPOSE_SHORTCUTS.map((shortcut) => (
+              <div key={shortcut.label} className="flex items-center justify-between">
+                <span className="text-sm text-surface-600">{shortcut.label}</span>
+                <kbd className="inline-flex items-center rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-xs font-mono text-surface-500">
+                  {shortcut.key}
+                </kbd>
+              </div>
+            ))}
           </div>
         </div>
       </div>

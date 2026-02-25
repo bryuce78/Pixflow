@@ -1,6 +1,6 @@
 # Pixflow UI Rules (Feb 2026)
 
-Last updated: 2026-02-23
+Last updated: 2026-02-24
 
 ## Purpose
 Keep the UI consistent and predictable across all Pixflow categories. These rules are the source of truth for layout, navigation, and state feedback.
@@ -25,6 +25,7 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - Active category set (current): Prompt Factory, Asset Monster, Img2Engine, Avatar Studio, Captions, The Machine, Lifetime, Library, Competitor Report.
 - Under-development lock policy: categories can remain visible but non-clickable in `SideNav`; lock must be enforced in both UI and navigation store.
 - Home page card policy (current): `Competitor Report` hidden from main cards; `Compose` card shown alongside `Lifetime`.
+- Sidebar footer policy: utility icons only (`collapse`, `theme`, `keyboard shortcuts`, `what's new`). No `Dev/User` row.
 
 ## Steps
 - Wizard-like flows use `StepHeader` for numbering + titles.
@@ -100,6 +101,15 @@ Keep the UI consistent and predictable across all Pixflow categories. These rule
 - `enabled` prop: set `enabled={false}` to suppress tooltip when label is already visible (e.g. expanded sidebar).
 - Default `delay={500}`. Do not use `delay=99999` as a disable hack — use `enabled={false}`.
 - Portal-rendered to `document.body`, z-index 55 (above JobMonitorWidget z-45, above Modal z-50 — tooltips dismiss on click so overlap is transient).
+
+## Keyboard Shortcuts
+- Navigation shortcuts are `Ctrl/Cmd + 1..9` and map only to active clickable tabs.
+- `?` toggles `ShortcutHelpModal`.
+- Compose-only shortcuts:
+  - `Ctrl/Cmd + Z` undo
+  - `Ctrl/Cmd + Shift + Z` redo
+  - `Left Arrow` previous frame
+  - `Right Arrow` next frame
 
 ## Page Transitions
 - `PageTransition` wraps all page content with `page-enter` animation (220ms ease-out fade+slide).

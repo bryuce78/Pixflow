@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-23
+> Last updated: 2026-02-24
 
 ## Project
 
@@ -159,6 +159,11 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
   - `prompt_factory` (Prompt Factory SSE prompt generation)
   - `asset_monster` (Asset Monster batch generation)
   - `img2img`, `img2video`, `startend`, `captions`, `machine`, `lifetime`, `avatars_*`
+
+### Sidebar + Shortcut Contract
+- Sidebar footer stays utility-only: collapse toggle, theme toggle, keyboard shortcuts, what's new.
+- `Dev/User` footer row is removed in login-disabled flow.
+- Keyboard navigation shortcuts map only to active tabs: `Ctrl/Cmd + 1..9`.
 
 ### Compose Pipeline (composeStore + compose routes)
 - Asset-first editing: files enter an asset tray (`assets`), then become timeline layers via click or drag/drop.

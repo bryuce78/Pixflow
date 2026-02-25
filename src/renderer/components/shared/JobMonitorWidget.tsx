@@ -44,6 +44,13 @@ const CATEGORY_TO_TAB: Record<OutputHistoryEntry['category'], TabId> = {
   lifetime: 'lifetime',
 }
 
+const IMAGE_LAB_SUBTAB_BY_CATEGORY: Partial<Record<OutputHistoryEntry['category'], 'img2img' | 'img2video' | 'start2end'>> =
+  {
+    img2img: 'img2img',
+    img2video: 'img2video',
+    startend: 'start2end',
+  }
+
 const CANCELLABLE_CATEGORIES = new Set<OutputHistoryEntry['category']>([
   'prompt_factory',
   'asset_monster',
@@ -123,6 +130,7 @@ export function JobMonitorWidget() {
   const cancelQueueCurrent = useImg2VideoQueueStore((s) => s.cancelCurrent)
   const cancelMachine = useMachineStore((s) => s.cancel)
   const cancelReaction = useAvatarStore((s) => s.cancelReactionVideo)
+  const setAvatarStudioMode = useAvatarStore((s) => s.setStudioMode)
 
   const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed())
 
@@ -143,16 +151,43 @@ export function JobMonitorWidget() {
   const listMaxHeightPx = ROWS_VISIBLE_TARGET * APPROX_ROW_HEIGHT_PX
 
   const jumpToOutput = (entry: OutputHistoryEntry) => {
+    if (entry.category === 'avatars_talking') {
+      setAvatarStudioMode('talking')
+    } else if (entry.category === 'avatars_reaction') {
+      setAvatarStudioMode('reaction')
+    }
+
     const tab = CATEGORY_TO_TAB[entry.category]
     if (tab) {
       navigate(tab)
     }
 
+    const ensureImg2EngineSubTab = () => {
+      const desired = IMAGE_LAB_SUBTAB_BY_CATEGORY[entry.category]
+      if (!desired) return
+
+      const workflowTabs = document.querySelector('[aria-label="Image Lab workflow"]')
+      if (!workflowTabs) return
+
+      const tabButtons = Array.from(workflowTabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+      const targetButton = tabButtons.find((button) => {
+        const normalized = (button.textContent || '').toLowerCase().replace(/\s+/g, '')
+        if (desired === 'start2end') return normalized.includes('start2end')
+        return normalized.includes(desired)
+      })
+
+      if (targetButton && targetButton.getAttribute('aria-selected') !== 'true') {
+        targetButton.click()
+      }
+    }
+
     let attempts = 0
     const tryScroll = () => {
+      ensureImg2EngineSubTab()
+
       const target = ([
-        document.querySelector(`[data-history-entry-id="${entry.id}"]`),
         document.querySelector(`[data-output-category="${entry.category}"]`),
+        document.querySelector(`[data-history-entry-id="${entry.id}"]`),
       ].find(Boolean) || null) as HTMLElement | null
 
       if (target) {

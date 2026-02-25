@@ -857,7 +857,7 @@ export const useImg2VideoQueueStore = create<Img2VideoQueueState>()((set, get) =
             presets: {},
             settings: {
               duration: state.globalSettings.duration,
-              aspectRatio: state.globalSettings.aspectRatio,
+              aspectRatio: settings.aspectRatio || state.globalSettings.aspectRatio,
             },
             status: 'completed',
             result: {

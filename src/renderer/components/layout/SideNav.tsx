@@ -19,7 +19,6 @@ import {
   Zap,
 } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
-import { useAuthStore } from '../../stores/authStore'
 import { useHistoryStore } from '../../stores/historyStore'
 import { useMachineStore } from '../../stores/machineStore'
 import { type TabId, useNavigationStore } from '../../stores/navigationStore'
@@ -30,8 +29,6 @@ import { useWhatsNew, WhatsNewModal } from '../shared/WhatsNewModal'
 import { Badge } from '../ui/Badge'
 import { brandedName, brandedPlainText } from '../ui/BrandedName'
 import { Tooltip } from '../ui/Tooltip'
-import { NotificationBell } from './NotificationBell'
-import { UserMenu } from './UserMenu'
 
 const SIDEBAR_ITEMS: { id: TabId; icon: typeof Wand2 }[] = [
   { id: 'prompts', icon: Wand2 },
@@ -55,7 +52,6 @@ export function SideNav() {
   const machineStep = useMachineStore((s) => s.step)
   const favoritesCount = useHistoryStore((s) => s.favorites.length)
   const { mode, toggleMode } = useThemeStore()
-  const userName = useAuthStore((s) => s.user?.name || 'User')
   const toggleShortcutHelp = useShortcutHelpStore((s) => s.toggle)
   const { hasNew, markSeen } = useWhatsNew()
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
@@ -189,29 +185,26 @@ export function SideNav() {
           )
         })}
       </nav>
-      <div className="border-t border-surface-100 py-3 space-y-2 px-4">
+      <div className="border-t border-surface-100 py-2 space-y-1 px-3">
         <Tooltip content={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
           <button
             type="button"
             onClick={toggleSidebarCollapsed}
             className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
           >
-            <span className="w-11 h-11 inline-flex items-center justify-center">
+            <span className="w-9 h-9 inline-flex items-center justify-center">
               {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </span>
             <span className="sr-only">Toggle sidebar</span>
           </button>
         </Tooltip>
-        <div className="flex items-center text-surface-500 w-full">
-          <NotificationBell compact buttonClassName="w-11 h-11 p-0" />
-        </div>
         <Tooltip content={mode === 'dark' ? 'Light mode' : 'Dark mode'} side="right">
           <button
             type="button"
             onClick={toggleMode}
             className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
           >
-            <span className="w-11 h-11 inline-flex items-center justify-center">
+            <span className="w-9 h-9 inline-flex items-center justify-center">
               {mode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </span>
             <span className="sr-only">Toggle theme</span>
@@ -223,10 +216,9 @@ export function SideNav() {
             onClick={toggleShortcutHelp}
             className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
           >
-            <span className="w-11 h-11 inline-flex items-center justify-center">
+            <span className="w-9 h-9 inline-flex items-center justify-center">
               <HelpCircle className="w-4 h-4" />
             </span>
-            {!sidebarCollapsed && <span className="text-sm">Keyboard shortcuts</span>}
           </button>
         </Tooltip>
         <Tooltip content="What's New" side="right">
@@ -238,26 +230,12 @@ export function SideNav() {
             }}
             className="flex items-center text-surface-500 hover:text-surface-900 transition w-full"
           >
-            <span className="relative w-11 h-11 inline-flex items-center justify-center">
+            <span className="relative w-9 h-9 inline-flex items-center justify-center">
               <Sparkles className="w-4 h-4" />
-              {hasNew && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-400" />}
+              {hasNew && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand-400" />}
             </span>
-            {!sidebarCollapsed && (
-              <span className="flex items-center gap-2 text-sm">
-                What's New
-                {hasNew && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-brand-500/15 text-brand-400 text-[10px] font-semibold leading-none">
-                    New
-                  </span>
-                )}
-              </span>
-            )}
           </button>
         </Tooltip>
-        <div className="grid grid-cols-[44px_1fr] items-center gap-2 text-surface-500 w-full">
-          <UserMenu compact buttonClassName="w-11 h-11 p-0" />
-          {!sidebarCollapsed && <span className="text-sm font-medium">{userName}</span>}
-        </div>
       </div>
       <WhatsNewModal open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} />
     </aside>

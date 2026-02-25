@@ -5,6 +5,7 @@ interface SelectableResultCardProps {
   id: string
   imageUrl: string
   resultUrl?: string
+  aspectRatio?: string
   isSelected: boolean
   isLiked?: boolean
   isDisliked?: boolean
@@ -18,6 +19,7 @@ export function SelectableResultCard({
   id,
   imageUrl,
   resultUrl,
+  aspectRatio = '9:16',
   isSelected,
   isLiked,
   isDisliked,
@@ -27,10 +29,12 @@ export function SelectableResultCard({
   onOpenModal,
 }: SelectableResultCardProps) {
   const displayUrl = resultUrl || imageUrl
+  const aspectClass =
+    aspectRatio === '1:1' ? 'aspect-square' : aspectRatio === '4:5' ? 'aspect-[4/5]' : 'aspect-[9/16]'
 
   return (
     <div
-      className={`relative aspect-[9/16] rounded-lg overflow-hidden bg-surface-100 cursor-pointer group border-2 transition-colors ${
+      className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-100 cursor-pointer group border-2 transition-colors ${
         isSelected ? 'border-brand' : 'border-transparent'
       }`}
     >

@@ -8,14 +8,12 @@ const TAB_ORDER: TabId[] = [
   'home',
   'prompts',
   'generate',
-  'lifetime',
   'img2video',
   'avatars',
   'captions',
-  'compose',
   'machine',
-  'history',
-  'competitors',
+  'lifetime',
+  'compose',
 ]
 
 export function useKeyboardShortcuts() {
@@ -36,12 +34,6 @@ export function useKeyboardShortcuts() {
         if (e.key >= '1' && e.key <= '9') {
           e.preventDefault()
           const idx = Number(e.key) - 1
-          if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
-          return
-        }
-        if (e.key === '0') {
-          e.preventDefault()
-          const idx = 9
           if (TAB_ORDER[idx]) navigate(TAB_ORDER[idx])
           return
         }

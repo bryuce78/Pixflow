@@ -2,20 +2,19 @@ import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
 
-const CURRENT_VERSION = '2026.02'
+const CURRENT_VERSION = '2026.03'
 const STORAGE_KEY = 'pixflow_whats_new_seen'
 
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
-    version: '2026.02',
+    version: '2026.03',
     date: 'Feb 2026',
     items: [
-      'Keyboard shortcuts overlay — press ? anytime to see all shortcuts',
-      'Styled tooltips on collapsed sidebar navigation',
-      'Page transitions with smooth fade-in animation',
-      'Welcome banner shows recent jobs on return visits',
-      'Error banners across all generation modules',
-      'Touch targets upgraded to 44px across the app',
+      "Sidebar bottom is now compact utility-only (toggle, theme, shortcuts, what's new)",
+      'Dev/user row removed to match login-free development flow',
+      'Keyboard shortcuts remapped to active tabs only (Ctrl/Cmd + 1..9)',
+      'Shortcuts overlay now includes Compose controls (undo/redo, frame stepping)',
+      'Library and Competitor Report remain visible as under-development routes',
     ],
   },
 ]

@@ -171,15 +171,20 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
   const failedCount = img2imgItems.filter((item) => item.status === 'failed').length
   const img2imgInProgressItems = img2imgItems.filter((item) => item.status === 'generating')
   const showImg2ImgOutputs = completedCount > 0 || img2imgInProgressItems.length > 0 || img2imgBatchGenerating
-  const img2imgLoadingItems =
-    img2imgInProgressItems.length > 0
+  const img2imgLoadingItems = img2imgBatchGenerating
+    ? Array.from({ length: Math.max(1, batchSettings.numberOfOutputs) }).map((_, index) => ({
+        id: `placeholder-${index}`,
+        imageUrl: '',
+      }))
+    : img2imgInProgressItems.length > 0
       ? img2imgInProgressItems
-      : img2imgBatchGenerating
-        ? Array.from({ length: Math.max(1, batchSettings.numberOfOutputs) }).map((_, index) => ({
-            id: `placeholder-${index}`,
-            imageUrl: '',
-          }))
-        : []
+      : []
+  const img2imgAspectClassByRatio: Record<string, string> = {
+    '9:16': 'aspect-[9/16]',
+    '1:1': 'aspect-square',
+    '4:5': 'aspect-[4/5]',
+  }
+  const loadingAspectClass = img2imgAspectClassByRatio[batchSettings.aspectRatio] || 'aspect-[9/16]'
 
   // Dropzone for img2img uploads
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -452,7 +457,7 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
                 {img2imgLoadingItems.map((item) => (
                   <div
                     key={`loading-${item.id}`}
-                    className="relative aspect-[9/16] rounded-lg overflow-hidden bg-surface-200"
+                    className={`relative ${loadingAspectClass} rounded-lg overflow-hidden bg-surface-200`}
                   >
                     {item.imageUrl && (
                       <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
@@ -475,6 +480,7 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
                   id={item.id}
                   imageUrl={item.imageUrl}
                   resultUrl={item.result?.imageUrl}
+                  aspectRatio={item.img2imgSettings?.aspectRatio || batchSettings.aspectRatio}
                   isSelected={selectedResults.has(item.id)}
                   isLiked={likedItems.has(item.id)}
                   isDisliked={dislikedItems.has(item.id)}

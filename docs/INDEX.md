@@ -1,6 +1,6 @@
 # Pixflow Documentation Index
 
-Last updated: 2026-02-23
+Last updated: 2026-02-24
 
 This file defines the active documentation set to avoid duplication and drift.
 

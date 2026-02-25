@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-23 (docs sync: navigation lock updates + home card adjustments)
+Last updated: 2026-02-24 (docs sync: sidebar dev removal + shortcuts refresh + what's new 2026.03)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,30 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.14) Sidebar Utility Cleanup + Shortcuts/Changelog Refresh (2026-02-24)
+
+- Sidebar footer cleanup:
+  - Removed `Dev/User` row entirely from `SideNav` to match login-disabled flow.
+  - Footer now contains utility-only icons:
+    - collapse/expand
+    - light/dark mode
+    - keyboard shortcuts
+    - what's new
+- Keyboard shortcuts realigned with active navigation:
+  - Navigation shortcuts are now `Ctrl/Cmd + 1..9` only.
+  - Removed `Ctrl/Cmd + 0` mapping.
+  - Shortcut help modal now documents Compose-only actions:
+    - undo/redo
+    - frame step left/right
+- What's New refresh:
+  - Bumped modal version key to `2026.03` so users see the updated changelog.
+  - Updated changelog content to reflect sidebar utility policy and shortcuts remap.
+- Files updated:
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/layout/SideNav.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/hooks/useKeyboardShortcuts.ts`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/shared/ShortcutHelpModal.tsx`
+  - `/Users/pixery/Projects/pixflow/src/renderer/components/shared/WhatsNewModal.tsx`
 
 ### 0.13) Navigation Lock + Home Cards Alignment (2026-02-23)
 
