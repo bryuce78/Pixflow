@@ -45,6 +45,22 @@ export function runSchemaMigrations(db: Database.Database): void {
     }
   }
 
+  // Migration 2: Add status column to feedback table
+  if (currentVersion < 2) {
+    console.log('[DB] Running migration 2: Add feedback status column')
+
+    try {
+      db.exec(`
+        ALTER TABLE feedback ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';
+      `)
+      console.log('[DB] Migration 2 complete')
+    } catch (_error) {
+      console.log('[DB] Migration 2 skipped (column may already exist)')
+    }
+
+    db.pragma('user_version = 2')
+  }
+
   console.log('[DB] All migrations complete')
 }
 

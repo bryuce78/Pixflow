@@ -8,6 +8,7 @@ export interface FeedbackEntry {
   product_id: number | null
   content: string
   category: string
+  status: 'pending' | 'done'
   created_at: string
   user_name?: string
   product_name?: string
@@ -19,6 +20,7 @@ interface FeedbackRow {
   product_id: number | null
   content: string
   category: string
+  status: 'pending' | 'done'
   created_at: string
   user_name?: string
   product_name?: string
@@ -72,6 +74,24 @@ export function createFeedback(userId: number, content: string, category: string
   })
 
   return row
+}
+
+export function updateFeedbackStatus(id: number, userId: number, status: 'pending' | 'done'): FeedbackEntry | null {
+  const db = getDb()
+  const update = db.prepare('UPDATE feedback SET status = ? WHERE id = ? AND user_id = ?').run(status, id, userId)
+  if (update.changes === 0) return null
+
+  const row = db
+    .prepare(`
+    SELECT f.*, u.name as user_name, p.name as product_name
+    FROM feedback f
+    LEFT JOIN users u ON f.user_id = u.id
+    LEFT JOIN products p ON f.product_id = p.id
+    WHERE f.id = ? AND f.user_id = ?
+  `)
+    .get(id, userId) as FeedbackRow | undefined
+
+  return row || null
 }
 
 export function deleteFeedback(id: number, userId: number): boolean {

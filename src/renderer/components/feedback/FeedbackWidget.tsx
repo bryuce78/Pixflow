@@ -31,9 +31,9 @@ export function FeedbackWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-40">
+    <div className="fixed bottom-6 left-6 z-40">
       {open && (
-        <div className="absolute bottom-14 right-0 w-80 bg-surface-50 border border-surface-100 rounded-xl shadow-xl">
+        <div className="absolute bottom-14 left-0 w-80 max-w-[calc(100vw-2rem)] bg-surface-50 border border-surface-100 rounded-xl shadow-xl">
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
             <span className="text-sm font-semibold text-surface-900">Send Feedback</span>
             <button

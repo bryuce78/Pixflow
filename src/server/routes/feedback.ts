@@ -2,12 +2,13 @@ import path from 'node:path'
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import type { AuthRequest } from '../middleware/auth.js'
-import { createFeedback, deleteFeedback, getFeedback } from '../services/feedback.js'
+import { createFeedback, deleteFeedback, getFeedback, updateFeedbackStatus } from '../services/feedback.js'
 import { exportFeedbackToJson, getLatestExport } from '../services/feedbackExport.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 
 const MAX_CONTENT_LENGTH = 2000
 const VALID_CATEGORIES = ['bug', 'feature', 'improvement', 'other']
+const VALID_STATUSES = ['pending', 'done']
 
 interface FeedbackRouterConfig {
   projectRoot: string
@@ -61,6 +62,22 @@ export function createFeedbackRouter(config?: FeedbackRouterConfig): Router {
       return
     }
     sendSuccess(res, {})
+  })
+
+  router.patch('/:id/status', (req: AuthRequest, res) => {
+    const status = req.body?.status
+    if (!status || typeof status !== 'string' || !VALID_STATUSES.includes(status)) {
+      sendError(res, 400, `Status must be one of: ${VALID_STATUSES.join(', ')}`, 'INVALID_FEEDBACK_STATUS')
+      return
+    }
+
+    const entry = updateFeedbackStatus(Number(req.params.id), req.user!.id, status as 'pending' | 'done')
+    if (!entry) {
+      sendError(res, 404, 'Feedback not found', 'FEEDBACK_NOT_FOUND')
+      return
+    }
+
+    sendSuccess(res, { feedback: entry })
   })
 
   router.post('/export', async (_req: AuthRequest, res) => {

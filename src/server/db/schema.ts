@@ -69,6 +69,7 @@ export function createTables(db: Database.Database): void {
       product_id INTEGER,
       content TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT 'other',
+      status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (product_id) REFERENCES products(id)

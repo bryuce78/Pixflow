@@ -9,6 +9,7 @@ interface FeedbackEntry {
   product_id: number | null
   content: string
   category: string
+  status: 'pending' | 'done'
   created_at: string
   user_name?: string
   product_name?: string
@@ -23,6 +24,7 @@ interface FeedbackState {
   load: (productSlug?: string) => Promise<void>
   submit: (content: string, category: string, productId?: number) => Promise<boolean>
   remove: (id: number) => Promise<void>
+  setStatus: (id: number, status: 'pending' | 'done') => Promise<boolean>
 }
 
 export type { FeedbackEntry }
@@ -66,6 +68,9 @@ export const useFeedbackStore = create<FeedbackState>()((set) => ({
         throw new Error(getApiError(raw, 'Failed to submit feedback'))
       }
 
+      const raw = await res.json().catch(() => ({}))
+      const data = unwrapApiData<{ feedback: FeedbackEntry }>(raw)
+      set((state) => ({ entries: [data.feedback, ...state.entries] }))
       return true
     } catch (err) {
       set({ error: parseError(err) })
@@ -83,6 +88,29 @@ export const useFeedbackStore = create<FeedbackState>()((set) => ({
       }
     } catch (err) {
       console.error('Failed to delete feedback:', err)
+    }
+  },
+
+  setStatus: async (id, status) => {
+    try {
+      const res = await authFetch(apiUrl(`/api/feedback/${id}/status`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const raw = await res.json().catch(() => ({}))
+        throw new Error(getApiError(raw, 'Failed to update feedback status'))
+      }
+      const raw = await res.json().catch(() => ({}))
+      const data = unwrapApiData<{ feedback: FeedbackEntry }>(raw)
+      set((state) => ({
+        entries: state.entries.map((entry) => (entry.id === id ? data.feedback : entry)),
+      }))
+      return true
+    } catch (err) {
+      set({ error: parseError(err) })
+      return false
     }
   },
 }))
