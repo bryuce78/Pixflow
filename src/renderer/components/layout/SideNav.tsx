@@ -18,7 +18,8 @@ import {
   Wand2,
   Zap,
 } from 'lucide-react'
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useFeedbackStore } from '../../stores/feedbackStore'
 import { useHistoryStore } from '../../stores/historyStore'
 import { useMachineStore } from '../../stores/machineStore'
 import { type TabId, useNavigationStore } from '../../stores/navigationStore'
@@ -53,8 +54,20 @@ export function SideNav() {
   const favoritesCount = useHistoryStore((s) => s.favorites.length)
   const { mode, toggleMode } = useThemeStore()
   const toggleShortcutHelp = useShortcutHelpStore((s) => s.toggle)
+  const feedbackEntries = useFeedbackStore((s) => s.entries)
+  const loadFeedback = useFeedbackStore((s) => s.load)
+  const setFeedbackStatus = useFeedbackStore((s) => s.setStatus)
   const { hasNew, markSeen } = useWhatsNew()
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
+  const feedbackScrollRef = useRef<HTMLDivElement | null>(null)
+
+  const feedbackTimeline = useMemo(
+    () =>
+      [...feedbackEntries]
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .slice(-40),
+    [feedbackEntries],
+  )
 
   useEffect(() => {
     const mql = window.matchMedia(LG_BREAKPOINT)
@@ -66,6 +79,22 @@ export function SideNav() {
     mql.addEventListener('change', handleChange)
     return () => mql.removeEventListener('change', handleChange)
   }, [setSidebarCollapsed])
+
+  useEffect(() => {
+    void loadFeedback()
+    const timer = window.setInterval(() => {
+      void loadFeedback()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [loadFeedback])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: feedbackTimeline triggers scroll-to-bottom when new entries arrive
+  useEffect(() => {
+    if (sidebarCollapsed) return
+    const container = feedbackScrollRef.current
+    if (!container) return
+    container.scrollTop = container.scrollHeight
+  }, [feedbackTimeline, sidebarCollapsed])
 
   const items = SIDEBAR_ITEMS.map((item) => {
     if (item.id === 'generate' && promptCount > 0) {
@@ -185,6 +214,43 @@ export function SideNav() {
           )
         })}
       </nav>
+      {!sidebarCollapsed && (
+        <div className="border-t border-surface-100 px-3 py-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-surface-400">Feedback</div>
+          <div ref={feedbackScrollRef} className="max-h-48 overflow-y-auto pr-1 space-y-2">
+            {feedbackTimeline.length === 0 ? (
+              <div className="text-xs text-surface-400 rounded-lg border border-surface-100 bg-surface-50 px-2 py-2">
+                No feedback yet.
+              </div>
+            ) : (
+              feedbackTimeline.map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-surface-100 bg-surface-50 px-2 py-2">
+                  <p className="text-xs text-surface-700 leading-snug line-clamp-3">{entry.content}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-wide text-surface-400">{entry.category}</span>
+                    <span
+                      className={`text-[10px] font-semibold uppercase ${
+                        entry.status === 'done' ? 'text-success' : 'text-warning'
+                      }`}
+                    >
+                      {entry.status}
+                    </span>
+                  </div>
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={() => void setFeedbackStatus(entry.id, entry.status === 'done' ? 'pending' : 'done')}
+                      className="text-[10px] uppercase tracking-wide text-brand-500 hover:text-brand-400 transition-colors"
+                    >
+                      {entry.status === 'done' ? 'Mark Pending' : 'Mark Done'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
       <div className="border-t border-surface-100 py-2 space-y-1 px-3">
         <Tooltip content={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
           <button

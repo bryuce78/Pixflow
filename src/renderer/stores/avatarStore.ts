@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { AVATAR_STUDIO_UPLOAD_PROMPT } from '../../constants/referencePrompts'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../lib/api'
 import type {
   Avatar,
@@ -139,6 +140,25 @@ async function uploadSingleAvatar(file: File): Promise<Avatar> {
     throw new Error('Upload failed: avatar response missing')
   }
   return uploadedAvatar
+}
+
+async function generateGreenboxAvatar(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('referenceImage', file)
+  formData.append('prompt', AVATAR_STUDIO_UPLOAD_PROMPT)
+  formData.append('aspectRatio', '9:16')
+  const res = await authFetch(apiUrl('/api/avatars/generate-from-reference'), {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    const raw = await res.json().catch(() => ({}))
+    throw new Error(getApiError(raw, 'Greenbox generation failed'))
+  }
+  const raw = await res.json().catch(() => ({}))
+  const data = unwrapApiData<{ localPath?: string }>(raw)
+  if (!data.localPath) throw new Error('Greenbox generation failed: no path returned')
+  return data.localPath
 }
 
 async function runWithConcurrency<T>(
@@ -294,6 +314,7 @@ interface AvatarState {
   scriptHistory: string[]
   scriptHistoryIndex: number
   transcriptionRequestId: number
+  greenboxUploadId: number
   autoDetectLanguage: boolean
   detectedLanguage: string | null
   translationLanguages: string[]
@@ -406,6 +427,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   scriptHistory: [],
   scriptHistoryIndex: -1,
   transcriptionRequestId: 0,
+  greenboxUploadId: 0,
   autoDetectLanguage: true,
   detectedLanguage: null,
   translationLanguages: [],
@@ -586,21 +608,38 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   uploadAvatars: async (files) => {
     try {
       set({ error: null })
+      const fileArray = Array.from(files)
       const uploadedAvatars: Avatar[] = []
-      for (const file of Array.from(files)) {
+      for (const file of fileArray) {
         const avatar = await uploadSingleAvatar(file)
         uploadedAvatars.push(avatar)
       }
 
       if (uploadedAvatars.length > 0) {
         const firstUploaded = uploadedAvatars[0]
+        const uploadId = get().greenboxUploadId + 1
         set((state) => ({
           avatars: [...uploadedAvatars, ...state.avatars],
           selectedAvatar: firstUploaded,
           talkingAvatarUrl: firstUploaded.url?.trim() || null,
           generatedUrls: [],
           selectedGeneratedIndex: 0,
+          greenboxUploadId: uploadId,
         }))
+
+        const uploadedFilename = firstUploaded.filename
+        generateGreenboxAvatar(fileArray[0])
+          .then((greenboxUrl) => {
+            if (get().greenboxUploadId !== uploadId) return
+            set((state) => {
+              if (state.selectedAvatar?.filename !== uploadedFilename) return {}
+              return {
+                talkingAvatarUrl: greenboxUrl,
+                selectedAvatar: { ...state.selectedAvatar, url: greenboxUrl },
+              }
+            })
+          })
+          .catch((err) => console.warn('[Avatar] Greenbox generation failed, using original:', err))
       }
       await get().loadAvatars()
     } catch (err) {

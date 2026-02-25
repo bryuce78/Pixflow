@@ -44,12 +44,13 @@ const CATEGORY_TO_TAB: Record<OutputHistoryEntry['category'], TabId> = {
   lifetime: 'lifetime',
 }
 
-const IMAGE_LAB_SUBTAB_BY_CATEGORY: Partial<Record<OutputHistoryEntry['category'], 'img2img' | 'img2video' | 'start2end'>> =
-  {
-    img2img: 'img2img',
-    img2video: 'img2video',
-    startend: 'start2end',
-  }
+const IMAGE_LAB_SUBTAB_BY_CATEGORY: Partial<
+  Record<OutputHistoryEntry['category'], 'img2img' | 'img2video' | 'start2end'>
+> = {
+  img2img: 'img2img',
+  img2video: 'img2video',
+  startend: 'start2end',
+}
 
 const CANCELLABLE_CATEGORIES = new Set<OutputHistoryEntry['category']>([
   'prompt_factory',
@@ -342,11 +343,13 @@ function JobRow({
   })
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: outer row contains inner interactive buttons; div avoids nested <button> invalid HTML
     <div
       role="button"
       tabIndex={0}
       onClick={onJump}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onJump()
