@@ -342,10 +342,21 @@ function JobRow({
   })
 
   return (
-    <div className="relative w-full text-left rounded-lg border border-surface-100 bg-surface-50 p-2 hover:border-brand-500/40 hover:bg-surface-100/80 transition-colors">
-      <button type="button" className="absolute inset-0 z-0 rounded-lg" aria-label="Open job output" onClick={onJump} />
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onJump}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onJump()
+        }
+      }}
+      className="relative w-full text-left rounded-lg border border-surface-100 bg-surface-50 p-2 cursor-pointer hover:border-brand-500/40 hover:bg-surface-100/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+      aria-label="Open job output"
+    >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 relative z-10">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`w-2.5 h-2.5 rounded-full border-2 ${style.dot}`} />
             <div className="min-w-0">
@@ -369,7 +380,7 @@ function JobRow({
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0 relative z-10">
+        <div className="flex items-center gap-1 shrink-0">
           {style.icon === 'spinner' && <Loader2 className="w-4 h-4 animate-spin text-warning" />}
           {folderInfo && (
             <Button
