@@ -1,7 +1,7 @@
 # CLAUDE.md - Pixflow Project Intelligence
 
 > Primary reference for the active Pixflow web app.
-> Last updated: 2026-02-24
+> Last updated: 2026-02-26
 
 ## Project
 
@@ -144,8 +144,8 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
 ### FAL Model Selection (Asset Monster)
 - `/api/generate/batch` accepts `0..5` reference images.
 - Model selection rule (server-side, `src/server/services/fal.ts`):
-  - If reference images provided: `fal-ai/nano-banana-pro/edit`
-  - If no reference images: `fal-ai/nano-banana-pro`
+  - If reference images provided: `fal-ai/nano-banana-2/edit`
+  - If no reference images: `fal-ai/nano-banana-2`
 
 ### Output History + Job Monitor
 - Canonical job/event store: `src/renderer/stores/outputHistoryStore.ts`
@@ -267,7 +267,8 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Captions `enableAnimation` is hardcoded `true`; the UI setting was removed (2026-02-20). Do not re-add without also re-wiring the state, preset apply, and both submit paths.
 - Captions builtin preset defaults (2026-02-20): `fontSize=72`, `position=center`. Puppeteer Chrome required for Facebook Ads fallback — run `npx puppeteer browsers install chrome` if missing.
 - `POST /api/prompts/text-to-json` currently allows up to 8000 chars (long-form custom prompt conversion).
-- FAL.ai Kling model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
+- FAL.ai model IDs and params change without notice — always verify via Context7 docs before assuming endpoint exists
+- `nano-banana-2` defaults `limit_generations: true` which caps output to 1 image per round — always set `limit_generations: false` in batch/generation calls
 - Server does not hot-reload all service file changes — restart `npm run dev` after modifying services like `kling.ts`, `promptGenerator.ts`
 - GitHub Actions: push to main triggers Cloudflare Pages deploy when `src/renderer/**`, `public/**`, `package.json`, `package-lock.json`, `vite.web.config.ts`, or `wrangler.toml` change; needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets
 - Prompt Factory: if GPT-4o prompts look "generic" or arrive instantly, check for silent fallbacks in server logs (`FALLBACK for prompt`, `JSON parse failed`, `missing core fields`). The most common cause is schema mismatch between the system prompt JSON and `PromptOutput` interface.
@@ -278,7 +279,7 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Mock-provider video pipelines now emit valid MP4 data URLs (Kling/Hedra). If FFmpeg reports `moov atom not found`, suspect stale old mock files generated before 2026-02-17.
 - `Tooltip` `enabled` prop: use `enabled={false}` to suppress — never `delay=99999`.
 - `Button` disabled/loading state renders grey (`bg-surface-200 text-surface-400`), not faded variant color. Do not use `disabled:opacity-50` on Button — it is no longer applied.
-- `avatar.ts` has two model constants: `AVATAR_MODEL` (nano-banana-pro, prompt-only) and `AVATAR_EDIT_MODEL` (nano-banana-pro/edit, reference-based). Using the wrong one silently ignores reference images.
+- `avatar.ts` has two model constants: `AVATAR_MODEL` (nano-banana-2, prompt-only) and `AVATAR_EDIT_MODEL` (nano-banana-2/edit, reference-based). Using the wrong one silently ignores reference images.
 - Nested `<button>` inside `<button>` is invalid HTML (React warns "cannot be a descendant"). Use `div[role="button"]` with `biome-ignore lint/a11y/useSemanticElements` + `onKeyDown` guard (`if (e.target !== e.currentTarget) return`).
 - Legacy materials in `Burgflow Archive/` - do not reference in new code
 - Keep "Pixflow" naming in all new docs, routes, and UX copy

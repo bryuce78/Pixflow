@@ -8,8 +8,8 @@ import {
   runWithRetries,
 } from './providerRuntime.js'
 
-const AVATAR_MODEL = 'fal-ai/nano-banana-pro'
-const AVATAR_EDIT_MODEL = 'fal-ai/nano-banana-pro/edit'
+const AVATAR_MODEL = 'fal-ai/nano-banana-2'
+const AVATAR_EDIT_MODEL = 'fal-ai/nano-banana-2/edit'
 
 export interface AvatarGenerationOptions {
   resolution?: '1K' | '2K' | '4K'
@@ -23,7 +23,7 @@ export interface AvatarGenerationResult {
 }
 
 /**
- * Generate an avatar image using fal.ai's nano-banana-pro/edit model.
+ * Generate an avatar image using fal.ai's nano-banana-2 model.
  * Works with prompt only (no reference image needed).
  */
 export async function generateAvatar(
@@ -52,6 +52,7 @@ export async function generateAvatar(
           resolution: options.resolution || '1K',
           aspect_ratio: options.aspectRatio || '9:16',
           output_format: 'png',
+          limit_generations: false,
           ...(options.seed !== undefined && { seed: options.seed }),
         },
         logs: true,
@@ -81,7 +82,7 @@ export async function generateAvatar(
 }
 
 /**
- * Generate an avatar from a reference image using fal.ai's nano-banana-pro/edit model.
+ * Generate an avatar from a reference image using fal.ai's nano-banana-2/edit model.
  * This preserves the face/identity from the reference while applying the prompt styling.
  */
 export async function generateAvatarFromReference(
@@ -112,6 +113,7 @@ export async function generateAvatarFromReference(
           resolution: options.resolution || '2K',
           aspect_ratio: options.aspectRatio || '9:16',
           output_format: 'png',
+          limit_generations: false,
         },
         logs: true,
         onQueueUpdate: (update) => {

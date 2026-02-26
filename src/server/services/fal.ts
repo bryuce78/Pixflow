@@ -16,8 +16,8 @@ import {
 } from './providerRuntime.js'
 import { createPipelineSpan } from './telemetry.js'
 
-const MODEL_ID = 'fal-ai/nano-banana-pro/edit'
-const TEXT_TO_IMAGE_MODEL_ID = 'fal-ai/nano-banana-pro'
+const MODEL_ID = 'fal-ai/nano-banana-2/edit'
+const TEXT_TO_IMAGE_MODEL_ID = 'fal-ai/nano-banana-2'
 
 export interface GeneratedImage {
   id: string
@@ -124,6 +124,7 @@ export async function generateImage(
             | '21:9',
           num_images: numImages,
           output_format: (options.outputFormat || 'png') as 'png' | 'jpeg' | 'webp',
+          limit_generations: false,
         },
         logs: true,
         onQueueUpdate: (update) => {
