@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type OutputHistoryCategory =
   | 'avatars_talking'
@@ -58,34 +59,78 @@ export function createOutputHistoryId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-export const useOutputHistoryStore = create<OutputHistoryState>()((set) => ({
-  entries: [],
-  upsert: (entry) =>
-    set((state) => {
-      const index = state.entries.findIndex((item) => item.id === entry.id)
-      if (index === -1) {
-        const withInternalId = {
-          ...entry,
-          internalJobId: entry.internalJobId || createOutputHistoryId('job'),
+export const useOutputHistoryStore = create<OutputHistoryState>()(
+  persist(
+    (set) => ({
+      entries: [],
+      upsert: (entry) =>
+        set((state) => {
+          const index = state.entries.findIndex((item) => item.id === entry.id)
+          if (index === -1) {
+            const withInternalId = {
+              ...entry,
+              internalJobId: entry.internalJobId || createOutputHistoryId('job'),
+            }
+            return { entries: [withInternalId, ...state.entries] }
+          }
+          const next = [...state.entries]
+          next[index] = { ...next[index], ...entry, updatedAt: Date.now() }
+          return { entries: next }
+        }),
+      patch: (id, patch) =>
+        set((state) => ({
+          entries: state.entries.map((item) => (item.id === id ? { ...item, ...patch, updatedAt: Date.now() } : item)),
+        })),
+      remove: (id) =>
+        set((state) => ({
+          entries: state.entries.filter((item) => item.id !== id),
+        })),
+      removeMany: (ids) =>
+        set((state) => {
+          if (ids.length === 0) return state
+          const idSet = new Set(ids)
+          return { entries: state.entries.filter((item) => !idSet.has(item.id)) }
+        }),
+    }),
+    {
+      name: 'pixflow_job_monitor',
+      version: 1,
+      storage: createJSONStorage(() => {
+        const raw = sessionStorage
+        return {
+          getItem: raw.getItem.bind(raw),
+          removeItem: raw.removeItem.bind(raw),
+          setItem: (name: string, value: string) => {
+            try {
+              raw.setItem(name, value)
+            } catch {
+              // Quota exceeded — silently drop; in-memory state is unaffected
+            }
+          },
         }
-        return { entries: [withInternalId, ...state.entries] }
-      }
-      const next = [...state.entries]
-      next[index] = { ...next[index], ...entry, updatedAt: Date.now() }
-      return { entries: next }
-    }),
-  patch: (id, patch) =>
-    set((state) => ({
-      entries: state.entries.map((item) => (item.id === id ? { ...item, ...patch, updatedAt: Date.now() } : item)),
-    })),
-  remove: (id) =>
-    set((state) => ({
-      entries: state.entries.filter((item) => item.id !== id),
-    })),
-  removeMany: (ids) =>
-    set((state) => {
-      if (ids.length === 0) return state
-      const idSet = new Set(ids)
-      return { entries: state.entries.filter((item) => !idSet.has(item.id)) }
-    }),
-}))
+      }),
+      partialize: (state) => ({ entries: state.entries }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error || !state) return
+        const entries = Array.isArray(state.entries) ? state.entries : []
+        const hasRunning = entries.some((e) => e.status === 'running')
+        if (hasRunning) {
+          queueMicrotask(() => {
+            useOutputHistoryStore.setState({
+              entries: entries.map((entry) =>
+                entry.status === 'running'
+                  ? {
+                      ...entry,
+                      status: 'failed' as const,
+                      message: 'Interrupted by page reload',
+                      updatedAt: Date.now(),
+                    }
+                  : entry,
+              ),
+            })
+          })
+        }
+      },
+    },
+  ),
+)
