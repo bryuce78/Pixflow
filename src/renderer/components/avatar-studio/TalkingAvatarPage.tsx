@@ -29,6 +29,10 @@ const TONE_OPTIONS = [
   { value: 'friendly', label: 'Friendly' },
   { value: 'dramatic', label: 'Dramatic' },
 ]
+const LIPSYNC_MODEL_ITEMS = [
+  { id: 'hedra' as const, label: 'Hedra' },
+  { id: 'omnihuman' as const, label: 'OmniHuman' },
+]
 const TRANSCRIBED_AVATAR_WIDTH_CLASS = 'w-[116px]'
 const TRANSCRIBED_AVATAR_HEIGHT_CLASS = 'h-[206px]'
 const TRANSCRIBED_TEXTAREA_HEIGHT_CLASS = '!h-[206px] !min-h-[206px] !max-h-[206px] resize-none'
@@ -98,6 +102,8 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
     generateTalkingAvatarVideosBatch,
     createLipsync,
     generatedVideoUrl,
+    lipsyncModel,
+    setLipsyncModel,
   } = useAvatarStore()
   const outputHistoryEntries = useOutputHistoryStore((state) => state.entries)
   const upsertHistory = useOutputHistoryStore((state) => state.upsert)
@@ -638,7 +644,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                   <Upload className="w-10 h-10 mx-auto mb-3 text-surface-300" />
                   <input
                     type="file"
-                    accept="audio/*"
+                    accept="audio/*,video/*"
                     className="hidden"
                     id="audio-upload"
                     onChange={(e) => {
@@ -655,9 +661,9 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                     onClick={() => document.getElementById('audio-upload')?.click()}
                     className="mx-auto"
                   >
-                    Choose Audio File
+                    Choose Audio or Video File
                   </Button>
-                  <p className="text-xs text-surface-400 mt-2">Supported: MP3, WAV, M4A, etc.</p>
+                  <p className="text-xs text-surface-400 mt-2">Supported: MP3, WAV, M4A, MP4, MOV, etc.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -711,6 +717,14 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                       </div>
                     </div>
                   )}
+                  <SegmentedTabs
+                    value={lipsyncModel}
+                    items={LIPSYNC_MODEL_ITEMS}
+                    onChange={setLipsyncModel}
+                    ariaLabel="Lipsync model"
+                    size="sm"
+                    className="mb-3"
+                  />
                   <Button
                     size="md"
                     icon={lipsyncGenerating ? undefined : <Video className="w-4 h-4" />}
@@ -892,6 +906,14 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
                 </div>
               )}
 
+              <SegmentedTabs
+                value={lipsyncModel}
+                items={LIPSYNC_MODEL_ITEMS}
+                onChange={setLipsyncModel}
+                ariaLabel="Lipsync model"
+                size="sm"
+                className="mb-3"
+              />
               <Button
                 size="lg"
                 icon={translationGenerating || lipsyncGenerating ? undefined : <Video className="w-5 h-5" />}

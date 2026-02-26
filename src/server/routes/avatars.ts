@@ -11,6 +11,7 @@ import { generateAvatar, generateAvatarFromReference } from '../services/avatar.
 import { createHedraVideo, downloadHedraVideo } from '../services/hedra.js'
 import { downloadKlingVideo, generateKlingTransitionVideo, generateKlingVideo } from '../services/kling.js'
 import { notify } from '../services/notifications.js'
+import { createOmniHumanVideo } from '../services/omnihuman.js'
 import { isMockProvidersEnabled } from '../services/providerRuntime.js'
 import { createPipelineSpan } from '../services/telemetry.js'
 import { getAvailableModels, listVoices, textToSpeech } from '../services/tts.js'
@@ -20,6 +21,7 @@ import {
   refineScript,
   translateVoiceoverScript,
 } from '../services/voiceover.js'
+import { runFfmpeg } from '../utils/ffmpeg.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { buildJobOutputFileName, createJobOutputDir, toOutputUrl } from '../utils/outputPaths.js'
 
@@ -115,6 +117,12 @@ function sanitizePath(basePath: string, userPath: string): string | null {
 }
 
 function shouldNormalizeAvatarForLipsync(imageUrl: string): boolean {
+  // Uploaded avatars always normalize regardless of LIPSYNC_GREENBOX_MODE — raw uploads
+  // lack the greenbox standard framing that both Hedra and OmniHuman expect for best results.
+  if (imageUrl.startsWith('/avatars_uploads/')) {
+    return true
+  }
+
   // Identity fidelity is prioritized by default; normalization is opt-in.
   if (LIPSYNC_GREENBOX_MODE === 'force') {
     return !imageUrl.startsWith('/avatars_generated/')
@@ -642,15 +650,19 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     storage: audioUploadStorage,
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
     fileFilter: (_req, file, cb) => {
-      if (file.mimetype.startsWith('audio/') || file.mimetype === 'application/octet-stream') {
+      if (
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/') ||
+        file.mimetype === 'application/octet-stream'
+      ) {
         cb(null, true)
       } else {
-        cb(new Error('Only audio files are allowed'))
+        cb(new Error('Only audio or video files are allowed'))
       }
     },
   })
 
-  router.post('/upload-audio', avatarLimiter, audioUpload.single('audio'), (req, res) => {
+  router.post('/upload-audio', avatarLimiter, audioUpload.single('audio'), async (req, res) => {
     try {
       const file = req.file
       if (!file) {
@@ -660,9 +672,23 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
 
       console.log(`[Audio Upload] Saved to ${file.filename} (${(file.size / 1024).toFixed(1)}KB)`)
 
+      let audioPath = file.path
+
+      if (file.mimetype.startsWith('video/')) {
+        const extractedPath = path.join(
+          path.dirname(file.path),
+          `${path.basename(file.path, path.extname(file.path))}.mp3`,
+        )
+        console.log(`[Audio Upload] Extracting audio from video: ${file.filename}`)
+        await runFfmpeg(['-i', file.path, '-vn', '-acodec', 'libmp3lame', '-b:a', '192k', extractedPath])
+        await fs.unlink(file.path)
+        audioPath = extractedPath
+        console.log(`[Audio Upload] Extracted audio: ${path.basename(extractedPath)}`)
+      }
+
       sendSuccess(res, {
-        audioPath: file.path,
-        audioUrl: toOutputUrl(outputsDir, file.path),
+        audioPath,
+        audioUrl: toOutputUrl(outputsDir, audioPath),
       })
     } catch (error) {
       console.error('[Audio Upload] Failed:', error)
@@ -712,7 +738,7 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
     let span: ReturnType<typeof createPipelineSpan> | null = null
 
     try {
-      const { imageUrl, audioUrl } = req.body
+      const { imageUrl, audioUrl, model } = req.body
       if (!audioUrl) {
         sendError(res, 400, 'Audio URL is required', 'MISSING_AUDIO_URL')
         return
@@ -784,23 +810,37 @@ export function createAvatarsRouter(config: AvatarsRouterConfig): express.Router
         )
       }
 
-      console.log('[Lipsync] Creating video with Hedra Character-3...')
-      const result = await createHedraVideo({ imagePath: imagePathForLipsync, audioPath, aspectRatio: '9:16' })
-
       const lipsyncJobId = uuidv4()
       const lipsyncLayout = createJobOutputDir(outputsDir, 'avatars', 'lipsync', lipsyncJobId)
       await fs.mkdir(lipsyncLayout.outputDir, { recursive: true })
       const outputPath = path.join(lipsyncLayout.outputDir, buildJobOutputFileName('lipsync', lipsyncJobId, 'mp4'))
-      await downloadHedraVideo(result.videoUrl, outputPath)
+
+      let videoUrl: string
+      let generationId: string
+
+      if (model === 'omnihuman') {
+        console.log('[Lipsync] Creating video with OmniHuman v1.5...')
+        const result = await createOmniHumanVideo(imagePathForLipsync, audioPath)
+        videoUrl = result.videoUrl
+        generationId = result.requestId
+      } else {
+        console.log('[Lipsync] Creating video with Hedra Character-3...')
+        const result = await createHedraVideo({ imagePath: imagePathForLipsync, audioPath, aspectRatio: '9:16' })
+        videoUrl = result.videoUrl
+        generationId = result.generationId
+      }
+
+      // downloadHedraVideo is a generic URL-to-file fetch — works for both Hedra and OmniHuman CDN URLs
+      await downloadHedraVideo(videoUrl, outputPath)
 
       if (req.user?.id)
         notify(req.user.id, 'lipsync_complete', 'Lipsync Video Ready', 'Your talking avatar video is ready to download')
-      span.success({ outputFile: path.relative(outputsDir, outputPath), generationId: result.generationId })
+      span.success({ outputFile: path.relative(outputsDir, outputPath), generationId, model: model || 'hedra' })
 
       sendSuccess(res, {
-        videoUrl: result.videoUrl,
+        videoUrl,
         localPath: toOutputUrl(outputsDir, outputPath),
-        generationId: result.generationId,
+        generationId,
       })
     } catch (error) {
       console.error('[Lipsync] Generation failed:', error)

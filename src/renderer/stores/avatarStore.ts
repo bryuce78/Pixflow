@@ -332,6 +332,7 @@ interface AvatarState {
   audioUploading: boolean
   generatedAudioUrl: string | null
 
+  lipsyncModel: 'hedra' | 'omnihuman'
   lipsyncGenerating: boolean
   lipsyncJob: LipsyncJob | null
   generatedVideoUrl: string | null
@@ -369,6 +370,7 @@ interface AvatarState {
   toggleTranslationLanguage: (language: string) => void
   clearTranslations: () => void
   setSelectedVoice: (voiceId: string | null) => void
+  setLipsyncModel: (model: 'hedra' | 'omnihuman') => void
   setAudioMode: (mode: 'tts' | 'upload') => void
   setScriptMode: (mode: 'existing' | 'audio' | 'fetch' | 'generate') => void
   setSelectedVideoForTranscription: (url: string | null) => void
@@ -445,6 +447,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
   audioUploading: false,
   generatedAudioUrl: null,
 
+  lipsyncModel: 'hedra',
   lipsyncGenerating: false,
   lipsyncJob: null,
   generatedVideoUrl: null,
@@ -555,6 +558,7 @@ export const useAvatarStore = create<AvatarState>()((set, get) => ({
       translationError: null,
     }),
   setSelectedVoice: (selectedVoice) => set({ selectedVoice }),
+  setLipsyncModel: (lipsyncModel) => set({ lipsyncModel }),
   setAudioMode: (audioMode) => set({ audioMode }),
   setScriptMode: (scriptMode) => set({ scriptMode }),
   setSelectedVideoForTranscription: (selectedVideoForTranscription) => set({ selectedVideoForTranscription }),
@@ -980,7 +984,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
     const pinnedAvatarUrl = talkingAvatarUrl?.trim() || null
     const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
-    const avatarUrl = selectedAvatarUrl || pinnedAvatarUrl || generatedAvatarUrl
+    const avatarUrl = pinnedAvatarUrl || selectedAvatarUrl || generatedAvatarUrl
     if (!avatarUrl) {
       set({ translationError: { message: 'Select an avatar to generate videos', type: 'warning' } })
       return
@@ -1020,6 +1024,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
           body: JSON.stringify({
             imageUrl: avatarUrl || undefined,
             audioUrl: item.audioUrl,
+            model: get().lipsyncModel,
           }),
         })
         if (!res.ok) {
@@ -1125,7 +1130,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
     const pinnedAvatarUrl = talkingAvatarUrl?.trim() || null
     const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
-    const avatarUrl = selectedAvatarUrl || pinnedAvatarUrl || generatedAvatarUrl
+    const avatarUrl = pinnedAvatarUrl || selectedAvatarUrl || generatedAvatarUrl
 
     if (!generatedAudioUrl) {
       set({ error: { message: 'Please generate audio first', type: 'warning' } })
@@ -1147,7 +1152,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
       const res = await authFetchWithRateLimitRetry(apiUrl('/api/avatars/lipsync'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: avatarUrl, audioUrl: generatedAudioUrl }),
+        body: JSON.stringify({ imageUrl: avatarUrl, audioUrl: generatedAudioUrl, model: get().lipsyncModel }),
       })
 
       if (!res.ok) {
@@ -1256,7 +1261,7 @@ sharp focus, detailed skin texture, 8k uhd, high resolution, photorealistic, pro
     const selectedAvatarUrl = selectedAvatar?.url?.trim() || null
     const pinnedAvatarUrl = talkingAvatarUrl?.trim() || null
     const generatedAvatarUrl = generatedUrls[selectedGeneratedIndex]?.trim() || null
-    const avatarUrl = selectedAvatarUrl || pinnedAvatarUrl || generatedAvatarUrl
+    const avatarUrl = pinnedAvatarUrl || selectedAvatarUrl || generatedAvatarUrl
     if (!avatarUrl) {
       set({ reactionError: { message: 'Please select or generate an avatar', type: 'warning' } })
       return

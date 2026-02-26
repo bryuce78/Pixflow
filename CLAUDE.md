@@ -147,6 +147,13 @@ Client-side: `unwrapApiData<T>()` to extract, `getApiError()` to parse errors. `
   - If reference images provided: `fal-ai/nano-banana-2/edit`
   - If no reference images: `fal-ai/nano-banana-2`
 
+### Lipsync Model Selection (Avatar Studio)
+- `POST /api/avatars/lipsync` accepts `model?: 'hedra' | 'omnihuman'` (default: `hedra`)
+- Hedra: file-based (imagePath + audioPath), custom REST API, `HEDRA_API_KEY`
+- OmniHuman v1.5: FAL storage upload → CDN URLs, `fal-ai/bytedance/omnihuman/v1.5`, `FAL_API_KEY`
+- OmniHuman audio limit: max 30s (API hard limit, error if exceeded)
+- Service: `src/server/services/omnihuman.ts`
+
 ### Output History + Job Monitor
 - Canonical job/event store: `src/renderer/stores/outputHistoryStore.ts`
 - Global always-visible overlay: `src/renderer/components/shared/JobMonitorWidget.tsx`
@@ -262,7 +269,7 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - DB uses WAL mode → `data/` contains .db, .db-wal, .db-shm files (all gitignored, auto-created)
 - DB seeds tables + presets on every startup; **builtin presets are now upserted** (not skip-if-exists), so schema.ts preset changes take effect on next restart without manual DB wipe
 - AppShell measures tab-switch perf via double-RAF pattern (two nested requestAnimationFrame calls)
-- Avatar uploads in Avatar Studio trigger fire-and-forget greenbox generation (`generateGreenboxAvatar` → `/api/avatars/generate-from-reference`) after upload. On success, both `selectedAvatar.url` and `talkingAvatarUrl` are updated with stale guards (`greenboxUploadId` + filename check).
+- Avatar uploads in Avatar Studio trigger fire-and-forget greenbox generation (`generateGreenboxAvatar` → `/api/avatars/generate-from-reference`) after upload. On success, both `selectedAvatar.url` and `talkingAvatarUrl` are updated with stale guards (`greenboxUploadId` counter + filename check). If greenbox fails, the original upload URL is retained silently.
 - Caption segments: max 8 words / 72 chars per segment. `wordsPerSubtitle` is applied via `normalizeRenderSegments` both at `auto-subtitle` segment extraction and at `render-selected` — if segments look wrong, check both paths.
 - Captions `enableAnimation` is hardcoded `true`; the UI setting was removed (2026-02-20). Do not re-add without also re-wiring the state, preset apply, and both submit paths.
 - Captions builtin preset defaults (2026-02-20): `fontSize=72`, `position=center`. Puppeteer Chrome required for Facebook Ads fallback — run `npx puppeteer browsers install chrome` if missing.

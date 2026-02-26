@@ -1,9 +1,7 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
-import ffmpegStatic from 'ffmpeg-static'
 import multer from 'multer'
 import { REFERENCE_IDENTITY_SOURCE_CRITICAL } from '../../constants/referencePrompts.js'
 import type { AuthRequest } from '../middleware/auth.js'
@@ -11,6 +9,7 @@ import { downloadImage, generateImage } from '../services/fal.js'
 import { downloadKlingVideo, generateKlingTransitionVideo } from '../services/kling.js'
 import { createPipelineSpan } from '../services/telemetry.js'
 import { predictGenderHint } from '../services/vision.js'
+import { runFfmpeg } from '../utils/ffmpeg.js'
 import { sendError, sendSuccess } from '../utils/http.js'
 import { buildJobOutputFileName, createJobOutputDir } from '../utils/outputPaths.js'
 
@@ -47,7 +46,6 @@ const DEFAULT_COLOR_BG = COLOR_BG_SWATCHES[0]
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const MAX_INPUT_IMAGE_BYTES = 10 * 1024 * 1024
 const JOB_RETENTION_MS = 2 * 60 * 60 * 1000
-const DEFAULT_FFMPEG_PATH = '/opt/homebrew/bin/ffmpeg'
 const KLING_SEGMENT_DURATION_SEC = 5
 const FINAL_VIDEO_MIN_DURATION_SEC = 8
 const FINAL_VIDEO_MAX_DURATION_SEC = 45
@@ -479,43 +477,6 @@ async function removeFrameFiles(frames: LifetimeFrameRecord[]): Promise<void> {
   await Promise.all(frames.map((frame) => fs.unlink(frame.imagePath).catch(() => {})))
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
-  const configured = process.env.FFMPEG_PATH?.trim()
-  const candidates = [configured, DEFAULT_FFMPEG_PATH, ffmpegStatic || undefined, 'ffmpeg']
-    .filter((candidate): candidate is string => Boolean(candidate))
-    .filter((candidate, index, list) => list.indexOf(candidate) === index)
-
-  const runWithBinary = (binary: string): Promise<void> =>
-    new Promise((resolve, reject) => {
-      const proc = spawn(binary, args)
-      let stderr = ''
-      proc.stderr.on('data', (chunk) => {
-        stderr += chunk.toString()
-      })
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve()
-        } else {
-          reject(new Error(`ffmpeg failed (binary=${binary}, code ${code}): ${stderr || 'unknown error'}`))
-        }
-      })
-      proc.on('error', (error) => {
-        reject(new Error(`ffmpeg spawn failed (binary=${binary}): ${error.message}`))
-      })
-    })
-
-  return candidates
-    .reduce<Promise<void>>(
-      (chain, binary) => {
-        return chain.catch(() => runWithBinary(binary))
-      },
-      Promise.reject(new Error('ffmpeg execution not started')),
-    )
-    .catch((error) => {
-      throw error instanceof Error ? error : new Error('ffmpeg execution failed')
-    })
-}
-
 async function buildFinalLifetimeVideo(params: {
   outputDir: string
   outputsDir: string
@@ -529,25 +490,41 @@ async function buildFinalLifetimeVideo(params: {
   }
 
   const outputPath = makeFinalVideoOutputPath(outputDir, sessionId)
-  const totalDurationSec = transitionVideoPaths.length * KLING_SEGMENT_DURATION_SEC
-  const speedFactor = Math.max(1, totalDurationSec / targetDurationSec)
-  const speedExpr = Number(speedFactor.toFixed(6))
+  const TARGET_W = 1080
+  const TARGET_H = 1920
 
   const args: string[] = ['-y']
   for (const transitionPath of transitionVideoPaths) {
     args.push('-i', transitionPath)
   }
-  const TARGET_W = 1080
-  const TARGET_H = 1920
+
   const scaleParts = transitionVideoPaths.map(
     (_v, i) =>
       `[${i}:v:0]scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2,setsar=1[s${i}]`,
   )
-  const scaledInputs = transitionVideoPaths.map((_v, i) => `[s${i}]`).join('')
-  const filterGraph = [
-    ...scaleParts,
-    `${scaledInputs}concat=n=${transitionVideoPaths.length}:v=1:a=0,fps=${FINAL_VIDEO_FPS},setpts=PTS/${speedExpr}[v]`,
-  ].join(';')
+
+  let filterGraph: string
+  const lastIdx = transitionVideoPaths.length - 1
+
+  if (transitionVideoPaths.length === 1) {
+    filterGraph = [...scaleParts, `[s0]fps=${FINAL_VIDEO_FPS}[v]`].join(';')
+  } else {
+    const headCount = transitionVideoPaths.length - 1
+    const headTotalSec = headCount * KLING_SEGMENT_DURATION_SEC
+    const headTargetSec = Math.max(1, targetDurationSec - KLING_SEGMENT_DURATION_SEC)
+    const speedFactor = Math.max(1, headTotalSec / headTargetSec)
+    const speedExpr = Number(speedFactor.toFixed(6))
+    const headInputs = transitionVideoPaths
+      .slice(0, -1)
+      .map((_v, i) => `[s${i}]`)
+      .join('')
+    filterGraph = [
+      ...scaleParts,
+      `${headInputs}concat=n=${headCount}:v=1:a=0,fps=${FINAL_VIDEO_FPS},setpts=PTS/${speedExpr}[head]`,
+      `[s${lastIdx}]fps=${FINAL_VIDEO_FPS}[last]`,
+      '[head][last]concat=n=2:v=1:a=0[v]',
+    ].join(';')
+  }
   args.push(
     '-filter_complex',
     filterGraph,
@@ -1176,6 +1153,9 @@ function buildNormalizePrompt(
   ].join(' ')
 }
 
+const ANTI_REPETITION_RULE =
+  'CRITICAL: Do NOT repeat the same pose, body angle, or background layout from the previous age frame. Vary the subject stance, arm position, and environmental composition to create visual diversity across the age progression.'
+
 function buildStagePoseRule(frameIndex: number): string {
   // frameIndex: 0 => first frame, 1 => second frame, 2+ => third and later
   if (frameIndex >= 2) {
@@ -1221,6 +1201,7 @@ function buildProgressionPrompt(
     variationRule,
     framingRule,
     stagePoseRule,
+    ANTI_REPETITION_RULE,
     backgroundRule,
     'Vertical 9:16 composition, centered framing, no extra people, no props, no text.',
   ].join(' ')

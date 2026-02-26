@@ -3,7 +3,7 @@ import { recordPipelineEvent } from './telemetry.js'
 
 interface RetryOptions {
   pipeline: string
-  provider: 'openai' | 'fal' | 'hedra' | 'kling'
+  provider: 'openai' | 'fal' | 'hedra' | 'kling' | 'omnihuman'
   userId?: number
   retries?: number
   baseDelayMs?: number
@@ -93,7 +93,7 @@ export async function runWithRetries<T>(work: () => Promise<T>, options: RetryOp
 
 export async function recordMockProviderSuccess(input: {
   pipeline: string
-  provider: 'openai' | 'fal' | 'hedra' | 'kling'
+  provider: 'openai' | 'fal' | 'hedra' | 'kling' | 'omnihuman'
   userId?: number
   metadata?: Record<string, unknown>
 }): Promise<void> {
