@@ -1,6 +1,6 @@
 # Repository Structure (Current)
 
-Last updated: 2026-02-17
+Last updated: 2026-02-27
 
 This repo is an active web-first Pixflow workspace. Keep a strict split between source-of-truth code and runtime artifacts.
 

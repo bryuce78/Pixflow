@@ -7,7 +7,7 @@ This document is a machine-readable handoff for another AI agent to understand:
 3. what is still pending.
 
 Date: 2026-02-07
-Last updated: 2026-02-24 (docs sync: sidebar dev removal + shortcuts refresh + what's new 2026.03)
+Last updated: 2026-02-27 (docs sync: OmniHuman lipsync + video upload + lifetime improvements)
 Project root: `/Users/pixery/Projects/pixflow`
 
 ---
@@ -31,6 +31,23 @@ Project root: `/Users/pixery/Projects/pixflow`
 - High-priority residual risk:
   - caption pipeline still depends on external model availability/quotas; provider outages or auth errors can fail generation even when local checks are green.
   - historical sections below include Electron-era notes kept for traceability; treat current architecture sections and latest updates as source of truth.
+
+### 0.15) OmniHuman Lipsync, Video Upload, Lifetime Improvements (2026-02-27)
+
+- OmniHuman v1.5 added as second lipsync model alongside Hedra in Avatar Studio:
+  - SegmentedTabs selector at Step 5 (Generate area) in both Have an Audio and Generate New modes
+  - `lipsyncModel` state in `avatarStore.ts`, sent as `model` param to `POST /api/avatars/lipsync`
+  - New service: `src/server/services/omnihuman.ts` (FAL storage upload → `fal-ai/bytedance/omnihuman/v1.5`)
+  - OmniHuman only supports `.wav`/`.mp3` — auto-converts other formats via FFmpeg
+  - Audio max 30s (API hard limit)
+- Video file upload in "Have an Audio":
+  - Frontend accepts `audio/*,video/*`
+  - Server extracts audio from video via FFmpeg (`-acodec libmp3lame` → `.mp3`)
+- Lifetime pipeline improvements:
+  - Anti-repetition prompt rule added to `buildProgressionPrompt()` for pose/background diversity
+  - Final transition video preserved at original 5s (no time-stretch); earlier segments still compressed
+- Shared `runFfmpeg` utility extracted to `src/server/utils/ffmpeg.ts` (used by `avatars.ts` and `lifetime.ts`)
+- Files: `omnihuman.ts` (new), `ffmpeg.ts` (new), `avatars.ts`, `avatarStore.ts`, `TalkingAvatarPage.tsx`, `lifetime.ts`, `providerRuntime.ts`, `CLAUDE.md`
 
 ### 0.14) Sidebar Utility Cleanup + Shortcuts/Changelog Refresh (2026-02-24)
 
