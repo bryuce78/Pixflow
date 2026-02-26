@@ -262,7 +262,7 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - DB uses WAL mode → `data/` contains .db, .db-wal, .db-shm files (all gitignored, auto-created)
 - DB seeds tables + presets on every startup; **builtin presets are now upserted** (not skip-if-exists), so schema.ts preset changes take effect on next restart without manual DB wipe
 - AppShell measures tab-switch perf via double-RAF pattern (two nested requestAnimationFrame calls)
-- Avatar uploads in Avatar Studio are direct gallery uploads (`/api/avatars/upload`); do not silently auto-trigger `generate-from-reference` on upload.
+- Avatar uploads in Avatar Studio trigger fire-and-forget greenbox generation (`generateGreenboxAvatar` → `/api/avatars/generate-from-reference`) after upload. On success, both `selectedAvatar.url` and `talkingAvatarUrl` are updated with stale guards (`greenboxUploadId` + filename check).
 - Caption segments: max 8 words / 72 chars per segment. `wordsPerSubtitle` is applied via `normalizeRenderSegments` both at `auto-subtitle` segment extraction and at `render-selected` — if segments look wrong, check both paths.
 - Captions `enableAnimation` is hardcoded `true`; the UI setting was removed (2026-02-20). Do not re-add without also re-wiring the state, preset apply, and both submit paths.
 - Captions builtin preset defaults (2026-02-20): `fontSize=72`, `position=center`. Puppeteer Chrome required for Facebook Ads fallback — run `npx puppeteer browsers install chrome` if missing.
@@ -278,6 +278,8 @@ Events logged to `logs/pipeline-events.jsonl`. Run `gate:release` before deployi
 - Mock-provider video pipelines now emit valid MP4 data URLs (Kling/Hedra). If FFmpeg reports `moov atom not found`, suspect stale old mock files generated before 2026-02-17.
 - `Tooltip` `enabled` prop: use `enabled={false}` to suppress — never `delay=99999`.
 - `Button` disabled/loading state renders grey (`bg-surface-200 text-surface-400`), not faded variant color. Do not use `disabled:opacity-50` on Button — it is no longer applied.
+- `avatar.ts` has two model constants: `AVATAR_MODEL` (nano-banana-pro, prompt-only) and `AVATAR_EDIT_MODEL` (nano-banana-pro/edit, reference-based). Using the wrong one silently ignores reference images.
+- Nested `<button>` inside `<button>` is invalid HTML (React warns "cannot be a descendant"). Use `div[role="button"]` with `biome-ignore lint/a11y/useSemanticElements` + `onKeyDown` guard (`if (e.target !== e.currentTarget) return`).
 - Legacy materials in `Burgflow Archive/` - do not reference in new code
 - Keep "Pixflow" naming in all new docs, routes, and UX copy
 

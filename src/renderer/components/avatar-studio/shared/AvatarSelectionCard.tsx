@@ -229,14 +229,24 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                       {galleryAvatars.map((avatar) => {
                         const canDelete = !isCurated(avatar)
                         return (
-                          <button
-                            type="button"
+                          // biome-ignore lint/a11y/useSemanticElements: outer card contains inner delete button; div avoids nested <button> invalid HTML
+                          <div
+                            role="button"
+                            tabIndex={0}
                             key={avatar.filename}
                             onClick={() => {
                               setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
                               useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
                             }}
-                            className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
+                                useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
+                              }
+                            }}
+                            className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative cursor-pointer ${
                               selectedAvatar?.filename === avatar.filename
                                 ? 'border-brand-500 ring-2 ring-brand-500/50'
                                 : 'border-transparent hover:border-surface-200'
@@ -261,7 +271,7 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                                 <Trash2 className="w-3 h-3 text-white" />
                               </button>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
@@ -274,14 +284,24 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                       {generatedAvatars.map((avatar) => {
                         const canDelete = !isCurated(avatar)
                         return (
-                          <button
-                            type="button"
+                          // biome-ignore lint/a11y/useSemanticElements: outer card contains inner delete button; div avoids nested <button> invalid HTML
+                          <div
+                            role="button"
+                            tabIndex={0}
                             key={avatar.filename}
                             onClick={() => {
                               setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
                               useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
                             }}
-                            className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative ${
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setSelectedAvatar(selectedAvatar?.filename === avatar.filename ? null : avatar)
+                                useAvatarStore.setState({ generatedUrls: [], selectedGeneratedIndex: 0 })
+                              }
+                            }}
+                            className={`w-20 shrink-0 aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all hover:scale-105 relative cursor-pointer ${
                               selectedAvatar?.filename === avatar.filename
                                 ? 'border-brand-500 ring-2 ring-brand-500/50'
                                 : 'border-transparent hover:border-surface-200'
@@ -306,7 +326,7 @@ export function AvatarSelectionCard({ stepNumber, subtitle, showGenerateOptions 
                                 <Trash2 className="w-3 h-3 text-white" />
                               </button>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
