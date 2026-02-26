@@ -979,7 +979,7 @@ export function TalkingAvatarPage({ setFullSizeAvatarUrl: _setFullSizeAvatarUrl,
             </div>
           </div>
         )}
-        {scriptMode === 'audio' && (
+        {scriptMode === 'audio' && (lipsyncGenerating || generatedVideoUrl || avatarError?.message) && (
           <div data-output-category="avatars_talking" className="bg-surface-50 rounded-lg p-4 space-y-3">
             <StepHeader stepNumber={6} title="Final Outputs" />
             {lipsyncGenerating && (
