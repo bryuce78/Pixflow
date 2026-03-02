@@ -11,7 +11,7 @@ export const IMG2IMG_ASPECT_RATIOS = ['9:16', '1:1', '4:5'] as const
 export const IMG2IMG_RESOLUTIONS = ['1K', '2K', '4K'] as const
 export const IMG2IMG_FORMATS = ['JPG', 'PNG'] as const
 
-const MAX_CONCURRENCY = 10
+const MAX_CONCURRENCY = 4
 
 export const VIDEO_PRESETS: Record<string, { label: string; presets: string[]; multiSelect: boolean }> = {
   cameraMovement: {

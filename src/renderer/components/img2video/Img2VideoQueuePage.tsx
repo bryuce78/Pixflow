@@ -19,6 +19,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { assetUrl } from '../../lib/api'
+import { downloadAsZip } from '../../lib/download'
 import {
   ASPECT_RATIOS,
   composePrompt,
@@ -212,16 +213,15 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
     setSelectedResults(newSet)
   }
 
-  const downloadSelected = () => {
-    for (const id of selectedResults) {
-      const item = queueItems[id]
-      if (item?.result?.imageUrl) {
-        const a = document.createElement('a')
-        a.href = assetUrl(item.result.localPath)
-        a.download = item.result.localPath.split('/').pop() || 'transformed.png'
-        a.click()
-      }
-    }
+  const downloadSelected = async () => {
+    const items = [...selectedResults]
+      .map((id) => queueItems[id])
+      .filter((item) => item?.result?.localPath)
+      .map((item) => ({
+        url: item.result!.localPath,
+        filename: item.result!.localPath.split('/').pop() || 'transformed.png',
+      }))
+    await downloadAsZip(items, 'img2img_outputs.zip')
     setSelectedResults(new Set())
   }
 
@@ -438,14 +438,13 @@ function Img2ImgContent({ modeStep }: { modeStep: React.ReactNode }) {
               <StepHeader stepNumber={5} title={`Final Outputs (${completedCount})`} />
               <DownloadToolbar
                 onDownloadAll={() => {
-                  completedItems.forEach((item) => {
-                    if (item?.result?.imageUrl) {
-                      const a = document.createElement('a')
-                      a.href = assetUrl(item.result.localPath)
-                      a.download = item.result.localPath.split('/').pop() || 'transformed.png'
-                      a.click()
-                    }
-                  })
+                  const items = completedItems
+                    .filter((item) => item?.result?.localPath)
+                    .map((item) => ({
+                      url: item.result!.localPath,
+                      filename: item.result!.localPath.split('/').pop() || 'transformed.png',
+                    }))
+                  void downloadAsZip(items, 'img2img_outputs.zip')
                 }}
                 onDownloadSelected={downloadSelected}
                 selectedCount={selectedResults.size}
@@ -725,16 +724,15 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
   const totalCount = img2videoItems.length
   const completedCount = img2videoItems.filter((item) => item.status === 'completed').length
   const failedCount = img2videoItems.filter((item) => item.status === 'failed').length
-  const img2videoInProgressItems = img2videoItems.filter((item) => item.status === 'generating')
 
   // Dropzone for img2video uploads
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
-    maxFiles: 4,
-    disabled: uploading || img2videoItems.length >= 4,
+    maxFiles: 8,
+    disabled: uploading || img2videoItems.length >= 8,
     onDrop: async (acceptedFiles) => {
-      const remainingSlots = 4 - img2videoItems.length
+      const remainingSlots = 8 - img2videoItems.length
       const filesToUpload = acceptedFiles.slice(0, remainingSlots)
       if (filesToUpload.length > 0) {
         await uploadFiles(filesToUpload, 'img2video')
@@ -752,16 +750,15 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
     setSelectedVideos(newSet)
   }
 
-  const downloadSelected = () => {
-    for (const id of selectedVideos) {
-      const item = queueItems[id]
-      if (item?.result?.videoUrl) {
-        const a = document.createElement('a')
-        a.href = assetUrl(item.result.localPath)
-        a.download = item.result.localPath.split('/').pop() || 'video.mp4'
-        a.click()
-      }
-    }
+  const downloadSelected = async () => {
+    const items = [...selectedVideos]
+      .map((id) => queueItems[id])
+      .filter((item) => item?.result?.localPath)
+      .map((item) => ({
+        url: item.result!.localPath,
+        filename: item.result!.localPath.split('/').pop() || 'video.mp4',
+      }))
+    await downloadAsZip(items, 'img2video_outputs.zip')
     setSelectedVideos(new Set())
   }
 
@@ -984,58 +981,57 @@ function Img2VideoContent({ modeStep }: { modeStep: React.ReactNode }) {
       {/* RIGHT COLUMN: OUTPUTS */}
       <div className="space-y-6">
         {/* Final Outputs */}
-        {(completedCount > 0 || img2videoInProgressItems.length > 0) && (
+        {img2videoItems.some(
+          (item) => item.status === 'completed' || item.status === 'generating' || item.status === 'queued',
+        ) && (
           <div data-output-category="img2video" className="bg-surface-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <StepHeader stepNumber={6} title={`Final Outputs (${completedCount})`} />
               <DownloadToolbar
                 onDownloadAll={() => {
-                  img2videoItems
+                  const items = img2videoItems
                     .filter((item) => item.status === 'completed' && item.result?.localPath)
-                    .forEach((item) => {
-                      const a = document.createElement('a')
-                      a.href = assetUrl(item.result!.localPath)
-                      a.download = item.result!.localPath.split('/').pop() || 'video.mp4'
-                      a.click()
-                    })
+                    .map((item) => ({
+                      url: item.result!.localPath,
+                      filename: item.result!.localPath.split('/').pop() || 'video.mp4',
+                    }))
+                  void downloadAsZip(items, 'img2video_outputs.zip')
                 }}
                 onDownloadSelected={downloadSelected}
                 selectedCount={selectedVideos.size}
                 totalCount={completedCount}
               />
             </div>
-            {img2videoInProgressItems.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {img2videoInProgressItems.map((item) => {
-                  const ratio = item.settings?.aspectRatio || '9:16'
-                  const aspectClass = VIDEO_ASPECT_CLASS_BY_RATIO[ratio] || 'aspect-video'
-                  return (
-                    <div
-                      key={`loading-${item.id}`}
-                      className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-200`}
-                    >
-                      {item.imageUrl && (
-                        <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
-                      )}
-                      <div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"
-                        style={{ backgroundSize: '200% 100%' }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-brand" />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-3">
               {img2videoItems
-                .filter((item) => item.status === 'completed')
+                .filter(
+                  (item) => item.status === 'completed' || item.status === 'generating' || item.status === 'queued',
+                )
                 .map((item) => {
-                  const isSelected = selectedVideos.has(item.id)
                   const ratio = item.settings?.aspectRatio || '9:16'
                   const aspectClass = VIDEO_ASPECT_CLASS_BY_RATIO[ratio] || 'aspect-video'
+
+                  if (item.status !== 'completed') {
+                    return (
+                      <div
+                        key={`loading-${item.id}`}
+                        className={`relative ${aspectClass} rounded-lg overflow-hidden bg-surface-200`}
+                      >
+                        {item.imageUrl && (
+                          <img src={assetUrl(item.imageUrl)} className="w-full h-full object-cover opacity-30" alt="" />
+                        )}
+                        <div
+                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"
+                          style={{ backgroundSize: '200% 100%' }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const isSelected = selectedVideos.has(item.id)
                   return (
                     <button
                       type="button"
@@ -1319,16 +1315,15 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
     setSelectedVideos(newSet)
   }
 
-  const downloadSelected = () => {
-    for (const id of selectedVideos) {
-      const item = queueItems[id]
-      if (item?.result?.videoUrl) {
-        const a = document.createElement('a')
-        a.href = assetUrl(item.result.localPath)
-        a.download = item.result.localPath.split('/').pop() || 'video.mp4'
-        a.click()
-      }
-    }
+  const downloadSelected = async () => {
+    const items = [...selectedVideos]
+      .map((id) => queueItems[id])
+      .filter((item) => item?.result?.localPath)
+      .map((item) => ({
+        url: item.result!.localPath,
+        filename: item.result!.localPath.split('/').pop() || 'video.mp4',
+      }))
+    await downloadAsZip(items, 'start2end_outputs.zip')
     setSelectedVideos(new Set())
   }
 
@@ -1491,14 +1486,13 @@ function StartEndContent({ modeStep }: { modeStep: React.ReactNode }) {
               <StepHeader stepNumber={6} title={`Final Outputs (${completedItems.length})`} />
               <DownloadToolbar
                 onDownloadAll={() => {
-                  completedItems.forEach((item) => {
-                    if (item.result?.localPath) {
-                      const a = document.createElement('a')
-                      a.href = assetUrl(item.result.localPath)
-                      a.download = item.result.localPath.split('/').pop() || 'video.mp4'
-                      a.click()
-                    }
-                  })
+                  const items = completedItems
+                    .filter((item) => item.result?.localPath)
+                    .map((item) => ({
+                      url: item.result!.localPath,
+                      filename: item.result!.localPath.split('/').pop() || 'video.mp4',
+                    }))
+                  void downloadAsZip(items, 'start2end_outputs.zip')
                 }}
                 onDownloadSelected={downloadSelected}
                 selectedCount={selectedVideos.size}

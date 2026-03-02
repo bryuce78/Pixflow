@@ -66,6 +66,14 @@ function isCancellableCategory(category: OutputHistoryEntry['category']): boolea
   return CANCELLABLE_CATEGORIES.has(category)
 }
 
+function formatDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  if (totalSec < 60) return `${totalSec}s`
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${min}m ${sec}s`
+}
+
 function formatCategory(category: string): string {
   return category
     .replace(/_/g, ' ')
@@ -342,6 +350,16 @@ function JobRow({
     minute: '2-digit',
   })
 
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (entry.status !== 'running') return
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [entry.status])
+
+  const durationMs = entry.status === 'running' ? now - entry.startedAt : entry.updatedAt - entry.startedAt
+  const duration = durationMs > 0 ? formatDuration(durationMs) : null
+
   return (
     // biome-ignore lint/a11y/useSemanticElements: outer row contains inner interactive buttons; div avoids nested <button> invalid HTML
     <div
@@ -368,6 +386,12 @@ function JobRow({
                 <span className="truncate">{formatCategory(String(entry.category))}</span>
                 <span>·</span>
                 <span className={style.text}>{style.label}</span>
+                {duration && (
+                  <>
+                    <span>·</span>
+                    <span>{duration}</span>
+                  </>
+                )}
                 <span>·</span>
                 <span>{time}</span>
               </div>

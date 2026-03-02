@@ -1,6 +1,7 @@
 import { Check, Download, Film, Loader2, Sparkles, Upload, X } from 'lucide-react'
 import { type ClipboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiUrl, assetUrl, authFetch, getApiError, unwrapApiData } from '../../lib/api'
+import { downloadAsZip } from '../../lib/download'
 import { notify } from '../../lib/toast'
 import {
   createOutputHistoryId,
@@ -570,16 +571,11 @@ export default function LifetimePage() {
   const downloadableFrames = displayFrames.filter((f) => f.imageUrl)
 
   const handleDownloadAllFrames = async () => {
-    for (const frame of downloadableFrames) {
-      const url = assetUrl(frame.imageUrl)
-      const res = await fetch(url)
-      const blob = await res.blob()
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `lifetime_${frame.age === 0 ? 'baby' : `age_${frame.age}`}.jpg`
-      a.click()
-      URL.revokeObjectURL(a.href)
-    }
+    const items = downloadableFrames.map((frame) => ({
+      url: frame.imageUrl,
+      filename: `lifetime_${frame.age === 0 ? 'baby' : `age_${frame.age}`}.jpg`,
+    }))
+    await downloadAsZip(items, 'lifetime_frames.zip')
   }
 
   const showFinalVideoSection = completedTransitions.length > 0 || creatingVideos || assemblyStage !== 'idle'
